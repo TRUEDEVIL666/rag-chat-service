@@ -7,6 +7,8 @@ from app.services.indexer.embedding_service import EmbeddingService
 from app.services.indexer.vector_store import VectorRepository
 from app.services.supabase.metadata_repository import MetadataRepository
 from app.services.minio.minio_storage import MinioStorage
+from app.services.bot.bot_service import BotService
+from app.services.llm.llm_service import LLMService
 from app.services.supabase.kb_repository import KnowledgeBaseRepository
 
 logger = logging.getLogger("service_factory")
@@ -18,6 +20,7 @@ _vector_repo_instance: VectorRepository | None = None
 _minio_storage_instance: MinioStorage | None = None
 _metadata_repo_instance: MetadataRepository | None = None
 _kb_repo_instance: KnowledgeBaseRepository | None = None
+_bot_service_instance: BotService | None = None
 
 def get_embedding_service() -> EmbeddingService:
     global _embedding_service_instance
@@ -99,3 +102,12 @@ def get_file_processor_service() -> FileProcessor:
             meta_data_store=get_metadata_repository()
         )
     return _file_service_instance
+
+def get_bot_service() -> BotService:
+    global _bot_service_instance
+    if _bot_service_instance is None:
+        _bot_service_instance = BotService(
+            vector_repo=get_vector_store(),
+            llm_service=LLMService()
+        )
+    return _bot_service_instance
