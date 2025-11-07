@@ -78,39 +78,39 @@ class KnowledgeBaseRepository:
 		- include_all: chỉ hiệu lực khi is_owner=True
 		"""
 		try:
-						offset = (page - 1) * limit
-						start = offset
-						end = offset + limit - 1
-			
-						q = supabase.table(self.table_name).select("*", count="exact")
-			
-						if not (include_all and is_owner):
-							q = q.eq("tenant_id", tenant_id)
-			
-						if keyword:
-							q = q.ilike("name", f"%{keyword}%")
-			
-						if tag_ids:
-							ids_q = supabase.table("knowledge_base_tags").select("kb_id").eq("tag_id", tag_ids[0]).execute()
-							if not ids_q.data:
-								return [], 0
-							kb_ids = {row["kb_id"] for row in ids_q.data}
-			
-							for t in tag_ids[1:]:
-								t_q = supabase.table("knowledge_base_tags").select("kb_id").eq("tag_id", t).execute()
-								kb_ids &= {row["kb_id"] for row in (t_q.data or [])}
-								if not kb_ids:
-									return [], 0
-			
-							q = q.in_("id", list(kb_ids))
-			
-						q = q.order("updated_at", desc=True).order("created_at", desc=True)
-			
-						page_res = q.range(start, end).execute()
-			
-						rows = page_res.data or []
-						total = page_res.count or 0
-						return rows, total
+			offset = (page - 1) * limit
+			start = offset
+			end = offset + limit - 1
+
+			q = supabase.table(self.table_name).select("*", count="exact")
+
+			if not (include_all and is_owner):
+				q = q.eq("tenant_id", tenant_id)
+
+			if keyword:
+				q = q.ilike("name", f"%{keyword}%")
+
+			if tag_ids:
+				ids_q = supabase.table("knowledge_base_tags").select("kb_id").eq("tag_id", tag_ids[0]).execute()
+				if not ids_q.data:
+					return [], 0
+				kb_ids = {row["kb_id"] for row in ids_q.data}
+
+				for t in tag_ids[1:]:
+					t_q = supabase.table("knowledge_base_tags").select("kb_id").eq("tag_id", t).execute()
+					kb_ids &= {row["kb_id"] for row in (t_q.data or [])}
+					if not kb_ids:
+						return [], 0
+
+				q = q.in_("id", list(kb_ids))
+
+			q = q.order("updated_at", desc=True).order("created_at", desc=True)
+
+			page_res = q.range(start, end).execute()
+
+			rows = page_res.data or []
+			total = page_res.count or 0
+			return rows, total
 		except Exception as e:
 			logger.exception(f"[Supabase] Failed to list knowledge bases: {e}")
 			return [], 0

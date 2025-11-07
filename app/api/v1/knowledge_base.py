@@ -33,7 +33,6 @@ def _to_epoch(ts) -> int:
 	return 0
 
 
-
 @router.get(
 	"/knowledge_bases",
 	response_model=KnowledgeBaseListResponse,
@@ -97,6 +96,7 @@ def list_knowledge_bases(
 	except Exception as e:
 		logger.exception("Failed to fetch knowledge bases")
 		raise HTTPException(status_code=500, detail=f"Internal server error: {e}")
+
 
 @router.post(
 	"/knowledge_bases",

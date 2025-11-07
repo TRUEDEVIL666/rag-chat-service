@@ -1,7 +1,6 @@
 # app/services/supabase/supabase_client.py
-import os
-from supabase import create_client, Client
 from app.config.config import settings
+from supabase import create_client, Client
 
 if not settings.supabase_url or not settings.supabase_key:
     raise Exception("Supabase credentials not found in environment variables.")
