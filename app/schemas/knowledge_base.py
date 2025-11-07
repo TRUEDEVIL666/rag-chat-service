@@ -69,7 +69,7 @@ class RetrievalModelSchema(BaseModel):
     score_threshold: Optional[float] = None
     weights: Optional[float] = None
 
-class DatasetDetail(BaseModel):
+class KnowledgeBaseDetail(BaseModel):
     id: str
     name: str
     description: Optional[str] = None
@@ -104,7 +104,7 @@ class UpdateRetrievalModel(BaseModel):
     score_threshold: Optional[float] = None
     weights: Optional[float] = None
 
-class UpdateDatasetRequest(BaseModel):
+class UpdateKnowledgeBaseRequest(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     indexing_technique: Optional[str] = None   

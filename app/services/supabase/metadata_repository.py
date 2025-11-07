@@ -53,8 +53,9 @@ class MetadataRepository:
         Extract metadata fields from a Document for Supabase insertion.
         """
         meta = doc.metadata or {}
+        backlash = '\n'
         kb_id = meta.get("kb_id")
-        logger.info(f"DEBUG: chunk_text trước khi gửi Supabase: {doc.text[:100].replace('\n', ' ')} (kiểm tra 100 ký tự đầu)") 
+        logger.info(f"DEBUG: chunk_text trước khi gửi Supabase: {doc.text[:100].replace(backlash, ' ')} (kiểm tra 100 ký tự đầu)")
         return {
             "chunk_text": doc.text,
             "chunk_size": len(doc.text),

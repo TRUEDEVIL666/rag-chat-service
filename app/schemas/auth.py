@@ -1,8 +1,10 @@
 from pydantic import BaseModel, EmailStr
+from uuid import UUID
+
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
-    tenant_id: str
+    tenant_id: UUID
 
 
 class LoginRequest(BaseModel):
