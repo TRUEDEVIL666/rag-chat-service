@@ -1,0 +1,108 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --background: oklch(98% 0.01 260); /* Very light gray/blue */
+  --foreground: oklch(20% 0.01 260); /* Dark gray for text */
+  --card: oklch(100% 0 0); /* White */
+  --card-foreground: oklch(20% 0.01 260); /* Dark gray for card text */
+  --popover: oklch(100% 0 0); /* White */
+  --popover-foreground: oklch(20% 0.01 260); /* Dark gray for popover text */
+  --primary: oklch(55% 0.2 260); /* Vibrant neon blue */
+  --primary-foreground: oklch(98% 0 0); /* White */
+  --secondary: oklch(80% 0.05 260); /* Softer muted blue */
+  --secondary-foreground: oklch(25% 0.01 260); /* Dark gray */
+  --muted: oklch(95% 0.01 260); /* Very light gray */
+  --muted-foreground: oklch(60% 0.01 260); /* Medium gray */
+  --accent: oklch(65% 0.25 320); /* Bright electric purple */
+  --accent-foreground: oklch(98% 0 0); /* White */
+  --destructive: oklch(60% 0.15 20); /* Standard red */
+  --destructive-foreground: oklch(98% 0 0); /* White */
+  --border: oklch(90% 0.01 260); /* Subtle light gray */
+  --input: oklch(95% 0.01 260); /* Slightly darker light gray */
+  --ring: oklch(55% 0.2 260); /* Vibrant neon blue */
+  --radius: 0.625rem;
+}
+
+.dark {
+  --background: oklch(8% 0.03 260); /* Very dark, almost black blue */
+  --foreground: oklch(90% 0.01 260); /* Light gray for text */
+  --card: oklch(12% 0.01 260); /* Dark gray */
+  --card-foreground: oklch(90% 0.01 260); /* Light gray */
+  --popover: oklch(12% 0.01 260); /* Dark gray */
+  --popover-foreground: oklch(90% 0.01 260); /* Light gray */
+  --primary: oklch(65% 0.2 260); /* Vibrant neon blue */
+  --primary-foreground: oklch(10% 0 0); /* Black */
+  --secondary: oklch(20% 0.05 260); /* Darker muted blue */
+  --secondary-foreground: oklch(85% 0.01 260); /* Light gray */
+  --muted: oklch(15% 0.01 260); /* Dark gray */
+  --muted-foreground: oklch(70% 0.01 260); /* Medium light gray */
+  --accent: oklch(65% 0.25 320); /* Bright electric purple */
+  --accent-foreground: oklch(98% 0 0); /* White */
+  --destructive: oklch(60% 0.15 20); /* Standard red */
+  --destructive-foreground: oklch(98% 0 0); /* White */
+  --border: oklch(18% 0.01 260); /* Subtle dark gray */
+  --input: oklch(12% 0.01 260); /* Slightly lighter dark gray */
+  --ring: oklch(65% 0.2 260); /* Vibrant neon blue */
+}
+
+@theme inline {
+  --font-sans: 'Geist', 'Geist Fallback';
+  --font-mono: 'Geist Mono', 'Geist Mono Fallback';
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    background-image: linear-gradient(
+      to right,
+      oklch(var(--background) / 0.05) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      oklch(var(--background) / 0.05) 1px,
+      transparent 1px
+    );
+    background-size: 20px 20px;
+  }
+}
+
+@layer utilities {
+  .shadow-neon-glow {
+    box-shadow: 0 0 15px 5px var(--accent);
+  }
+}

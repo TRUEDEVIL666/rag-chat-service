@@ -1,25 +1,52 @@
-# Python bytecode
+# Bytecode
 __pycache__/
 *.py[cod]
 *$py.class
 
 # Virtual environment
-venv/
-.env
-.env.*
+.venv/
 
-# Logs and local data
+# Logs and caches
 logs/
 *.log
-
-# VSCode settings
-.vscode/
-
-# Pytest cache
 .pytest_cache/
 .cache/
 
-# Jupyter Notebook checkpoints
+# IDE and notebooks
+.vscode/
+.idea/
 .ipynb_checkpoints/
-/.idea/
-/.gemini/
+.gemini/
+
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Testing
+coverage/
+test-results/
+playwright-report/
+blob-report/
+playwright/
+
+# Build
+.next/
+out/
+build/
+.turbo/
+**/advanced_rag.egg-info/
+**/minio_data/
+**/qdrant_data/
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Environment files
+.env
+.env*
+.env.*
+.vercel
