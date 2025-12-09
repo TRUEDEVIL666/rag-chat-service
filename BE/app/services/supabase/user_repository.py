@@ -34,7 +34,7 @@ class UserRepository:
 
 	def delete_user(self, user_id: str) -> None:
 		try:
-			supabase.postgrest.from_(self.table_name).delete().eq("id", user_id)
+			supabase.table(self.table_name).delete().eq("id", user_id).execute()
 		except Exception as e:
 			logger.exception(f"Failed to delete user {user_id}")
 			raise RuntimeError(f"Failed to delete user {user_id}")

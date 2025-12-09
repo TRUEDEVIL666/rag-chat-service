@@ -50,3 +50,15 @@ yarn-error.log*
 .env*
 .env.*
 .vercel
+.aider*
+
+# Frontend
+FE/.next/
+FE/node_modules/
+FE/.env
+FE/build/
+FE/dist/
+FE/.github/
+FE/.gitignore
+
+.history/

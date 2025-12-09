@@ -1,0 +1,21 @@
+meta {
+  name: Create Session
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/sessions
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "bot_id": "8825ff2f-fa1e-4169-a22c-0a29db533471"
+  }
+}

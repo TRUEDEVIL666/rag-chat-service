@@ -8,9 +8,9 @@ start cmd /k "uvicorn main:app --reload --host 0.0.0.0 --port 8000"
 echo Starting Celery worker...
 start cmd /k "celery -A app.config.celery worker --loglevel=info -P solo"
 
-cd ..
-echo Starting Frontend application...
-cd FE
-start cmd /k "pnpm dev"
+@REM cd ..
+@REM echo Starting Frontend application...
+@REM cd FE
+@REM start cmd /k "pnpm dev"
 
 echo All services are starting in separate windows.

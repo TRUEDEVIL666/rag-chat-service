@@ -46,7 +46,9 @@ async def update_bot_config(
 
 
 @router.get("/bots", response_model=List[BotResponse], summary="List all bots of current tenant")
-async def list_bots(auth=Depends(get_current_user)):
+async def list_bots(
+		auth=Depends(get_current_user)
+):
 	tenant_id = auth["tenant_id"]
 	try:
 		bots = BotService.list_bots(tenant_id)
@@ -93,7 +95,7 @@ async def ask_bot(
 				async for chunk in bot_service.ask_bot_stream(
 						bot_id=bot_id,
 						query=request.message,
-						tenant_id=tenant_id
+						tenant_id=tenant_id,
 				):
 					if chunk:
 						yield f"data: {json.dumps({'response': chunk}, ensure_ascii=False)}\n\n"

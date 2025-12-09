@@ -1,0 +1,26 @@
+meta {
+  name: Ask Bot
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/bots/{{bot_id}}/ask
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "message": "Hello, who are you?",
+    "streaming": false
+  }
+}
+
+vars:pre-request {
+  bot_id: 
+}

@@ -1,0 +1,23 @@
+meta {
+  name: Update Knowledge Base
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{baseUrl}}/knowledge_bases/{{knowledge_base_id}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+query {
+  name: Updated Name
+}
+
+vars:pre-request {
+  knowledge_base_id: 
+}

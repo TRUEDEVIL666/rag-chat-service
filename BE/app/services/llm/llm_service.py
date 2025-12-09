@@ -19,8 +19,8 @@ class LLMService:
 
 		return self._ollama_chat(prompt, model, temperature)
 
-	async def stream_chat(self, prompt: str, model: str = "gpt-4", temperature: float = 0.7):
-		if model.startswith("gpt"):
+	async def stream_chat(self, prompt: str, provider: str = "openai", model: str = "gpt-4", temperature: float = 0.7):
+		if provider.lower() == "openai":
 			async for chunk in self._stream_openai_chat(prompt, model, temperature):
 				yield chunk
 		else:
@@ -38,7 +38,6 @@ class LLMService:
 		return content.strip() if content is not None else ""
 
 	def _ollama_chat(self, prompt: str, model: str, temperature: float) -> str:
-		# TODO: Make sure to update the correct url
 		url_ollama = settings.ollama_url
 		payload = {
 			"model": model,

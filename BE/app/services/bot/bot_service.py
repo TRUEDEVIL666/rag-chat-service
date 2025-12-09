@@ -6,212 +6,198 @@ from app.services.llm.llm_service import LLMService
 from app.services.supabase.supabase_client import supabase
 from app.services.indexer.vector_store import VectorRepository
 from app.schemas.bot import BotCreateRequest, BotUpdateConfigRequest
+from app.services.supabase.bot_repository import BotRepository
+# from app.config import Settings
+import httpx
+from cachetools import TTLCache, cached
+
+# Cache for 1 hour (3600 seconds), max 100 items
+bot_cache = TTLCache(maxsize=100, ttl=3600)
 
 
 class BotService:
-	def __init__(self, vector_repo: VectorRepository, llm_service: LLMService):
-		self.vector_repo = vector_repo
-		self.llm_service = llm_service
+  def __init__(self, vector_repo: VectorRepository, llm_service: LLMService):
+    self.vector_repo = vector_repo
+    self.llm_service = llm_service
+    self.bot_repo = BotRepository()
 
-	@staticmethod
-	def create_bot(data: BotCreateRequest, tenant_id: str, user_id: str):
-		bot_id = str(uuid4())
-		now = datetime.utcnow().isoformat()
+  @staticmethod
+  def create_bot(data: BotCreateRequest, tenant_id: str, user_id: str):
+    repo = BotRepository()
+    return repo.create_bot(data, tenant_id, user_id)
 
-		insert_data = {
-			"id": bot_id,
-			"tenant_id": tenant_id,
-			"name": data.name,
-			"description": data.description,
-			"config_prompt": None,
-			"config_model": None,
-			"kb_ids": None,
-			"created_at": now,
-		}
+  @staticmethod
+  def update_config(bot_id: str, tenant_id: str, request: BotUpdateConfigRequest):
+    repo = BotRepository()
+    return repo.update_config(bot_id, tenant_id, request)
 
-		result = supabase.table("bots").insert(insert_data).execute()
-		if result.data:
-			return result.data[0]
-		else:
-			raise Exception("Failed to insert bot")
+  @staticmethod
+  def list_bots(tenant_id: str):
+    repo = BotRepository()
+    return repo.list_bots(tenant_id)
 
-	@staticmethod
-	def update_config(bot_id: str, tenant_id: str, request: BotUpdateConfigRequest):
-		existing = (
-			supabase.table("bots")
-			.select("*")
-			.eq("id", bot_id)
-			.eq("tenant_id", tenant_id)
-			.single()
-			.execute()
-		)
-		if not existing.data:
-			raise ValueError("Bot not found or not owned by tenant")
+  @staticmethod
+  @cached(cache=bot_cache)
+  def get_bot(bot_id: str, tenant_id: str):
+    repo = BotRepository()
+    return repo.get_bot(bot_id, tenant_id)
 
-		update_data = {}
-		if request.config_prompt is not None:
-			update_data["config_prompt"] = request.config_prompt
-		if request.config_model is not None:
-			update_data["config_model"] = request.config_model.dict()
-		if request.kb_ids is not None:
-			update_data["kb_ids"] = request.kb_ids
+  @staticmethod
+  def delete_bot(bot_id: str, tenant_id: str):
+    repo = BotRepository()
+    return repo.delete_bot(bot_id, tenant_id)
 
-		updated = (
-			supabase.table("bots")
-			.update(update_data)
-			.eq("id", bot_id)
-			.execute()
-		)
-		if updated.data:
-			return updated.data[0]
-		else:
-			raise ValueError("Failed to update bot")
+  async def ask_bot(self, bot_id: str, query: str, tenant_id: str) -> str:
+    bot = self.get_bot(bot_id, tenant_id)
+    if not bot:
+      raise ValueError(f"Bot {bot_id} not found")
 
-	@staticmethod
-	def list_bots(tenant_id: str):
-		result = (
-			supabase.table("bots")
-			.select("*")
-			.eq("tenant_id", tenant_id)
-			.order("created_at", desc=True)
-			.execute()
-		)
-		return result.data or []
+    kb_ids = bot.get("kb_ids")
+    if not kb_ids:
+      return "Bot is not configured with any knowledge bases."
 
-	@staticmethod
-	def get_bot(bot_id: str, tenant_id: str):
-		print(f"Fetching bot {bot_id} for tenant {tenant_id}")
-		result = (
-			supabase.table("bots")
-			.select("*")
-			.eq("id", bot_id)
-			.eq("tenant_id", tenant_id)
-			.single()
-			.execute()
-		)
-		print(f"Bot fetch result: {result.data}")
-		return result.data
+    config_model = bot.get("config_model")
+    if not config_model:
+      # Provide default model and temperature if not configured
+      model = "gpt-3.5-turbo"
+      temperature = 0.7
+    else:
+      model = config_model.get("model", "gpt-3.5-turbo")
+      temperature = config_model.get("temperature", 0.7)
 
-	@staticmethod
-	def delete_bot(bot_id: str, tenant_id: str):
-		result = (
-			supabase.table("bots")
-			.delete()
-			.eq("id", bot_id)
-			.eq("tenant_id", tenant_id)
-			.execute()
-		)
-		return result.data
+    results = self.vector_repo.search(
+        query=query,
+        k=5,
+        kb_ids=kb_ids,
+        score_threshold=0.1,
+    )
 
-	async def ask_bot(self, bot_id: str, query: str, tenant_id: str) -> str:
-		bot = self.get_bot(bot_id, tenant_id)
-		if not bot:
-			raise ValueError(f"Bot {bot_id} not found")
+    if not results:
+      return "Xin lỗi, tôi không tìm thấy câu trả lời phù hợp."
 
-		kb_ids = bot.get("kb_ids")
-		if not kb_ids:
-			return "Bot is not configured with any knowledge bases."
+    context = "\n".join([r["text"] for r in results])
 
-		config_model = bot.get("config_model")
-		if not config_model:
-			# Provide default model and temperature if not configured
-			model = "gpt-3.5-turbo"
-			temperature = 0.7
-		else:
-			model = config_model.get("model", "gpt-3.5-turbo")
-			temperature = config_model.get("temperature", 0.7)
+    result = self._call_llm(
+        query=query,
+        context=context,
+        model=model,
+        temperature=temperature
+    )
 
-		results = self.vector_repo.search(
-			query=query,
-			k=5,
-			kb_ids=kb_ids,
-			score_threshold=0.1,
-		)
+    return result
 
-		if not results:
-			return "Xin lỗi, tôi không tìm thấy câu trả lời phù hợp."
+  async def ask_bot_stream(self, bot_id: str, query: str, tenant_id: str) -> AsyncGenerator[str, None]:
+    bot = self.get_bot(bot_id, tenant_id)
+    if not bot:
+      raise ValueError(f"Bot {bot_id} not found")
 
-		context = "\n".join([r["text"] for r in results])
+    kb_ids = bot.get("kb_ids")
+    if not kb_ids:
+      yield "Bot is not configured with any knowledge bases."
+      return
 
-		result = self._call_llm(
-			query=query,
-			context=context,
-			model=model,
-			temperature=temperature
-		)
+    config_model = bot.get("config_model")
+    if not config_model:
+      # Provide default model and temperature if not configured
+      model = "gpt-3.5-turbo"
+      temperature = 0.7
+    else:
+      model = config_model.get("model", "gpt-3.5-turbo")
+      temperature = config_model.get("temperature", 0.7)
 
-		return result
+    results = self.vector_repo.search(
+        query=query,
+        k=5,
+        kb_ids=kb_ids,
+        score_threshold=0.1,
+    )
 
-	async def ask_bot_stream(self, bot_id: str, query: str, tenant_id: str) -> AsyncGenerator[str, None]:
-		bot = self.get_bot(bot_id, tenant_id)
-		if not bot:
-			raise ValueError(f"Bot {bot_id} not found")
+    if not results:
+      yield "Xin lỗi, tôi không tìm thấy câu trả lời phù hợp."
+      return
 
-		kb_ids = bot.get("kb_ids")
-		if not kb_ids:
-			yield "Bot is not configured with any knowledge bases."
-			return
+    context = "\n".join([r["text"] for r in results])
 
-		config_model = bot.get("config_model")
-		if not config_model:
-			# Provide default model and temperature if not configured
-			model = "gpt-3.5-turbo"
-			temperature = 0.7
-		else:
-			model = config_model.get("model", "gpt-3.5-turbo")
-			temperature = config_model.get("temperature", 0.7)
+    async for chunk in self._call_llm_stream(
+        query=query,
+        context=context,
+        model=model,
+        temperature=temperature
+    ):
+      yield chunk
 
-		results = self.vector_repo.search(
-			query=query,
-			k=5,
-			kb_ids=kb_ids,
-			score_threshold=0.1,
-		)
+  def _call_llm(self, query: str, context: str, model: str, temperature: float):
+    prompt = f"""
+      Dựa trên thông tin sau, hãy trả lời câu hỏi một cách chính xác và rõ ràng.
+      ===
+      {context}
+      ===
+      Câu hỏi: {query}
+    """
+    # url = Settings.openai_url
+    # match provider.lower():
+    #   case 'openai':
+    #     url = Settings.openai_url
+    #   case 'gemini':
+    #     url = Settings.gemini_url
 
-		if not results:
-			yield "Xin lỗi, tôi không tìm thấy câu trả lời phù hợp."
-			return
+    # client = httpx.AsyncClient()
+    # headers = {
+    #     "Authorization": f"Bearer {API_KEY}",
+    #     "Content-Type": "application/json"
+    # }
 
-		context = "\n".join([r["text"] for r in results])
+    # 3. Define the Payload (Body)
+    # payload = {
+    #     "model": "gpt-4o",  # or "gpt-3.5-turbo"
+    #     "messages": [
+    #         {"role": "system", "content": "You are a helpful coding assistant."},
+    #         {"role": "user", "content": prompt}
+    #     ],
+    #     "temperature": 0.7
+    # }
 
-		async for chunk in self._call_llm_stream(
-				query=query,
-				context=context,
-				model=model,
-				temperature=temperature
-		):
-			yield chunk
+    # 4. Make the Request
+    # async with httpx.AsyncClient() as client:
+    #     try:
+    #         # Set a timeout (OpenAI can sometimes take >5s to reply)
+    #         response = await client.post(
+    #             url,
+    #             headers=headers,
+    #             json=payload,
+    #             timeout=30.0
+    #         )
+    #         response.raise_for_status() # Raises error for 4xx/5xx responses
 
-	def _call_llm(self, query: str, context: str, model: str, temperature: float):
-		prompt = f"""
-        Dựa trên thông tin sau, hãy trả lời câu hỏi một cách chính xác và rõ ràng.
-        ===
-        {context}
-        ===
-        Câu hỏi: {query}
-        """
+    #         data = response.json()
+    #         return data["choices"][0]["message"]["content"]
 
-		result = self.llm_service.chat(
-			prompt=prompt,
-			model=model,
-			temperature=temperature,
-			streaming=False
-		)
+    #     except httpx.HTTPStatusError as e:
+    #         print(f"Error response {e.response.status_code}: {e.response.text}")
+    #     except httpx.RequestError as e:
+    #         print(f"An error occurred while requesting: {e}")
 
-		return result
+    result = self.llm_service.chat(
+        prompt=prompt,
+        model=model,
+        temperature=temperature,
+        streaming=False
+    )
 
-	async def _call_llm_stream(self, query: str, context: str, model: str, temperature: float) -> AsyncGenerator[
-		str, None]:
-		prompt = f"""
-        Dựa trên thông tin sau, hãy trả lời câu hỏi một cách chính xác và rõ ràng.
-        ===
-        {context}
-        ===
-        Câu hỏi: {query}
-        """
-		async for chunk in self.llm_service.stream_chat(
-				prompt=prompt,
-				model=model,
-				temperature=temperature
-		):
-			yield chunk
+    return result
+
+  async def _call_llm_stream(self, query: str, context: str, model: str, temperature: float) -> AsyncGenerator[
+          str, None]:
+    prompt = f"""
+    Dựa trên thông tin sau, hãy trả lời câu hỏi một cách chính xác và rõ ràng.
+    ===
+    {context}
+    ===
+    Câu hỏi: {query}
+    """
+    async for chunk in self.llm_service.stream_chat(
+        prompt=prompt,
+        model=model,
+        temperature=temperature
+    ):
+      yield chunk

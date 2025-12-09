@@ -113,7 +113,9 @@ class KnowledgeBaseRepository:
 
 			# rows = page_res.data or []
 			# total = page_res.count or 0
-			return q
+			if q.data:
+				return q.data, len(q.data)
+			return [], 0
 		except Exception as e:
 			logger.exception(f"[Supabase] Failed to list knowledge bases: {e}")
 			return [], 0

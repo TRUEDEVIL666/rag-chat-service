@@ -15,7 +15,7 @@ from app.services.indexer.vector_store import VectorRepository
 from app.services.minio.minio_storage import MinioStorage
 
 from app.helper.document_extractor import extract_documents
-from app.helper.chunker import semantic_chunk_documents, _detect_or_create_document_id
+from app.helper.chunker import process_chunks, _detect_or_create_document_id
 
 logger = get_logger("File Processor Log")
 
@@ -55,14 +55,19 @@ class FileProcessor:
 			{".docx": "file", ".csv": "file", ".json": "input_file"}
 		)
 
-	def process_file(self, file_bytes: bytes, file_name: str, kb_id: int):
+	def process_file(self, file_bytes: bytes, file_name: str, kb_id: str):
 		document_id = self._detect_or_create_document_id(file_name)
 		file_path = self._upload_original_file(file_bytes, file_name)
 		documents = extract_documents(
 			file_bytes, file_name, self.readers, self.reader_arg_map
 		)
-		chunks = semantic_chunk_documents(documents, file_name)
-		wrapped_chunks = self._wrap_chunks(chunks, document_id, file_path, str(kb_id))
+		chunks = process_chunks(
+			documents=documents,
+      # TODO: ADD SPECIFIC CHUNKING METHOD HERE
+			chunking_method="semantic",
+			filename=file_name,
+		)
+		wrapped_chunks = self._wrap_chunks(chunks, document_id, file_path, kb_id)
 
 		self.meta_data_store.store(wrapped_chunks)
 		self._insert_to_qdrant(wrapped_chunks)

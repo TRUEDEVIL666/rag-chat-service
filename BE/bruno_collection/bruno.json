@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "RAG Chat Service",
+  "type": "collection",
+  "ignore": [
+    ".git",
+    "node_modules"
+  ]
+}

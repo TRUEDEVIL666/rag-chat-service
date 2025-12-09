@@ -1,0 +1,29 @@
+meta {
+  name: Login
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/login
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "email": "canhphong6868@gmail.com",
+    "password": "123456"
+  }
+}
+
+script:post-response {
+  if (res.body.token) {
+    bru.setEnvVar("token", res.body.token);
+    bru.setVar("token", res.body.token);
+  }
+  if (res.body.user && res.body.user.id) {
+    bru.setEnvVar("userId", res.body.user.id);
+    bru.setVar("userId", res.body.user.id);
+  }
+}

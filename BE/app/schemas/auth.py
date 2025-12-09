@@ -17,14 +17,14 @@ class LoginRequest(BaseModel):
 from datetime import datetime
 
 class User(BaseModel):
-    id: UUID
-    email: EmailStr
-    role: str
-    created_at: datetime
-    updated_at: datetime | None = None
+  id: UUID
+  email: EmailStr
+  role: str
+  created_at: datetime
+  updated_at: datetime | None = None
 
-    class Config:
-        from_attributes = True
+  class Config:
+    from_attributes = True
 
 class AuthenticationRequest(BaseModel):
-	token: str
+  token: str

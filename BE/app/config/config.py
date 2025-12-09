@@ -23,6 +23,15 @@ class Settings(BaseSettings):
 	minio_access_key: str
 	minio_secret_key: str
 
+	buffer_size: int
+	threshold_percentage: int
+
+	openai_url: str
+	openai_api_key: str
+
+	gemini_url: str
+	gemini_api_key: str
+
 	class Config:
 		env_file = ".env"
 

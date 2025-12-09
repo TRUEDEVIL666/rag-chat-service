@@ -1,0 +1,19 @@
+meta {
+  name: Get Task Status
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/task-status/{{task_id}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+vars:pre-request {
+  task_id: 
+}
