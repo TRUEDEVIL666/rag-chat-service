@@ -15,9 +15,18 @@ auth:bearer {
 }
 
 query {
-  knowledge_base_id: 
 }
 
 body:multipart-form {
-  file: @file()
+  files: @file()
+  knowledge_base_id: 36bc7fc0-d495-47b2-b470-3b8345c1a1f1
+}
+
+script:post-response {
+  if (res.status === 200) {
+    const body = res.getBody();
+    if (body.results && body.results.length > 0) {
+      bru.setVar("task_id", body.results[0].task_id);
+    }
+  }
 }

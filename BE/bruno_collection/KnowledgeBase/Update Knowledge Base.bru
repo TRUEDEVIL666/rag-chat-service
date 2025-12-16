@@ -14,8 +14,16 @@ auth:bearer {
   token: {{token}}
 }
 
-query {
-  name: Updated Name
+body:json {
+  {
+    "name": "Updated Name",
+    "retrieval_model": {
+      "reranking_enable": true,
+      "reranking_mode": {
+        "reranking_model": "huggingface/cross-encoder/ms-marco-MiniLM-L-6-v2"
+      }
+    }
+  }
 }
 
 vars:pre-request {

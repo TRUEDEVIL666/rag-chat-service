@@ -1,11 +1,11 @@
 meta {
-  name: Ask Bot
+  name: Ask Bot (Session)
   type: http
-  seq: 6
+  seq: 7
 }
 
 post {
-  url: {{baseUrl}}/bots/{{bot_id}}/ask
+  url: {{baseUrl}}/bots/{{bot_id}}/ask/{{session_id}}
   body: json
   auth: bearer
 }
@@ -16,7 +16,7 @@ auth:bearer {
 
 body:json {
   {
-    "message": "Hello, who are you?",
+    "message": "Hello again!",
     "streaming": false
   }
 }

@@ -13,3 +13,9 @@ get {
 auth:bearer {
   token: {{token}}
 }
+
+script:post-response {
+  if (res.body && res.body.length > 0) {
+    bru.setVar("bot_id", res.body[0].id);
+  }
+}

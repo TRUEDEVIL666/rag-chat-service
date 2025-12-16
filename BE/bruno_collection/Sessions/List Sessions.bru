@@ -1,0 +1,24 @@
+meta {
+  name: List Sessions
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/sessions
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+script:post-response {
+  const body = res.getBody();
+  if (Array.isArray(body) && body.length > 0) {
+      const latestSession = body[0];
+      bru.setEnvVar("session_id", latestSession.id);
+      bru.setEnvVar("bot_id", latestSession.bot_id);
+  }
+}
