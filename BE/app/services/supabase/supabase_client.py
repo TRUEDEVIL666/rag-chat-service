@@ -2,7 +2,7 @@
 from app.config.config import settings
 from supabase import create_client, Client
 
-if not settings.supabase_url or not settings.supabase_key:
-    raise Exception("Supabase credentials not found in environment variables.")
+if not settings.SUPABASE_URL or not settings.SUPABASE_KEY:
+  raise Exception("Supabase credentials not found in environment variables.")
 
-supabase: Client = create_client(settings.supabase_url, settings.supabase_key)
+supabase: Client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
