@@ -12,20 +12,17 @@ class KnowledgeBaseItem(BaseModel):
   id: UUID
   name: str
   description: Optional[str] = None
-  # provider: Optional[str] = None
-  # permission: Optional[str] = None
-  # data_source_type: Optional[str] = None
-  # indexing_technique: Optional[str] = None
-  # app_count: int = 0
-  # document_count: int = 0
-  # word_count: int = 0
-  # created_by: Optional[str] = None
-  created_at: int
-  # updated_by: Optional[str] = None
-  updated_at: int
+  permission: Optional[str] = None
+  indexing_technique: Optional[str] = None
+  app_count: int = 0
+  document_count: int = 0
+  word_count: int = 0
+  created_by: Optional[str] = None
+  created_at: str
+  updated_by: Optional[str] = None
+  updated_at: str
   embedding_model: Optional[str] = None
-  # embedding_model_provider: Optional[str] = None
-  # embedding_available: Optional[bool] = None
+  retrieval_model: Optional[Dict[str, Any]] = None
 
 
 class KnowledgeBaseListResponse(BaseModel):
@@ -49,24 +46,22 @@ class RetrievalModel(BaseModel):
 class KnowledgeBaseInput(BaseModel):
   name: str
   description: str
-  # indexing_technique: str
-  # permission: str
-  # embedding_model_provider: Optional[str] = None
+  indexing_technique: Optional[str] = None
+  permission: Optional[str] = None
   embedding_model: Optional[str] = None
-  # retrieval_model: RetrievalModel
-  # partial_member_list: Optional[List[str]] = None
+  retrieval_model: Optional[RetrievalModel] = None
+  partial_member_list: Optional[List[str]] = None
 
 
 class KnowledgeBaseResponse(BaseModel):
   id: UUID
   name: str
   description: Optional[str] = None
-  # retrieval_model: RetrievalModel
+  retrieval_model: Optional[RetrievalModel] = None
 
 
 class RetrievalModeSchema(BaseModel):
-  reranking_provider_name: Optional[str] = None
-  reranking_model_name: Optional[str] = None
+  reranking_model: Optional[str] = None
 
 
 class RetrievalModelSchema(BaseModel):
@@ -83,28 +78,23 @@ class KnowledgeBaseDetail(BaseModel):
   id: UUID
   name: str
   description: Optional[str] = None
-  provider: Optional[str] = None
   permission: Optional[str] = None
-  data_source_type: Optional[str] = None
   indexing_technique: Optional[str] = None
   app_count: int
   document_count: int
   word_count: int
   created_by: Optional[str] = None
-  created_at: int
+  created_at: str
   updated_by: Optional[str] = None
-  updated_at: int
+  updated_at: str
   embedding_model: Optional[str] = None
-  embedding_model_provider: Optional[str] = None
-  embedding_available: Optional[bool] = None
-  retrieval_model_dict: RetrievalModelSchema
+  retrieval_model: Optional[RetrievalModelSchema] = None
   tags: List[Dict[str, Any]]
   doc_form: Optional[str] = None
 
 
 class UpdateRerankingMode(BaseModel):
-  reranking_provider_name: Optional[str] = None
-  reranking_model_name: Optional[str] = None
+  reranking_model: Optional[str] = None
 
 
 class UpdateRetrievalModel(BaseModel):

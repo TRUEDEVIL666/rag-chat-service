@@ -22,10 +22,18 @@ class BotResponse(BaseModel):
 
 
 class ModelConfig(BaseModel):
-  model: Literal["gpt-3.5-turbo", "gpt-4", "llama3", "phi4:latest", "gpt-oss:20b"] = Field(...,
-                                                                                           description="Name")  # đoạn này m để option cũng được, nhưng m nên để bắt buộc chọn 1 trong các model đã đăng ký (user mà truyền sai thì sao chạy đc)
-  temperature: float = Field(..., ge=0, le=1,
-                             description="Temperature")  # đoạn này cũng nên bắt buộc chọn, có thể để default là 0.7, ge le là limit của temp á, 0 -> 1
+  # Provider is now part of the model string (e.g., "ollama/gemma3:4b")
+  model: Literal[
+    # "gpt-3.5-turbo",
+    # "gpt-4",
+    "ollama/llama3",
+    "ollama/phi3:mini",
+    "ollama/phi4:latest",
+    "ollama/gpt-oss:20b",
+    "ollama/gemma3:4b"
+  ] = Field(..., description="Model Name (e.g., provider/model)")
+
+  temperature: float = Field(..., ge=0, le=1, description="Temperature")
 
 
 class BotUpdateConfigRequest(BaseModel):
@@ -37,11 +45,11 @@ class BotUpdateConfigRequest(BaseModel):
 class BotAskRequest(BaseModel):
   message: str
   streaming: bool = False
-  # history: Optional[List[Tuple[str, str]]] = None
 
 
 class BotAskResponse(BaseModel):
   answer: str
+  session_id: Optional[str] = None
   context: Optional[str] = None
 
 

@@ -10,7 +10,7 @@ class RegisterRequest(BaseModel):
 
 
 class LoginRequest(BaseModel):
-	email: EmailStr = Field(default="canhphong6868@gmail.com", description="User's email address")
+	email: EmailStr = Field(default="admin@gmail.com", description="User's email address")
 	password: str = Field(default="123456", description="User's password")
 
 

@@ -61,16 +61,17 @@ class AuthService:
         payload = {
             "sub": user_id,
             "aud": "authenticated",
-            "role": jwt_role, 
-            "exp": datetime.utcnow() + timedelta(days=1), # 1 day expiration
+            "role": jwt_role,
+            "exp": datetime.utcnow() + timedelta(days=1),  # 1 day expiration
             "app_metadata": {
                 "provider": "email",
                 "tenant_id": tenant_id,
                 "role": role
             },
         }
-        
-        custom_token = jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
+
+        custom_token = jwt.encode(
+          payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
         return {
           "token": custom_token,
