@@ -1,0 +1,55 @@
+COMPARISON: SENTENCE CHUNKING (OVERLAP) vs SLIDING WINDOW
+=========================================================
+
+INPUT TEXT: "Fact 1: The sun is hot. Fact 2: The sky is blue. Fact 3: Grass is green. Fact 4: Water is wet. Fact 5: Fire is bright."
+
+METHOD 1: Sentence Chunking (with Overlap)
+------------------------------------------
+Configuration: Chunk Size ~2 sentences, Overlap ~1 sentence
+Logic: The text is sliced into overlapping blocks.
+CRITICAL: The Embedding AND the Retrieval are the SAME text.
+
+[Chunk 1]
+  WHAT IS EMBEDDED: "Fact 1: The sun is hot. Fact 2: The sky is blue. Fact 3: Grass is green. Fact 4: Water is wet."
+  WHAT IS RETRIEVED: "Fact 1: The sun is hot. Fact 2: The sky is blue. Fact 3: Grass is green. Fact 4: Water is wet."
+  (Note: Concepts are mixed. 'Sun' and 'Sky' are in the same vector.)
+
+[Chunk 2]
+  WHAT IS EMBEDDED: "Fact 3: Grass is green. Fact 4: Water is wet. Fact 5: Fire is bright."
+  WHAT IS RETRIEVED: "Fact 3: Grass is green. Fact 4: Water is wet. Fact 5: Fire is bright."
+  (Note: Concepts are mixed. 'Sun' and 'Sky' are in the same vector.)
+
+
+============================================================
+
+METHOD 2: Sliding Window Chunking
+---------------------------------
+Configuration: Window Size = 1 (1 before, 1 after)
+Logic: Each sentence is its own node, but carries neighbors as metadata.
+CRITICAL: The Embedding is TINY (precise). The Retrieval is LARGE (context).
+
+[Chunk 1]
+  WHAT IS EMBEDDED:  "Fact 1: The sun is hot."
+  WHAT IS RETRIEVED: "Fact 1: The sun is hot.  Fact 2: The sky is blue."
+  (Note: Embedding is pure. 'Sun' vector is just 'Sun'. But you still read about 'Sky'.)
+
+[Chunk 2]
+  WHAT IS EMBEDDED:  "Fact 2: The sky is blue."
+  WHAT IS RETRIEVED: "Fact 1: The sun is hot.  Fact 2: The sky is blue.  Fact 3: Grass is green."
+  (Note: Embedding is pure. 'Sun' vector is just 'Sun'. But you still read about 'Sky'.)
+
+[Chunk 3]
+  WHAT IS EMBEDDED:  "Fact 3: Grass is green."
+  WHAT IS RETRIEVED: "Fact 2: The sky is blue.  Fact 3: Grass is green.  Fact 4: Water is wet."
+  (Note: Embedding is pure. 'Sun' vector is just 'Sun'. But you still read about 'Sky'.)
+
+[Chunk 4]
+  WHAT IS EMBEDDED:  "Fact 4: Water is wet."
+  WHAT IS RETRIEVED: "Fact 3: Grass is green.  Fact 4: Water is wet.  Fact 5: Fire is bright."
+  (Note: Embedding is pure. 'Sun' vector is just 'Sun'. But you still read about 'Sky'.)
+
+[Chunk 5]
+  WHAT IS EMBEDDED:  "Fact 5: Fire is bright."
+  WHAT IS RETRIEVED: "Fact 4: Water is wet.  Fact 5: Fire is bright."
+  (Note: Embedding is pure. 'Sun' vector is just 'Sun'. But you still read about 'Sky'.)
+

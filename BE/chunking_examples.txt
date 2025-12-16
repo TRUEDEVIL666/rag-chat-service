@@ -1,0 +1,170 @@
+CHUNKING STRATEGY EXAMPLES
+==========================
+This file demonstrates the output of various chunking strategies.
+
+--- Method: Sentence Chunking ---
+Description: Splits by sentence, respecting chunk_size limits.
+Input Text (165 chars):
+This is the first sentence. This is the second sentence. Here is a third one, which is slightly longer than the others. Finally, a fourth sentence to wrap things up....
+Number of Chunks: 1
+
+[Chunk 1]
+  Content: "This is the first sentence. This is the second sentence. Here is a third one, which is slightly longer than the others. Finally, a fourth sentence to wrap things up."
+----------------------------------------
+
+--- Method: Token Chunking ---
+Description: Splits strictly by token count.
+Input Text (600 chars):
+Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token To...
+Number of Chunks: 6
+
+[Chunk 1]
+  Content: "Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token"
+
+[Chunk 2]
+  Content: "Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token"
+
+[Chunk 3]
+  Content: "Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token"
+
+[Chunk 4]
+  Content: "Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token"
+
+[Chunk 5]
+  Content: "Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token"
+
+[Chunk 6]
+  Content: "Token Token Token Token Token Token Token Token Token Token"
+----------------------------------------
+
+--- Method: Recursive Chunking ---
+Description: Splits recursively using separators (ideal for code).
+Input Text (122 chars):
+
+def hello_world():
+    print("Hello")
+    print("World")
+
+class Example:
+    def __init__(self):
+        self.value = 10
+...
+Number of Chunks: 2
+
+[Chunk 1]
+  Content: "def hello_world(): print("Hello") print("World")"
+
+[Chunk 2]
+  Content: "class Example: def __init__(self): self.value ="
+----------------------------------------
+
+--- Method: Character Chunking ---
+Description: Splits by character count.
+Input Text (130 chars):
+abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz...
+Number of Chunks: 3
+
+[Chunk 1]
+  Content: "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwx"
+
+[Chunk 2]
+  Content: "yzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuv"
+
+[Chunk 3]
+  Content: "wxyzabcdefghijklmnopqrstuvwxyz"
+----------------------------------------
+
+--- Method: Word Chunking ---
+Description: Splits by word count.
+Input Text (150 chars):
+One two three four five six seven eight nine ten. One two three four five six seven eight nine ten. One two three four five six seven eight nine ten. ...
+Number of Chunks: 4
+
+[Chunk 1]
+  Content: "One two three four five six seven eight nine ten."
+
+[Chunk 2]
+  Content: "nine ten. One two three four five six seven eight"
+
+[Chunk 3]
+  Content: "eight nine ten. One two three four five six seven"
+
+[Chunk 4]
+  Content: "six seven eight nine ten."
+----------------------------------------
+
+--- Method: Sliding Window (Window=1) ---
+Description: Each chunk is a single sentence, but carries neighbors as context.
+Input Text (350 chars):
+The quick brown fox jumps over the lazy dog. It was a sunny day in the forest. Birds were singing in the trees. A gentle breeze rustled the leaves. The fox was looking for something to eat. Suddenly, ...
+Number of Chunks: 10
+
+[Chunk 1]
+  Focus Sentence (Embedded): "The quick brown fox jumps over the lazy dog."
+  Context Window (LLM View): "The quick brown fox jumps over the lazy dog.  It was a sunny day in the forest."
+
+[Chunk 2]
+  Focus Sentence (Embedded): "It was a sunny day in the forest."
+  Context Window (LLM View): "The quick brown fox jumps over the lazy dog.  It was a sunny day in the forest.  Birds were singing in the trees."
+
+[Chunk 3]
+  Focus Sentence (Embedded): "Birds were singing in the trees."
+  Context Window (LLM View): "It was a sunny day in the forest.  Birds were singing in the trees.  A gentle breeze rustled the leaves."
+
+[Chunk 4]
+  Focus Sentence (Embedded): "A gentle breeze rustled the leaves."
+  Context Window (LLM View): "Birds were singing in the trees.  A gentle breeze rustled the leaves.  The fox was looking for something to eat."
+
+[Chunk 5]
+  Focus Sentence (Embedded): "The fox was looking for something to eat."
+  Context Window (LLM View): "A gentle breeze rustled the leaves.  The fox was looking for something to eat.  Suddenly, it spotted a rabbit."
+
+[Chunk 6]
+  Focus Sentence (Embedded): "Suddenly, it spotted a rabbit."
+  Context Window (LLM View): "The fox was looking for something to eat.  Suddenly, it spotted a rabbit.  The chase began immediately."
+
+[Chunk 7]
+  Focus Sentence (Embedded): "The chase began immediately."
+  Context Window (LLM View): "Suddenly, it spotted a rabbit.  The chase began immediately.  The rabbit ran as fast as it could."
+
+[Chunk 8]
+  Focus Sentence (Embedded): "The rabbit ran as fast as it could."
+  Context Window (LLM View): "The chase began immediately.  The rabbit ran as fast as it could.  The fox was closing in."
+
+[Chunk 9]
+  Focus Sentence (Embedded): "The fox was closing in."
+  Context Window (LLM View): "The rabbit ran as fast as it could.  The fox was closing in.  But the rabbit found a hole and escaped."
+
+[Chunk 10]
+  Focus Sentence (Embedded): "But the rabbit found a hole and escaped."
+  Context Window (LLM View): "The fox was closing in.  But the rabbit found a hole and escaped."
+----------------------------------------
+
+--- Method: Hierarchical Chunking ---
+Description: Generates chunks at multiple sizes (parent/child).
+Input Text (280 chars):
+Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Leve...
+Number of Chunks: 4
+
+[Chunk 1]
+  Content: "Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text."
+
+[Chunk 2]
+  Content: "Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text."
+
+[Chunk 3]
+  Content: "Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text."
+
+[Chunk 4]
+  Content: "Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text."
+----------------------------------------
+
+--- Method: Semantic Chunking (Mocked) ---
+Description: Splits based on embedding similarity.
+Input Text (170 chars):
+Topic A is about cats. Cats are furry. Cats meow. Topic B is about space. Stars are bright. Planets orbit. Topic C is about coding. Python is great. Functions are useful....
+Number of Chunks: 1
+
+[Chunk 1]
+  Content: "Topic A is about cats. Cats are furry. Cats meow. Topic B is about space. Stars are bright. Planets orbit. Topic C is about coding. Python is great. Functions are useful."
+----------------------------------------
