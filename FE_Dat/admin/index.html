@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Learning Support System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans flex h-screen">
+
+    <!-- CHỖ NÀY ĐỂ TRỐNG, JS SẼ TỰ ĐIỀN VÀO -->
+    <div id="sidebar-container"></div>
+
+    <!-- MAIN CONTENT -->
+    <main class="flex-1 flex flex-col overflow-hidden">
+        <!-- Header -->
+        <header class="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-8">
+            <h1 class="text-xl font-semibold text-gray-800">Thống kê hệ thống</h1>
+            
+            <div class="flex items-center gap-4">
+                <div class="text-right hidden md:block">
+                    <p class="text-sm font-semibold text-gray-800">Admin</p>
+                    <p class="text-xs text-gray-500">Quản trị viên</p>
+                </div>
+                <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold">A</div>
+            </div>
+        </header>
+
+        <!-- Dashboard Content -->
+        <div class="flex-1 overflow-auto p-8">
+            
+            <!-- 3 Cards Thống kê -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <!-- Card 1 -->
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="w-12 h-12 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center text-2xl">
+                            <i class="ph-fill ph-users-three"></i>
+                        </div>
+                        <span class="text-green-500 text-sm font-medium flex items-center gap-1">
+                            <i class="ph-bold ph-arrow-up-right"></i> +12%
+                        </span>
+                    </div>
+                    <p class="text-gray-500 text-sm font-medium">Tổng sinh viên</p>
+                    <h3 class="text-3xl font-bold text-gray-800">1,240</h3>
+                </div>
+
+                <!-- Card 2 -->
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="w-12 h-12 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center text-2xl">
+                            <i class="ph-fill ph-chat-text"></i>
+                        </div>
+                        <span class="text-green-500 text-sm font-medium flex items-center gap-1">
+                            <i class="ph-bold ph-arrow-up-right"></i> +5.4%
+                        </span>
+                    </div>
+                    <p class="text-gray-500 text-sm font-medium">Câu hỏi đã xử lý</p>
+                    <h3 class="text-3xl font-bold text-gray-800">8,502</h3>
+                </div>
+
+                <!-- Card 3 -->
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="w-12 h-12 rounded-lg bg-orange-100 text-orange-600 flex items-center justify-center text-2xl">
+                            <i class="ph-fill ph-files"></i>
+                        </div>
+                        <span class="text-gray-400 text-sm font-medium">Hôm nay</span>
+                    </div>
+                    <p class="text-gray-500 text-sm font-medium">Tài liệu trong kho</p>
+                    <h3 class="text-3xl font-bold text-gray-800">145</h3>
+                </div>
+            </div>
+
+            <!-- Khu vực Biểu đồ (Giả lập bằng HTML/CSS đơn giản) -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                
+                <!-- Feedback mới nhất -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                    <h3 class="font-bold text-gray-800 mb-4">Đánh giá gần đây</h3>
+                    <div class="space-y-4">
+                        <!-- Item 1 -->
+                        <div class="flex items-start gap-3 pb-3 border-b border-gray-50 last:border-0">
+                            <div class="w-8 h-8 rounded-full bg-gray-200 flex-shrink-0"></div>
+                            <div>
+                                <p class="text-sm font-semibold">Nguyễn Văn A <span class="text-gray-400 font-normal text-xs">• 2 phút trước</span></p>
+                                <p class="text-sm text-gray-600 mt-1">"Câu trả lời rất chính xác, cảm ơn bot!"</p>
+                                <div class="flex text-yellow-400 text-xs mt-1">
+                                    <i class="ph-fill ph-star"></i><i class="ph-fill ph-star"></i><i class="ph-fill ph-star"></i><i class="ph-fill ph-star"></i><i class="ph-fill ph-star"></i>
+                                </div>
+                            </div>
+                        </div>
+                         <!-- Item 2 -->
+                         <div class="flex items-start gap-3 pb-3 border-b border-gray-50 last:border-0">
+                            <div class="w-8 h-8 rounded-full bg-gray-200 flex-shrink-0"></div>
+                            <div>
+                                <p class="text-sm font-semibold">Trần Thị B <span class="text-gray-400 font-normal text-xs">• 1 giờ trước</span></p>
+                                <p class="text-sm text-gray-600 mt-1">"Thông tin về lịch thi hơi cũ, cần cập nhật."</p>
+                                <div class="flex text-yellow-400 text-xs mt-1">
+                                    <i class="ph-fill ph-star"></i><i class="ph-fill ph-star"></i><i class="ph-fill ph-star"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Thống kê câu hỏi theo chủ đề (Thanh Progress bar) -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                    <h3 class="font-bold text-gray-800 mb-4">Chủ đề được quan tâm</h3>
+                    <div class="space-y-5">
+                        <!-- Topic 1 -->
+                        <div>
+                            <div class="flex justify-between text-sm mb-1">
+                                <span class="font-medium text-gray-700">Đăng ký môn học</span>
+                                <span class="text-gray-500">45%</span>
+                            </div>
+                            <div class="w-full bg-gray-100 rounded-full h-2">
+                                <div class="bg-blue-500 h-2 rounded-full" style="width: 45%"></div>
+                            </div>
+                        </div>
+                        <!-- Topic 2 -->
+                        <div>
+                            <div class="flex justify-between text-sm mb-1">
+                                <span class="font-medium text-gray-700">Lịch thi & Điểm số</span>
+                                <span class="text-gray-500">30%</span>
+                            </div>
+                            <div class="w-full bg-gray-100 rounded-full h-2">
+                                <div class="bg-purple-500 h-2 rounded-full" style="width: 30%"></div>
+                            </div>
+                        </div>
+                        <!-- Topic 3 -->
+                        <div>
+                            <div class="flex justify-between text-sm mb-1">
+                                <span class="font-medium text-gray-700">Thủ tục hành chính</span>
+                                <span class="text-gray-500">15%</span>
+                            </div>
+                            <div class="w-full bg-gray-100 rounded-full h-2">
+                                <div class="bg-orange-500 h-2 rounded-full" style="width: 15%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+    </main>
+        <!-- NHỚ LINK FILE JS VÀO CUỐI BODY -->
+    <script src="js/main.js"></script>
+</body>
+</html>
