@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản lý Tài liệu - Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans flex h-screen">
+
+    <!-- SIDEBAR -->
+<!-- CHỖ NÀY ĐỂ TRỐNG, JS SẼ TỰ ĐIỀN VÀO -->
+    <div id="sidebar-container"></div>
+
+    <!-- MAIN CONTENT -->
+    <main class="flex-1 flex flex-col overflow-hidden">
+        <!-- Header -->
+        <header class="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-8">
+            <h1 class="text-xl font-semibold">Kho Tài liệu Khoa CNTT</h1>
+            <button class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 shadow-sm transition">
+                <i class="ph ph-upload-simple"></i> Upload Tài liệu mới
+            </button>
+        </header>
+
+        <!-- Table Content -->
+        <div class="flex-1 overflow-auto p-8">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <table class="w-full text-left border-collapse">
+                    <thead class="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold">
+                        <tr>
+                            <th class="px-6 py-4">Tên tài liệu</th>
+                            <th class="px-6 py-4">Loại file</th>
+                            <th class="px-6 py-4">Ngày upload</th>
+                            <th class="px-6 py-4">Trạng thái (RAG)</th>
+                            <th class="px-6 py-4 text-right">Hành động</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 text-sm">
+                        <!-- Dòng 1 -->
+                        <tr class="hover:bg-gray-50 transition">
+                            <td class="px-6 py-4 font-medium text-gray-900">
+                                Giao_trinh_Cau_truc_du_lieu.pdf
+                            </td>
+                            <td class="px-6 py-4">
+                                <span class="bg-red-100 text-red-700 px-2 py-1 rounded text-xs font-bold">PDF</span>
+                            </td>
+                            <td class="px-6 py-4 text-gray-500">20/12/2025</td>
+                            <td class="px-6 py-4">
+                                <span class="flex items-center gap-2 text-green-600 font-medium">
+                                    <i class="ph-fill ph-check-circle"></i> Đã học xong
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 text-right space-x-2">
+                                <button class="text-gray-400 hover:text-blue-600"><i class="ph ph-eye text-lg"></i></button>
+                                <button class="text-gray-400 hover:text-red-600"><i class="ph ph-trash text-lg"></i></button>
+                            </td>
+                        </tr>
+
+                        <!-- Dòng 2 -->
+                        <tr class="hover:bg-gray-50 transition">
+                            <td class="px-6 py-4 font-medium text-gray-900">
+                                Quy_che_dao_tao_2025.docx
+                            </td>
+                            <td class="px-6 py-4">
+                                <span class="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-bold">DOCX</span>
+                            </td>
+                            <td class="px-6 py-4 text-gray-500">19/12/2025</td>
+                            <td class="px-6 py-4">
+                                <span class="flex items-center gap-2 text-yellow-600 font-medium">
+                                    <i class="ph ph-spinner animate-spin"></i> Đang xử lý...
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 text-right space-x-2">
+                                <button class="text-gray-400 hover:text-blue-600"><i class="ph ph-eye text-lg"></i></button>
+                                <button class="text-gray-400 hover:text-red-600"><i class="ph ph-trash text-lg"></i></button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+        <!-- NHỚ LINK FILE JS VÀO CUỐI BODY -->
+    <script src="js/main.js"></script>
+</body>
+</html>
