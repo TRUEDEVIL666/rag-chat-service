@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản lý Users - Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+</head>
+
+<body class="bg-gray-50 text-gray-800 font-sans flex h-screen">
+
+    <!-- SIDEBAR -->
+    <div id="sidebar-container"></div>
+
+    <!-- MAIN CONTENT -->
+    <main class="flex-1 flex flex-col overflow-hidden ml-64 relative">
+        <!-- Header -->
+        <header class="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-8">
+            <h1 class="text-xl font-semibold">Danh sách Người dùng</h1>
+            <button onclick="window.location.href='create-user.html'"
+                class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 shadow-sm transition">
+                <i class="ph ph-user-plus"></i> Thêm User mới
+            </button>
+        </header>
+
+        <!-- Table Content -->
+        <div class="flex-1 overflow-auto p-8">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <table class="w-full text-left border-collapse">
+                    <thead class="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold">
+                        <tr>
+                            <th class="px-6 py-4">Email</th>
+                            <th class="px-6 py-4">Vai trò (Role)</th>
+                            <th class="px-6 py-4">Tenant ID</th>
+                            <th class="px-6 py-4 text-right">Hành động</th>
+                        </tr>
+                    </thead>
+                    <tbody id="user-list" class="divide-y divide-gray-100 text-sm">
+                        <tr>
+                            <td colspan="4" class="px-6 py-8 text-center text-gray-500">
+                                <i class="ph ph-spinner animate-spin text-2xl"></i> Đang tải dữ liệu...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+
+
+    <script src="js/main.js"></script>
+    <script>
+        const API_URL = "http://localhost:8000/api/v1/users";
+        const TOKEN = localStorage.getItem('token');
+
+        // 1. Fetch Users (Mock data for now as requested)
+        async function loadUsers() {
+            const tbody = document.getElementById('user-list');
+            try {
+                // Giả lập dữ liệu cứng
+                const mockUsers = [
+                    { id: "1", email: "admin@tdtu.edu.vn", role: "admin", tenant_id: "SYSTEM" },
+                    { id: "2", email: "giangvien01@tdtu.edu.vn", role: "user", tenant_id: "TENANT_001" },
+                    { id: "3", email: "sinhvien.test@student.tdtu.edu.vn", role: "user", tenant_id: "TENANT_002" },
+                    { id: "4", email: "522h00xx@student.tdtu.edu.vn", role: "admin", tenant_id: "DEVELOPER" }
+                ];
+
+                // Giả lập trễ mạng
+                setTimeout(() => {
+                    renderUsers(mockUsers);
+                }, 500);
+
+            } catch (error) {
+                console.error(error);
+                tbody.innerHTML = `<tr><td colspan="4" class="px-6 py-8 text-center text-red-500">Lỗi: ${error.message}</td></tr>`;
+            }
+        }
+
+        // 2. Render Users
+        function renderUsers(users) {
+            const tbody = document.getElementById('user-list');
+            if (users.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="px-6 py-8 text-center text-gray-500">Chưa có user nào.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = users.map(user => `
+                <tr class="hover:bg-gray-50 transition">
+                    <td class="px-6 py-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 text-sm font-bold">
+                                ${user.email.charAt(0).toUpperCase()}
+                            </div>
+                            <span class="font-medium text-gray-900">${user.email}</span>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4">
+                        <span class="px-2 py-1 rounded text-xs font-bold border ${user.role === 'admin' ? 'bg-purple-100 text-purple-700 border-purple-200' : 'bg-gray-100 text-gray-700 border-gray-200'}">
+                            ${user.role.toUpperCase()}
+                        </span>
+                    </td>
+                     <td class="px-6 py-4 text-gray-500 font-mono text-xs">
+                        ${user.tenant_id || '-'}
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                        <button onclick="deleteUser('${user.id}')" class="text-gray-400 hover:text-red-600 transition" title="Xóa User">
+                            <i class="ph ph-trash text-lg"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+
+
+        // 4. Delete User
+        async function deleteUser(id) {
+            if (!confirm('Bạn có chắc chắn muốn xóa user này không? Hành động này không thể hoàn tác!')) return;
+
+            try {
+                const response = await fetch(`${API_URL}/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${TOKEN}` }
+                });
+
+                if (response.ok) {
+                    loadUsers();
+                } else {
+                    const err = await response.json();
+                    alert('Lỗi: ' + (err.detail || 'Không thể xóa'));
+                }
+            } catch (error) {
+                console.error(error);
+                alert('Lỗi kết nối!');
+            }
+        }
+
+
+
+        document.addEventListener('DOMContentLoaded', loadUsers);
+    </script>
+</body>
+
+</html>

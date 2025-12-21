@@ -1,152 +1,315 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard - Learning Support System</title>
+    <title>Admin Dashboard - System Management</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
-</head>
-<body class="bg-gray-50 text-gray-800 font-sans flex h-screen">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.0.1/dist/driver.css" />
+    <script src="https://cdn.jsdelivr.net/npm/driver.js@1.0.1/dist/driver.js.iife.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500;600;700&display=swap');
 
-    <!-- CHỖ NÀY ĐỂ TRỐNG, JS SẼ TỰ ĐIỀN VÀO -->
-    <div id="sidebar-container"></div>
+        body {
+            font-family: 'Be Vietnam Pro', sans-serif;
+        }
+
+        /* Custom scrollbar for webkit */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #d1d5db;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #9ca3af;
+        }
+    </style>
+</head>
+
+<body class="bg-slate-50 text-gray-800 font-sans flex h-screen overflow-hidden">
+
+    <!-- SIDEBAR CONTAINER (Loaded via JS) -->
+    <div id="sidebar-container" class="relative z-50"></div>
 
     <!-- MAIN CONTENT -->
-    <main class="flex-1 flex flex-col overflow-hidden">
-        <!-- Header -->
-        <header class="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-8">
-            <h1 class="text-xl font-semibold text-gray-800">Thống kê hệ thống</h1>
-            
-            <div class="flex items-center gap-4">
-                <div class="text-right hidden md:block">
-                    <p class="text-sm font-semibold text-gray-800">Admin</p>
-                    <p class="text-xs text-gray-500">Quản trị viên</p>
+    <!-- Added ml-64 to account for fixed sidebar -->
+    <main class="flex-1 flex flex-col h-full ml-64 relative">
+
+        <!-- HEADER -->
+        <header class="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 sticky top-0 z-40">
+            <!-- Search Bar -->
+            <div id="search-area" class="flex items-center bg-gray-100 rounded-lg px-3 py-2 w-96">
+                <i class="ph ph-magnifying-glass text-gray-400 text-lg"></i>
+                <input type="text" placeholder="Tìm kiếm đơn hàng, sản phẩm..."
+                    class="bg-transparent border-none outline-none text-sm ml-2 w-full text-gray-700 placeholder-gray-400">
+            </div>
+
+            <!-- Right Actions -->
+            <div class="flex items-center gap-5">
+                <button class="relative text-gray-500 hover:text-blue-600 transition">
+                    <i class="ph-fill ph-bell text-xl"></i>
+                    <span class="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
+                </button>
+                <div class="flex items-center gap-3 pl-5 border-l border-gray-200">
+                    <img src="https://ui-avatars.com/api/?name=Admin+User&background=0D8ABC&color=fff" alt="Admin"
+                        class="w-9 h-9 rounded-full cursor-pointer hover:ring-2 hover:ring-blue-100 transition">
                 </div>
-                <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold">A</div>
             </div>
         </header>
 
-        <!-- Dashboard Content -->
-        <div class="flex-1 overflow-auto p-8">
-            
-            <!-- 3 Cards Thống kê -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <!-- Card 1 -->
-                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                    <div class="flex items-center justify-between mb-4">
-                        <div class="w-12 h-12 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center text-2xl">
-                            <i class="ph-fill ph-users-three"></i>
-                        </div>
-                        <span class="text-green-500 text-sm font-medium flex items-center gap-1">
-                            <i class="ph-bold ph-arrow-up-right"></i> +12%
-                        </span>
-                    </div>
-                    <p class="text-gray-500 text-sm font-medium">Tổng sinh viên</p>
-                    <h3 class="text-3xl font-bold text-gray-800">1,240</h3>
-                </div>
+        <!-- DASHBOARD CONTENT -->
+        <div class="flex-1 overflow-auto p-6">
 
-                <!-- Card 2 -->
-                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                    <div class="flex items-center justify-between mb-4">
-                        <div class="w-12 h-12 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center text-2xl">
-                            <i class="ph-fill ph-chat-text"></i>
-                        </div>
-                        <span class="text-green-500 text-sm font-medium flex items-center gap-1">
-                            <i class="ph-bold ph-arrow-up-right"></i> +5.4%
-                        </span>
-                    </div>
-                    <p class="text-gray-500 text-sm font-medium">Câu hỏi đã xử lý</p>
-                    <h3 class="text-3xl font-bold text-gray-800">8,502</h3>
-                </div>
-
-                <!-- Card 3 -->
-                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                    <div class="flex items-center justify-between mb-4">
-                        <div class="w-12 h-12 rounded-lg bg-orange-100 text-orange-600 flex items-center justify-center text-2xl">
-                            <i class="ph-fill ph-files"></i>
-                        </div>
-                        <span class="text-gray-400 text-sm font-medium">Hôm nay</span>
-                    </div>
-                    <p class="text-gray-500 text-sm font-medium">Tài liệu trong kho</p>
-                    <h3 class="text-3xl font-bold text-gray-800">145</h3>
+            <!-- Page Title & Filters -->
+            <div class="mb-8">
+                <h1 class="text-2xl font-bold text-gray-800 mb-4">Tổng Quan</h1>
+                <div class="flex items-center gap-2">
+                    <button
+                        class="px-4 py-1.5 bg-white border border-gray-200 text-gray-600 rounded-full text-sm font-medium hover:bg-gray-50 transition">7
+                        ngày qua</button>
+                    <button
+                        class="px-4 py-1.5 bg-blue-600 text-white rounded-full text-sm font-medium shadow-sm shadow-blue-200">30
+                        ngày qua</button>
+                    <button
+                        class="px-4 py-1.5 bg-white border border-gray-200 text-gray-600 rounded-full text-sm font-medium hover:bg-gray-50 transition">Toàn
+                        thời gian</button>
                 </div>
             </div>
 
-            <!-- Khu vực Biểu đồ (Giả lập bằng HTML/CSS đơn giản) -->
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                
-                <!-- Feedback mới nhất -->
-                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                    <h3 class="font-bold text-gray-800 mb-4">Đánh giá gần đây</h3>
-                    <div class="space-y-4">
-                        <!-- Item 1 -->
-                        <div class="flex items-start gap-3 pb-3 border-b border-gray-50 last:border-0">
-                            <div class="w-8 h-8 rounded-full bg-gray-200 flex-shrink-0"></div>
-                            <div>
-                                <p class="text-sm font-semibold">Nguyễn Văn A <span class="text-gray-400 font-normal text-xs">• 2 phút trước</span></p>
-                                <p class="text-sm text-gray-600 mt-1">"Câu trả lời rất chính xác, cảm ơn bot!"</p>
-                                <div class="flex text-yellow-400 text-xs mt-1">
-                                    <i class="ph-fill ph-star"></i><i class="ph-fill ph-star"></i><i class="ph-fill ph-star"></i><i class="ph-fill ph-star"></i><i class="ph-fill ph-star"></i>
-                                </div>
-                            </div>
+            <!-- Stats Cards -->
+            <div id="stat-cards" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+
+                <!-- Card 1: Tổng doanh thu (Mapped to Students for context) -->
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center gap-5">
+                    <div
+                        class="w-14 h-14 rounded-full bg-green-50 flex items-center justify-center text-green-600 text-2xl flex-shrink-0">
+                        <i class="ph-fill ph-currency-dollar"></i>
+                    </div>
+                    <div>
+                        <p class="text-gray-500 text-sm font-medium mb-1">Tổng sinh viên</p>
+                        <h3 class="text-2xl font-bold text-gray-800">1,240</h3>
+                    </div>
+                </div>
+
+                <!-- Card 2: Đơn hàng mới (Mapped to Questions) -->
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center gap-5">
+                    <div
+                        class="w-14 h-14 rounded-full bg-yellow-50 flex items-center justify-center text-yellow-600 text-2xl flex-shrink-0">
+                        <i class="ph-fill ph-chat-circle-text"></i>
+                    </div>
+                    <div>
+                        <p class="text-gray-500 text-sm font-medium mb-1">Câu hỏi mới</p>
+                        <h3 class="text-2xl font-bold text-gray-800">8,502</h3>
+                    </div>
+                </div>
+
+                <!-- Card 3: Khách hàng mới (Mapped to Docs) -->
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center gap-5">
+                    <div
+                        class="w-14 h-14 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 text-2xl flex-shrink-0">
+                        <i class="ph-fill ph-user-plus"></i>
+                    </div>
+                    <div>
+                        <p class="text-gray-500 text-sm font-medium mb-1">Tài liệu mới</p>
+                        <h3 class="text-2xl font-bold text-gray-800">145</h3>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Content Grid: Charts & Tables -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+                <!-- Chart Area (Left - 2/3 width) -->
+                <div id="activity-chart" class="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="font-bold text-gray-800">Thống kê hoạt động 30 ngày qua</h3>
+                        <div class="flex items-center gap-2 text-sm text-gray-500">
+                            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-blue-400"></span>
+                                Truy cập</span>
                         </div>
-                         <!-- Item 2 -->
-                         <div class="flex items-start gap-3 pb-3 border-b border-gray-50 last:border-0">
-                            <div class="w-8 h-8 rounded-full bg-gray-200 flex-shrink-0"></div>
-                            <div>
-                                <p class="text-sm font-semibold">Trần Thị B <span class="text-gray-400 font-normal text-xs">• 1 giờ trước</span></p>
-                                <p class="text-sm text-gray-600 mt-1">"Thông tin về lịch thi hơi cũ, cần cập nhật."</p>
-                                <div class="flex text-yellow-400 text-xs mt-1">
-                                    <i class="ph-fill ph-star"></i><i class="ph-fill ph-star"></i><i class="ph-fill ph-star"></i>
-                                </div>
+                    </div>
+
+                    <!-- Fake Chart Visual -->
+                    <div class="relative h-80 w-full border-l border-b border-gray-100">
+                        <!-- Grid lines -->
+                        <div class="absolute inset-0 flex flex-col justify-between text-xs text-gray-400 pl-2">
+                            <span>1000</span>
+                            <span>800</span>
+                            <span>600</span>
+                            <span>400</span>
+                            <span>200</span>
+                            <span>0</span>
+                        </div>
+                        <!-- Simple visual bars or line placeholder -->
+                        <div class="absolute bottom-0 left-8 right-0 h-[80%] flex items-end justify-around px-2">
+                            <div
+                                class="w-8 bg-blue-100 rounded-t-sm h-[40%] hover:bg-blue-200 transition relative group">
+                                <div
+                                    class="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition">
+                                    400</div>
+                            </div>
+                            <div
+                                class="w-8 bg-blue-100 rounded-t-sm h-[60%] hover:bg-blue-200 transition relative group">
+                                <div
+                                    class="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition">
+                                    600</div>
+                            </div>
+                            <div
+                                class="w-8 bg-blue-100 rounded-t-sm h-[30%] hover:bg-blue-200 transition relative group">
+                                <div
+                                    class="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition">
+                                    300</div>
+                            </div>
+                            <div
+                                class="w-8 bg-blue-100 rounded-t-sm h-[80%] hover:bg-blue-200 transition relative group">
+                                <div
+                                    class="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition">
+                                    800</div>
+                            </div>
+                            <div
+                                class="w-8 bg-blue-100 rounded-t-sm h-[50%] hover:bg-blue-200 transition relative group">
+                                <div
+                                    class="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition">
+                                    500</div>
+                            </div>
+                            <div class="w-8 bg-blue-500 rounded-t-sm h-[90%] shadow-lg shadow-blue-200 relative group">
+                                <div
+                                    class="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition">
+                                    900</div>
+                            </div>
+                            <div
+                                class="w-8 bg-blue-100 rounded-t-sm h-[65%] hover:bg-blue-200 transition relative group">
+                                <div
+                                    class="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition">
+                                    650</div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Thống kê câu hỏi theo chủ đề (Thanh Progress bar) -->
-                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                    <h3 class="font-bold text-gray-800 mb-4">Chủ đề được quan tâm</h3>
-                    <div class="space-y-5">
-                        <!-- Topic 1 -->
-                        <div>
-                            <div class="flex justify-between text-sm mb-1">
-                                <span class="font-medium text-gray-700">Đăng ký môn học</span>
-                                <span class="text-gray-500">45%</span>
-                            </div>
-                            <div class="w-full bg-gray-100 rounded-full h-2">
-                                <div class="bg-blue-500 h-2 rounded-full" style="width: 45%"></div>
-                            </div>
-                        </div>
-                        <!-- Topic 2 -->
-                        <div>
-                            <div class="flex justify-between text-sm mb-1">
-                                <span class="font-medium text-gray-700">Lịch thi & Điểm số</span>
-                                <span class="text-gray-500">30%</span>
-                            </div>
-                            <div class="w-full bg-gray-100 rounded-full h-2">
-                                <div class="bg-purple-500 h-2 rounded-full" style="width: 30%"></div>
-                            </div>
-                        </div>
-                        <!-- Topic 3 -->
-                        <div>
-                            <div class="flex justify-between text-sm mb-1">
-                                <span class="font-medium text-gray-700">Thủ tục hành chính</span>
-                                <span class="text-gray-500">15%</span>
-                            </div>
-                            <div class="w-full bg-gray-100 rounded-full h-2">
-                                <div class="bg-orange-500 h-2 rounded-full" style="width: 15%"></div>
-                            </div>
-                        </div>
+                <!-- Recent List (Right - 1/3 width) -->
+                <div id="recent-activity"
+                    class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col">
+                    <h3 class="font-bold text-gray-800 mb-4">Hoạt động gần đây</h3>
+                    <div class="flex-1 overflow-auto -mx-2 px-2">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="text-xs text-gray-400 border-b border-gray-100">
+                                    <th class="py-3 font-medium">Mã ID</th>
+                                    <th class="py-3 font-medium">User</th>
+                                    <th class="py-3 font-medium text-right">Trạng thái</th>
+                                </tr>
+                            </thead>
+                            <tbody class="text-sm">
+                                <!-- Row 1 -->
+                                <tr class="border-b border-gray-50 last:border-0 hover:bg-gray-50 transition">
+                                    <td class="py-3 text-gray-500 font-mono">#17599</td>
+                                    <td class="py-3 font-medium text-gray-800">Nguyễn Văn A</td>
+                                    <td class="py-3 text-right">
+                                        <span
+                                            class="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-red-100 text-red-600">Đã
+                                            hủy</span>
+                                    </td>
+                                </tr>
+                                <!-- Row 2 -->
+                                <tr class="border-b border-gray-50 last:border-0 hover:bg-gray-50 transition">
+                                    <td class="py-3 text-gray-500 font-mono">#17569</td>
+                                    <td class="py-3 font-medium text-gray-800">Trần Hữu Đạt</td>
+                                    <td class="py-3 text-right">
+                                        <span
+                                            class="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-yellow-100 text-yellow-600">Chờ
+                                            xử lý</span>
+                                    </td>
+                                </tr>
+                                <!-- Row 3 -->
+                                <tr class="border-b border-gray-50 last:border-0 hover:bg-gray-50 transition">
+                                    <td class="py-3 text-gray-500 font-mono">#17563</td>
+                                    <td class="py-3 font-medium text-gray-800">Lê Thị C</td>
+                                    <td class="py-3 text-right">
+                                        <span
+                                            class="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-600">Đã
+                                            xong</span>
+                                    </td>
+                                </tr>
+                                <!-- Row 4 -->
+                                <tr class="border-b border-gray-50 last:border-0 hover:bg-gray-50 transition">
+                                    <td class="py-3 text-gray-500 font-mono">#17548</td>
+                                    <td class="py-3 font-medium text-gray-800">Phạm Văn D</td>
+                                    <td class="py-3 text-right">
+                                        <span
+                                            class="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-600">Đã
+                                            xong</span>
+                                    </td>
+                                </tr>
+                                <!-- Row 5 -->
+                                <tr class="border-b border-gray-50 last:border-0 hover:bg-gray-50 transition">
+                                    <td class="py-3 text-gray-500 font-mono">#17539</td>
+                                    <td class="py-3 font-medium text-gray-800">Hoàng E</td>
+                                    <td class="py-3 text-right">
+                                        <span
+                                            class="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-600">Đã
+                                            xong</span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
+                    <!-- Floating Action Button similar to image -->
+                    <button id="help-button" onclick="startTour()"
+                        class="absolute bottom-8 right-8 w-12 h-12 bg-red-600 text-white rounded-full shadow-lg shadow-red-200 flex items-center justify-center hover:bg-red-700 transition">
+                        <i class="ph-bold ph-question text-xl"></i>
+                    </button>
                 </div>
 
             </div>
 
         </div>
     </main>
-        <!-- NHỚ LINK FILE JS VÀO CUỐI BODY -->
+
     <script src="js/main.js"></script>
+    <script>
+        function startTour() {
+            const driver = window.driver.js.driver;
+
+            const driverObj = driver({
+                showProgress: true,
+                nextBtnText: 'Tiếp theo',
+                prevBtnText: 'Trước đó',
+                doneBtnText: 'Hoàn tất',
+                steps: [
+                    { element: '#admin-sidebar', popover: { title: 'Thanh điều hướng', description: 'Đây là nơi bạn quản lý toàn bộ các tính năng như Bots, Users, và Tài liệu.', side: "right", align: 'start' } },
+                    { element: '#search-area', popover: { title: 'Tìm kiếm nhanh', description: 'Bạn có thể tìm kiếm bất kỳ thông tin nào trong hệ thống tại đây.', side: "bottom", align: 'start' } },
+                    { element: '#stat-cards', popover: { title: 'Chỉ số quan trọng', description: 'Theo dõi nhanh số lượng Sinh viên, Câu hỏi và Tài liệu mới trong ngày.', side: "bottom", align: 'start' } },
+                    { element: '#activity-chart', popover: { title: 'Biểu đồ hoạt động', description: 'Trực quan hóa hiệu suất của các Chatbot trong 30 ngày qua.', side: "top", align: 'start' } },
+                    { element: '#recent-activity', popover: { title: 'Lịch sử gần đây', description: 'Xem các hoạt động mới nhất diễn ra trong hệ thống RAG.', side: "left", align: 'start' } },
+                    { element: '#help-button', popover: { title: 'Trung tâm trợ giúp', description: 'Nhấn vào đây bất cứ lúc nào để xem lại hướng dẫn này.', side: "left", align: 'start' } }
+                ]
+            });
+
+            driverObj.drive();
+        }
+
+        // Tự động bắt đầu tour nếu là lần đầu truy cập (đợi cho sidebar load xong)
+        window.addEventListener('sidebarLoaded', () => {
+            if (!localStorage.getItem('tourCompleted')) {
+                setTimeout(() => {
+                    startTour();
+                    localStorage.setItem('tourCompleted', 'true');
+                }, 500);
+            }
+        });
+    </script>
 </body>
+
 </html>

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="vi">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,27 +9,30 @@
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+        }
     </style>
 </head>
+
 <body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
 
     <div class="bg-white w-full max-w-4xl rounded-2xl shadow-xl overflow-hidden flex h-auto md:h-[650px]">
-        
+
         <!-- CỘT TRÁI -->
         <div class="hidden md:block w-1/2 relative">
-            <img src="https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?q=80&w=2070&auto=format&fit=crop" 
-                 alt="Office" 
-                 class="absolute inset-0 w-full h-full object-cover">
+            <img src="https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?q=80&w=2070&auto=format&fit=crop"
+                alt="Office" class="absolute inset-0 w-full h-full object-cover">
             <div class="absolute inset-0 bg-blue-900/20"></div>
         </div>
 
         <!-- CỘT PHẢI -->
         <div class="w-full md:w-1/2 p-8 md:p-10 flex flex-col justify-center bg-white">
-            
+
             <div class="mb-6">
                 <h1 class="text-3xl font-bold text-gray-800 mb-2">Tạo tài khoản mới</h1>
-                <p class="text-gray-500">Tham gia hệ thống quản trị ngay hôm nay</p>
+                <p class="text-gray-500">Tham gia trang hệ thống sinh viên ngay hôm nay</p>
             </div>
 
             <form id="registerForm" class="space-y-4">
@@ -36,98 +40,99 @@
                 <div>
                     <label class="block text-gray-700 font-medium mb-1">Tên đăng nhập</label>
                     <input type="text" id="username" placeholder="Ví dụ: sinhvien_01" required
-                           class="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition">
+                        class="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition">
                 </div>
 
                 <!-- Email -->
                 <div>
                     <label class="block text-gray-700 font-medium mb-1">Email</label>
                     <input type="email" id="email" placeholder="email@example.com" required
-                           class="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition">
+                        class="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition">
                 </div>
 
                 <!-- Password -->
                 <div>
                     <label class="block text-gray-700 font-medium mb-1">Mật khẩu</label>
                     <input type="password" id="password" placeholder="••••••••" required
-                           class="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition">
+                        class="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition">
                 </div>
 
                 <!-- Confirm Password -->
                 <div>
                     <label class="block text-gray-700 font-medium mb-1">Nhập lại mật khẩu</label>
                     <input type="password" id="confirm_password" placeholder="••••••••" required
-                           class="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition">
+                        class="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition">
                 </div>
 
                 <button type="submit" id="btn-register"
-                        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition duration-300 shadow-lg shadow-blue-500/30 mt-2">
+                    class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition duration-300 shadow-lg shadow-blue-500/30 mt-2">
                     Đăng Ký
                 </button>
             </form>
 
             <div class="mt-6 text-center text-gray-600">
-                Đã có tài khoản? 
+                Đã có tài khoản?
                 <a href="login.html" class="text-blue-600 font-bold hover:underline">Đăng nhập</a>
             </div>
-            
+
             <p id="msg-box" class="mt-4 text-center text-sm text-red-500 font-medium"></p>
         </div>
     </div>
 
-<script>
-    const API_BASE = "http://localhost:8000/api/v1/auth"; 
+    <script>
+        const API_BASE = "http://localhost:8000/api/v1";
 
-    document.getElementById('registerForm').addEventListener('submit', async function(e) {
-        e.preventDefault();
-        const btn = document.getElementById('btn-register');
-        const msgBox = document.getElementById('msg-box');
-        
-        // Lấy dữ liệu (Mấy cái username bỏ qua nếu backend không cần)
-        const email = document.getElementById('email').value;
-        const password = document.getElementById('password').value;
-        const confirm = document.getElementById('confirm_password').value;
-        // Nếu backend cần lưu tên hiển thị thì hỏi bạn Phong, 
-        // còn trong đoạn code Python trên thì mình thấy nó không lưu tên.
+        document.getElementById('registerForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+            const btn = document.getElementById('btn-register');
+            const msgBox = document.getElementById('msg-box');
 
-        if (password !== confirm) {
-            msgBox.innerText = "Mật khẩu nhập lại không khớp!";
-            return;
-        }
+            // Lấy dữ liệu (Mấy cái username bỏ qua nếu backend không cần)
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const confirm = document.getElementById('confirm_password').value;
+            // Nếu backend cần lưu tên hiển thị thì hỏi bạn Phong, 
+            // còn trong đoạn code Python trên thì mình thấy nó không lưu tên.
 
-        btn.disabled = true;
-        btn.innerText = "Đang xử lý...";
-        msgBox.innerText = "";
+            if (password !== confirm) {
+                msgBox.innerText = "Mật khẩu nhập lại không khớp!";
+                return;
+            }
 
-        try {
-            const response = await fetch(`${API_BASE}/register`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    email: email, 
-                    password: password 
-                    // tenant_id: "..." // Nếu có thì thêm vào
-                })
-            });
+            btn.disabled = true;
+            btn.innerText = "Đang xử lý...";
+            msgBox.innerText = "";
 
-            const data = await response.json();
+            try {
+                const response = await fetch(`${API_BASE}/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: email,
+                        password: password
+                        // tenant_id: "..." // Nếu có thì thêm vào
+                    })
+                });
 
-            if (response.ok) {
-                msgBox.className = "mt-4 text-center text-sm text-green-600 font-medium";
-                msgBox.innerText = "Đăng ký thành công! Chuyển sang đăng nhập...";
-                setTimeout(() => window.location.href = 'login.html', 1500);
-            } else {
-                msgBox.className = "mt-4 text-center text-sm text-red-500 font-medium";
-                msgBox.innerText = data.detail || "Đăng ký thất bại.";
+                const data = await response.json();
+
+                if (response.ok) {
+                    msgBox.className = "mt-4 text-center text-sm text-green-600 font-medium";
+                    msgBox.innerText = "Đăng ký thành công! Chuyển sang đăng nhập...";
+                    setTimeout(() => window.location.href = 'login.html', 1500);
+                } else {
+                    msgBox.className = "mt-4 text-center text-sm text-red-500 font-medium";
+                    msgBox.innerText = data.detail || "Đăng ký thất bại.";
+                    btn.disabled = false;
+                    btn.innerText = "Đăng Ký";
+                }
+            } catch (error) {
+                msgBox.innerText = "Lỗi kết nối server!";
                 btn.disabled = false;
                 btn.innerText = "Đăng Ký";
             }
-        } catch (error) {
-            msgBox.innerText = "Lỗi kết nối server!";
-            btn.disabled = false;
-            btn.innerText = "Đăng Ký";
-        }
-    });
-</script>
+        });
+    </script>
 </body>
+
 </html>

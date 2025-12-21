@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản lý Bots - Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500;600;700&display=swap');
+
+        body {
+            font-family: 'Be Vietnam Pro', sans-serif;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-50 text-gray-800 flex h-screen">
+
+    <!-- SIDEBAR -->
+    <div id="sidebar-container"></div>
+
+    <!-- MAIN CONTENT -->
+    <main class="flex-1 flex flex-col overflow-hidden ml-64 relative">
+        <!-- Header -->
+        <header class="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-8">
+            <h1 class="text-xl font-semibold">Danh sách Chatbots</h1>
+            <button onclick="window.location.href='create-bot.html'"
+                class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 shadow-sm transition">
+                <i class="ph ph-plus-circle"></i> Tạo Bot mới
+            </button>
+        </header>
+
+        <!-- Table Content -->
+        <div class="flex-1 overflow-auto p-8">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <table class="w-full text-left border-collapse">
+                    <thead class="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold">
+                        <tr>
+                            <th class="px-6 py-4">Tên Bot</th>
+                            <th class="px-6 py-4">Mô hình (Model)</th>
+                            <th class="px-6 py-4">Vai trò (Prompt)</th>
+                            <th class="px-6 py-4">Trạng thái</th>
+                            <th class="px-6 py-4 text-right">Hành động</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bot-list" class="divide-y divide-gray-100 text-sm">
+                        <!-- Bot items will be loaded here -->
+                        <tr>
+                            <td colspan="5" class="px-6 py-12 text-center text-gray-500">
+                                <i class="ph ph-spinner animate-spin text-2xl mb-2"></i>
+                                <p>Đang tải dữ liệu...</p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <script src="js/main.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const tbody = document.getElementById('bot-list');
+
+            // Dữ liệu mẫu (Static Data)
+            const mockBots = [
+                { id: "BOT-001", name: "Bot Tuyển Sinh (TDTU)", model: "Gemini 1.5 Pro", prompt: "Giải đáp thắc mắc về quy chế tuyển sinh và các ngành học tại TDTU...", status: "active", icon: "ph-robot", color: "blue" },
+                { id: "BOT-002", name: "Trợ Lý Sinh Viên", model: "Gemini 1.5 Flash", prompt: "Hỗ trợ tra cứu thời khóa biểu, điểm số và các thủ tục hành chính sinh viên...", status: "active", icon: "ph-student", color: "indigo" },
+                { id: "BOT-003", name: "Bot It Helpdesk", model: "Llama 3 70B", prompt: "Hỗ trợ kỹ thuật, xử lý sự cố mạng, phần mềm và tài khoản hệ thống...", status: "paused", icon: "ph-headset", color: "orange" },
+                { id: "BOT-004", name: "Bot Thư Viện", model: "GPT-4o", prompt: "Tra cứu sách, tài liệu nghiên cứu và hướng dẫn mượn trả tài liệu...", status: "active", icon: "ph-books", color: "green" }
+            ];
+
+            setTimeout(() => {
+                tbody.innerHTML = mockBots.map(bot => `
+                    <tr class="hover:bg-gray-50 transition">
+                        <td class="px-6 py-4">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-full bg-${bot.color}-100 flex items-center justify-center text-${bot.color}-600 text-xl shadow-sm">
+                                    <i class="ph-fill ${bot.icon}"></i>
+                                </div>
+                                <div>
+                                    <p class="font-bold text-gray-900">${bot.name}</p>
+                                    <p class="text-[10px] text-gray-400 font-mono">ID: ${bot.id}</p>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4">
+                            <span class="bg-gray-100 text-gray-700 px-2 py-1 rounded text-[11px] font-bold border border-gray-200">
+                                ${bot.model}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 text-gray-500 max-w-xs truncate" title="${bot.prompt}">
+                            ${bot.prompt}
+                        </td>
+                        <td class="px-6 py-4">
+                            ${bot.status === 'active'
+                        ? `<span class="flex items-center gap-2 text-green-600 font-bold bg-green-50 px-3 py-1 rounded-full w-fit text-[11px]">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span> Hoạt động
+                                   </span>`
+                        : `<span class="flex items-center gap-2 text-gray-500 font-bold bg-gray-100 px-3 py-1 rounded-full w-fit text-[11px]">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span> Tạm dừng
+                                   </span>`
+                    }
+                        </td>
+                        <td class="px-6 py-4 text-right space-x-2">
+                            <button class="text-gray-400 hover:text-blue-600 transition" title="Chỉnh sửa"><i class="ph ph-pencil-simple text-lg"></i></button>
+                            <button class="text-gray-400 hover:text-purple-600 transition" title="Cấu hình Knowledge"><i class="ph ph-books text-lg"></i></button>
+                            <button class="text-gray-400 hover:text-red-600 transition" title="Xóa"><i class="ph ph-trash text-lg"></i></button>
+                        </td>
+                    </tr>
+                `).join('');
+            }, 500);
+        });
+    </script>
+</body>
+
+</html>
