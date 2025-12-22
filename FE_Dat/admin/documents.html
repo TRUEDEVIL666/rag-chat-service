@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản lý Tài liệu - Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+</head>
+
+<body class="bg-gray-50 text-gray-800 font-sans flex h-screen">
+
+    <!-- SIDEBAR -->
+    <!-- CHỖ NÀY ĐỂ TRỐNG, JS SẼ TỰ ĐIỀN VÀO -->
+    <div id="sidebar-container"></div>
+
+    <!-- MAIN CONTENT -->
+    <main class="flex-1 flex flex-col overflow-hidden ml-64 relative">
+        <!-- Header -->
+        <header class="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-8">
+            <h1 class="text-xl font-semibold">Kho Tài liệu Khoa CNTT</h1>
+            <button onclick="window.location.href='upload-document.html'"
+                class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 shadow-sm transition">
+                <i class="ph ph-upload-simple"></i> Upload Tài liệu mới
+            </button>
+        </header>
+
+        <!-- Table Content -->
+        <div class="flex-1 overflow-auto p-8">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <table class="w-full text-left border-collapse">
+                    <thead class="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold">
+                        <tr>
+                            <th class="px-6 py-4">Tên tài liệu</th>
+                            <th class="px-6 py-4">Loại file</th>
+                            <th class="px-6 py-4">Ngày upload</th>
+                            <th class="px-6 py-4">Trạng thái (RAG)</th>
+                            <th class="px-6 py-4 text-right">Hành động</th>
+                        </tr>
+                    </thead>
+                    <tbody id="document-list" class="divide-y divide-gray-100 text-sm">
+                        <!-- Data will be loaded here -->
+                        <tr>
+                            <td colspan="5" class="px-6 py-12 text-center text-gray-500">
+                                <i class="ph ph-spinner animate-spin text-2xl mb-2"></i>
+                                <p>Đang tải dữ liệu...</p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <script src="js/main.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const tbody = document.getElementById('document-list');
+
+            // Dữ liệu mẫu (Static Data)
+            const mockDocs = [
+                { name: "Giao_trinh_Cau_truc_du_lieu.pdf", type: "PDF", date: "20/12/2025", status: "success", statusText: "Đã học xong" },
+                { name: "Quy_che_dao_tao_2025.docx", type: "DOCX", date: "19/12/2025", status: "processing", statusText: "Đang xử lý..." },
+                { name: "De_cuong_chi_tiet_AI.pdf", type: "PDF", date: "18/12/2025", status: "success", statusText: "Đã học xong" },
+                { name: "Bai_tap_lon_Python.txt", type: "TXT", date: "15/12/2025", status: "error", statusText: "Lỗi định dạng" }
+            ];
+
+            setTimeout(() => {
+                tbody.innerHTML = mockDocs.map(doc => `
+                    <tr class="hover:bg-gray-50 transition">
+                        <td class="px-6 py-4 font-medium text-gray-900">${doc.name}</td>
+                        <td class="px-6 py-4">
+                            <span class="px-2 py-1 rounded text-xs font-bold border ${getTypeClass(doc.type)}">${doc.type}</span>
+                        </td>
+                        <td class="px-6 py-4 text-gray-500">${doc.date}</td>
+                        <td class="px-6 py-4">
+                            <span class="flex items-center gap-2 font-medium ${getStatusClass(doc.status)}">
+                                ${getStatusIcon(doc.status)} ${doc.statusText}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 text-right space-x-2">
+                            <button class="text-gray-400 hover:text-blue-600"><i class="ph ph-eye text-lg"></i></button>
+                            <button class="text-gray-400 hover:text-red-600"><i class="ph ph-trash text-lg"></i></button>
+                        </td>
+                    </tr>
+                `).join('');
+            }, 500);
+        });
+
+        function getTypeClass(type) {
+            switch (type) {
+                case 'PDF': return 'bg-red-50 text-red-600 border-red-100';
+                case 'DOCX': return 'bg-blue-50 text-blue-600 border-blue-100';
+                case 'TXT': return 'bg-gray-50 text-gray-600 border-gray-100';
+                default: return 'bg-slate-50 text-slate-600 border-slate-100';
+            }
+        }
+
+        function getStatusClass(status) {
+            if (status === 'success') return 'text-green-600';
+            if (status === 'processing') return 'text-yellow-600';
+            return 'text-red-500';
+        }
+
+        function getStatusIcon(status) {
+            if (status === 'success') return '<i class="ph-fill ph-check-circle"></i>';
+            if (status === 'processing') return '<i class="ph ph-spinner animate-spin"></i>';
+            return '<i class="ph-fill ph-warning-circle"></i>';
+        }
+    </script>
+</body>
+
+</html>
