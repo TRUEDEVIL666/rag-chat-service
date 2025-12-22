@@ -18,6 +18,7 @@ from datetime import datetime
 
 class User(BaseModel):
   id: UUID
+  tenant_id: UUID | None = None
   email: EmailStr
   role: str
   created_at: datetime

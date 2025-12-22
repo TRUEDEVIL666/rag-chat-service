@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chỉnh sửa Chatbot - Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500;600;700&display=swap');
+
+        :root {
+            --primary: #4F46E5;
+            --primary-light: #818CF8;
+            --secondary: #6366F1;
+        }
+
+        body {
+            font-family: 'Be Vietnam Pro', sans-serif;
+            background: #f8fafc;
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+        }
+
+        .gradient-btn {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            transition: all 0.3s ease;
+        }
+
+        .gradient-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px -10px var(--primary);
+            filter: brightness(1.1);
+        }
+
+        .animate-slide-up {
+            animation: slideUp 0.5s ease-out forwards;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .form-input {
+            transition: all 0.2s ease;
+            border-color: #e2e8f0;
+        }
+
+        .form-input:focus {
+            border-color: var(--primary-light);
+            box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
+        }
+
+        .bot-preview-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+    </style>
+</head>
+
+<body class="flex h-screen overflow-hidden text-slate-700">
+
+    <!-- SIDEBAR -->
+    <div id="sidebar-container"></div>
+
+    <!-- MAIN CONTENT -->
+    <main class="flex-1 flex flex-col overflow-hidden ml-64 relative bg-[#fbfcfd]">
+
+        <!-- Header -->
+        <header
+            class="h-20 bg-white/80 backdrop-blur-md border-b border-slate-100 flex items-center justify-between px-10 sticky top-0 z-40">
+            <div class="flex items-center gap-4">
+                <a href="bots.html"
+                    class="p-2 hover:bg-slate-50 rounded-full transition text-slate-400 hover:text-primary">
+                    <i class="ph ph-arrow-left text-2xl"></i>
+                </a>
+                <div>
+                    <h1 class="text-2xl font-bold text-slate-800 tracking-tight">Chỉnh sửa Chatbot</h1>
+                    <p class="text-sm text-slate-400 font-medium">Cập nhật thông tin và cấu hình cho trợ lý ảo</p>
+                </div>
+            </div>
+        </header>
+
+        <!-- Content Area -->
+        <div class="flex-1 overflow-auto p-10 flex justify-center">
+
+            <div class="w-full max-w-6xl animate-slide-up">
+
+                <form id="editBotForm" class="grid grid-cols-1 lg:grid-cols-12 gap-10">
+
+                    <!-- LEFT COLUMN: Input Form -->
+                    <div class="lg:col-span-7">
+                        <div class="glass-card rounded-3xl p-10 space-y-8">
+
+                            <div class="grid grid-cols-1 gap-6">
+                                <div>
+                                    <label
+                                        class="block text-sm font-bold text-primary uppercase tracking-widest mb-3">Tên
+                                        Chatbot</label>
+                                    <div class="relative">
+                                        <i
+                                            class="ph ph-robot absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-lg"></i>
+                                        <input type="text" id="botName" required placeholder="Ví dụ: Bot Tư Vấn Học Tập"
+                                            class="form-input w-full pl-12 pr-4 py-3.5 bg-slate-50/50 rounded-2xl outline-none"
+                                            oninput="updatePreview()">
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label
+                                        class="block text-sm font-bold text-primary uppercase tracking-widest mb-3">Mô
+                                        hình AI (Model)</label>
+                                    <div class="relative">
+                                        <i
+                                            class="ph ph-cpu absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-lg"></i>
+                                        <select id="botModel" required
+                                            class="form-input w-full pl-12 pr-10 py-3.5 bg-slate-50/50 rounded-2xl outline-none appearance-none cursor-pointer"
+                                            onchange="updatePreview()">
+                                            <option value="gemini-1.5-flash">Gemini 1.5 Flash (Nhanh & Hiệu quả)
+                                            </option>
+                                            <option value="gemini-1.5-pro">Gemini 1.5 Pro (Thông minh nhất)</option>
+                                            <option value="gpt-4o">GPT-4o</option>
+                                        </select>
+                                        <i
+                                            class="ph ph-caret-down absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label
+                                        class="block text-sm font-bold text-primary uppercase tracking-widest mb-3">Chỉ
+                                        dẫn hệ thống (System Prompt)</label>
+                                    <textarea id="botPrompt" rows="6" required
+                                        placeholder="Nhập vai trò, ngữ cảnh và hướng dẫn cho bot..."
+                                        class="form-input w-full p-6 bg-slate-50/50 rounded-2xl outline-none"
+                                        oninput="updatePreview()"></textarea>
+                                    <p class="text-xs text-slate-400 mt-2 italic px-2">* Đây là phần quan trọng nhất để
+                                        định hình tính cách của Bot.</p>
+                                </div>
+                            </div>
+
+                            <div class="pt-6 flex justify-end gap-4 border-t border-slate-50">
+                                <button type="button" onclick="window.history.back()"
+                                    class="px-8 py-3.5 text-slate-500 font-bold hover:bg-slate-50 rounded-2xl transition">Hủy
+                                    bỏ</button>
+                                <button type="submit" id="btn-submit"
+                                    class="gradient-btn px-10 py-3.5 text-white font-bold rounded-2xl shadow-lg flex items-center gap-2">
+                                    <span>Lưu thay đổi</span>
+                                    <i class="ph-bold ph-floppy-disk"></i>
+                                </button>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!-- RIGHT COLUMN: Real-time Preview -->
+                    <div class="lg:col-span-5">
+                        <div class="sticky top-10 space-y-6">
+                            <h3 class="text-sm font-bold text-slate-400 uppercase tracking-widest px-4">Xem trước hiển
+                                thị</h3>
+
+                            <!-- Preview Card -->
+                            <div
+                                class="bot-preview-card rounded-[2rem] p-8 text-white shadow-2xl relative overflow-hidden group">
+                                <div
+                                    class="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl group-hover:bg-white/20 transition-all">
+                                </div>
+
+                                <div class="flex items-center gap-5 mb-8 relative z-10">
+                                    <div
+                                        class="w-16 h-16 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center text-3xl shadow-inner">
+                                        <i class="ph-fill ph-robot"></i>
+                                    </div>
+                                    <div>
+                                        <h4 id="previewName" class="text-xl font-bold tracking-tight">Tên Chatbot</h4>
+                                        <span id="previewModel"
+                                            class="text-xs font-semibold bg-white/20 py-1 px-3 rounded-full mt-1 inline-block backdrop-blur-sm">Gemini
+                                            1.5 Flash</span>
+                                    </div>
+                                </div>
+
+                                <div class="space-y-4 relative z-10">
+                                    <p class="text-xs uppercase font-bold tracking-widest text-white/50">Mô phỏng phản
+                                        hồi:</p>
+                                    <div
+                                        class="bg-white/10 backdrop-blur-md p-5 rounded-2xl text-sm leading-relaxed border border-white/10 italic">
+                                        "<span id="previewPrompt">Chào bạn! Tôi là trợ lý ảo được cấu hình để hỗ trợ
+                                            bạn...</span>"
+                                    </div>
+                                </div>
+
+                                <div
+                                    class="mt-10 flex items-center justify-between text-xs text-white/60 relative z-10">
+                                    <span class="flex items-center gap-2"><i
+                                            class="ph-fill ph-circle text-[8px] text-green-400"></i> Sẵn sàng hoạt
+                                        động</span>
+                                    <span>VN_PRO v1.0</span>
+                                </div>
+                            </div>
+
+                            <!-- Pro-tip -->
+                            <div class="bg-indigo-50/50 rounded-3xl p-6 border border-indigo-100/50">
+                                <div class="flex gap-4">
+                                    <i class="ph ph-lightning text-indigo-500 text-2xl"></i>
+                                    <div>
+                                        <h5 class="font-bold text-indigo-900 text-sm mb-1">Mẹo hay:</h5>
+                                        <p class="text-xs text-indigo-700 leading-relaxed">Cập nhật prompt thường xuyên
+                                            để bot thông minh hơn.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </form>
+
+            </div>
+
+        </div>
+    </main>
+
+    <script src="js/main.js"></script>
+    <script>
+        const API_BASE = "http://localhost:8000/api/v1/bots";
+        const TOKEN = localStorage.getItem('token');
+
+        // Get Bot ID from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const botId = urlParams.get('id');
+
+        if (!TOKEN) {
+            window.location.href = '../login.html';
+        }
+
+        if (!botId) {
+            alert('Không tìm thấy ID bot!');
+            window.location.href = 'bots.html';
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchBotDetails();
+        });
+
+        async function fetchBotDetails() {
+            try {
+                const response = await fetch(`${API_BASE}/${botId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${TOKEN}`
+                    }
+                });
+
+                if (!response.ok) throw new Error("Could not fetch bot details");
+
+                const bot = await response.json();
+
+                // Pre-fill form
+                document.getElementById('botName').value = bot.bot_name;
+                document.getElementById('botModel').value = bot.model_name;
+                document.getElementById('botPrompt').value = bot.system_prompt;
+
+                updatePreview();
+
+            } catch (error) {
+                console.error(error);
+                alert('Lỗi tải thông tin bot: ' + error.message);
+            }
+        }
+
+        function updatePreview() {
+            const name = document.getElementById('botName').value;
+            const model = document.getElementById('botModel').value;
+            const prompt = document.getElementById('botPrompt').value;
+
+            document.getElementById('previewName').innerText = name || "Tên Chatbot";
+            document.getElementById('previewModel').innerText = model;
+            document.getElementById('previewPrompt').innerText = prompt || "Chào bạn! Tôi là trợ lý ảo được cấu hình để hỗ trợ bạn...";
+        }
+
+        document.getElementById('editBotForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('btn-submit');
+
+            const payload = {
+                bot_name: document.getElementById('botName').value,
+                model_name: document.getElementById('botModel').value,
+                system_prompt: document.getElementById('botPrompt').value
+            };
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="ph ph-spinner animate-spin text-xl"></i> <span>Đang lưu...</span>';
+
+            try {
+                const response = await fetch(`${API_BASE}/${botId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${TOKEN}`
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (response.ok) {
+                    alert('Cập nhật thành công!');
+                    window.location.href = 'bots.html';
+                } else {
+                    const err = await response.json();
+                    alert('Lỗi: ' + (err.detail || 'Không thể cập nhật bot'));
+                    btn.disabled = false;
+                    btn.innerHTML = '<span>Lưu thay đổi</span> <i class="ph-bold ph-floppy-disk"></i>';
+                }
+            } catch (error) {
+                console.error(error);
+                alert('Lỗi kết nối server');
+                btn.disabled = false;
+            }
+        });
+    </script>
+</body>
+
+</html>

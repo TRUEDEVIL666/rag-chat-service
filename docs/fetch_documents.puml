@@ -1,0 +1,59 @@
+@startuml
+skinparam handwritten false
+skinparam monochrome false
+skinparam shadowing true
+skinparam defaultFontName "Segoe UI"
+
+actor User
+participant "Frontend (documents.html)" as FE
+participant "API Server" as BE
+database "Mock Data" as Mock
+
+title Fetch Documents Process (Sequence)
+
+User -> FE: Click on Folder (Knowledge Base)
+activate FE
+
+FE -> FE: Check Auth Token
+alt Token Missing
+    FE -> User: Redirect to Login
+else Token Present
+    FE -> FE: setLoading(true)
+    
+    note right of FE
+      Attempts to fetch from API first.
+      Endpoint: GET /api/v1/knowledge_bases/{kbId}/documents
+    end note
+    
+    FE -> BE: GET /knowledge_bases/{kbId}/documents
+    activate BE
+    
+    alt API Success (200 OK)
+        BE --> FE: JSON Response (List of Documents)
+        FE -> FE: Parse JSON
+        FE -> FE: renderList(items)
+    else API Failure / Endpoint Missing (404/500)
+        BE --> FE: Error Response
+        deactivate BE
+        
+        note right of FE
+            Fallback mechanism triggered 
+            due to missing backend implementation
+        end note
+        
+        FE -> FE: Catch Error
+        FE -> Mock: Load mockDocs array
+        activate Mock
+        Mock --> FE: Return Mock Data
+        deactivate Mock
+        
+        FE -> FE: renderList(mockDocs)
+        FE -> User: Display Toast/Console Warn (Optional)
+    end
+    
+    FE -> FE: setLoading(false)
+end
+
+deactivate FE
+
+@enduml
