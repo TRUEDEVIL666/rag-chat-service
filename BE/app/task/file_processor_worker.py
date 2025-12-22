@@ -11,7 +11,9 @@ def process_uploaded_file_celery(
     kb_id: str,
     tenant_id: str,
     created_by: str,
-    chunking_method: str = "sentence"
+    access_token: str,
+    chunking_method: str = "sentence",
+    use_sparse: bool = True
 ):
   file_processor = get_file_processor_service()
 
@@ -23,5 +25,7 @@ def process_uploaded_file_celery(
       kb_id=kb_id,
       tenant_id=tenant_id,
       created_by=created_by,
-      chunking_method=chunking_method
+      chunking_method=chunking_method,
+      access_token=access_token,
+      use_sparse=use_sparse
   )

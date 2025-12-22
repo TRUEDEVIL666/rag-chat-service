@@ -18,9 +18,9 @@ class KnowledgeBaseItem(BaseModel):
   document_count: int = 0
   word_count: int = 0
   created_by: Optional[str] = None
-  created_at: str
+  created_at: int
   updated_by: Optional[str] = None
-  updated_at: str
+  updated_at: int
   embedding_model: Optional[str] = None
   retrieval_model: Optional[Dict[str, Any]] = None
 

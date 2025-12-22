@@ -1,4 +1,3 @@
-# app/core/factory.py
 import logging
 from app.config.config import settings
 from app.services.auth.auth_service import AuthService
@@ -238,7 +237,9 @@ def get_knowledge_base_service() -> KnowledgeBaseService:
   global _knowledge_base_service_instance
   if _knowledge_base_service_instance is None:
     _knowledge_base_service_instance = KnowledgeBaseService(
-        kb_repo=get_knowledge_base_repository())
+        kb_repo=get_knowledge_base_repository(),
+        vector_repo=get_vector_store()
+    )
   return _knowledge_base_service_instance
 
 

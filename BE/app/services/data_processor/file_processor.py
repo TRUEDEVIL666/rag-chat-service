@@ -4,7 +4,7 @@ from typing import List
 
 from app.core.logger import get_logger
 
-from llama_index.core.schema import BaseNode
+from llama_index.core.schema import BaseNode, NodeRelationship
 from llama_index.core import Document, Settings
 from llama_index.readers.file import DocxReader, CSVReader, PDFReader, PptxReader
 from llama_index.readers.json import JSONReader
@@ -77,7 +77,9 @@ class FileProcessor:
       kb_id: str,
       tenant_id: str,
       created_by: str,
-      chunking_method: str = "sentence"
+      access_token: str = None,
+      chunking_method: str = "sentence",
+      use_sparse: bool = True
   ):
     document_id = self._detect_or_create_document_id(file_name)
     file_path = self._upload_original_file(file_bytes, file_name)
@@ -91,7 +93,7 @@ class FileProcessor:
         "tenant_id": tenant_id,
         "created_by": created_by,
         "status": "learning"
-    })
+    }, access_token)
 
     try:
       documents = extract_documents(
@@ -113,31 +115,36 @@ class FileProcessor:
           tenant_id
       )
 
-      self.meta_data_store.store(wrapped_chunks)
+      self.meta_data_store.store(wrapped_chunks, access_token)
 
       # Determine embedding model from Knowledge Base
       embed_model = None
-      kb_data = self.kb_repository.get_one(kb_id, tenant_id)
+      # Config for Sparse Vector Generation is now passed via API (use_sparse)
 
-      if kb_data and kb_data.get("embedding_model"):
-        embedding_config = kb_data["embedding_model"]
-        # Expected format: "provider/model"
-        if "/" in embedding_config:
-          provider, model = embedding_config.split("/", 1)
-          from app.core.factory import get_embedding_service
-          # Create a specific embedding service for this file
-          specific_embedding_service = get_embedding_service(
-            provider=provider, model=model)
-          embed_model = CustomEmbedding(
-            specific_embedding_service, embed_batch_size=64)
-        else:
-          logger.warning(
-            f"Invalid embedding_model format for KB {kb_id}: {embedding_config}")
+      kb_data = self.kb_repository.get_one(kb_id, tenant_id, access_token)
 
-      self._insert_to_qdrant(wrapped_chunks, embed_model)
+      if kb_data:
+        # Resolve Embedding Model
+        if kb_data.get("embedding_model"):
+          embedding_config = kb_data["embedding_model"]
+          # Expected format: "provider/model"
+          if "/" in embedding_config:
+            provider, model = embedding_config.split("/", 1)
+            from app.core.factory import get_embedding_service
+            # Create a specific embedding service for this file
+            specific_embedding_service = get_embedding_service(
+              provider=provider, model=model)
+            embed_model = CustomEmbedding(
+              specific_embedding_service, embed_batch_size=64)
+          else:
+            logger.warning(
+              f"Invalid embedding_model format for KB {kb_id}: {embedding_config}")
+
+      self._insert_to_qdrant(wrapped_chunks, embed_model, use_sparse)
 
       # Update status to learned
-      self.document_repository.update_document_status(document_id, "learned")
+      self.document_repository.update_document_status(
+        document_id, "learned", access_token)
 
       return {
         "status": "success",
@@ -147,7 +154,8 @@ class FileProcessor:
       }
     except Exception as e:
       logger.exception(f"Failed to process file {file_name}: {e}")
-      self.document_repository.update_document_status(document_id, "error")
+      self.document_repository.update_document_status(
+        document_id, "error", access_token)
       raise e
 
   def _wrap_chunks(
@@ -163,25 +171,38 @@ class FileProcessor:
     wrapped_chunks = []
     for _, chunk in enumerate(chunks):
       chunk_text = chunk.text
-      chunk_id = str(uuid.uuid4())
+      # Use the LlamaIndex Node ID as the Qdrant Point ID to ensure we can retrieve Parents by ID
+      chunk_id = chunk.node_id
 
-      doc = Document(
-        text=chunk_text,
-        metadata={
+      # Extract Parent ID for Auto-Merging Retrieval
+      parent_id = None
+      if chunk.relationships and NodeRelationship.PARENT in chunk.relationships:
+        parent_info = chunk.relationships[NodeRelationship.PARENT]
+        if parent_info:
+          parent_id = parent_info.node_id
+
+      metadata = {
           **chunk.metadata,
           "document_id": document_id,
           "file_path": file_path,
           "kb_id": kb_id,
           "tenant_id": tenant_id,
           "chunk_id": chunk_id,
-        },
+      }
+
+      if parent_id:
+        metadata["parent_id"] = parent_id
+
+      doc = Document(
+          text=chunk_text,
+          metadata=metadata,
       )
       wrapped_chunks.append(doc)
     return wrapped_chunks
 
-  def _insert_to_qdrant(self, documents: List[Document], embed_model: CustomEmbedding = None):
+  def _insert_to_qdrant(self, documents: List[Document], embed_model: CustomEmbedding = None, use_sparse: bool = True):
     """Insert documents (chunks) into Qdrant vector store."""
-    self.vector_repository.upsert_documents(documents, embed_model)
+    self.vector_repository.upsert_documents(documents, embed_model, use_sparse)
 
   def _upload_original_file(self, file_bytes: bytes, filename: str) -> str:
     """Upload the original document to MinIO and return its storage path."""

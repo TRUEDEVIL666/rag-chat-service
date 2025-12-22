@@ -21,8 +21,15 @@ body:json {
       "reranking_enable": true,
       "reranking_mode": {
         "reranking_model": "huggingface/cross-encoder/ms-marco-MiniLM-L-6-v2"
-      }
-    }
+      },
+      "search_method": "hybrid",
+      "top_k": 5,
+      "score_threshold_enabled": true,
+      "score_threshold": 0.5,
+      "weights": 0.5
+    },
+    "indexing_technique": "high_quality",
+    "permission": "only_me"
   }
 }
 

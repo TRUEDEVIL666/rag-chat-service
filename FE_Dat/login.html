@@ -131,11 +131,23 @@
                     msgBox.className = "mt-4 text-center text-sm text-green-600 font-medium";
                     msgBox.innerText = "Đăng nhập thành công!";
 
-                    // Lưu token (Tùy backend trả về key tên gì, thường là access_token hoặc session)
-                    if (data.access_token) localStorage.setItem('token', data.access_token);
+                    console.log("Login response:", data);
+                    // Lưu token
+                    if (data.token) {
+                        localStorage.setItem('token', data.token);
+                        console.log("Token saved:", data.token);
+                    } else if (data.token) {
+                        // Fallback support
+                        localStorage.setItem('token', data.token);
+                        console.log("Token saved (legacy key):", data.token);
+                    } else {
+                        console.error("No token found in response", data);
+                        alert("Lỗi: Backend không trả về token hợp lệ!");
+                        return;
+                    }
 
                     setTimeout(() => {
-                        window.location.href = 'admin/index.html';
+                        window.location.href = 'admin/bots.html';
                     }, 1000);
                 } else {
                     // Backend trả lỗi 400/404/401

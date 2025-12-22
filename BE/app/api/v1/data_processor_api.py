@@ -12,13 +12,6 @@ from app.core.logger import get_logger
 from app.utils.auth import get_current_user
 from app.task.file_processor_worker import process_uploaded_file_celery
 
-# import asyncio
-# import sys
-
-# if sys.platform.startswith('win'):
-#     print("Setting Windows event loop policy")
-#     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-
 router = APIRouter()
 
 logger = get_logger("upload")
@@ -42,7 +35,9 @@ async def upload_file_process(
         request.knowledge_base_id,
         auth["tenant_id"],
         auth["user_id"],
-        request.chunking_method
+        auth.get("token"),
+        request.chunking_method,
+        request.use_sparse
     )
     results.append({
         "filename": file.filename,

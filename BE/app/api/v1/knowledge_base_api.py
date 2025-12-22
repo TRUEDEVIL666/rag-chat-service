@@ -1,4 +1,5 @@
 # app/api/v1/knowledge_base.py
+from fastapi_cache.decorator import cache
 from uuid import UUID
 from datetime import datetime
 from typing import Dict, Any, List, Optional
@@ -6,8 +7,9 @@ from fastapi import APIRouter, HTTPException, Depends, Path, Query
 
 from app.core.logger import get_logger
 from app.core.factory import get_knowledge_base_service
+from fastapi.security import HTTPAuthorizationCredentials
 
-from app.utils.auth import get_current_user
+from app.utils.auth import get_current_user, security
 
 from app.helper.utils_kb import INDEX_MAP, PERM_MAP, api_to_db_retrieval, db_to_api_retrieval, to_epoch
 from app.schemas.knowledge_base import (
@@ -39,6 +41,7 @@ def _to_epoch(ts) -> int:
     summary="Get Knowledge Base List",
     description="Retrieves a list of knowledge bases, with options for pagination and filtering."
 )
+@cache(expire=60)
 def list_knowledge_bases(
     # keyword: Optional[str] = Query(None, description="Search keyword to filter by name"),
     # tag_ids: Optional[List[str]] = Query(None, description="List of tag IDs (ALL-of filtering)"),
@@ -46,7 +49,7 @@ def list_knowledge_bases(
     # limit: int = Query(20, ge=1, le=100, description="Items per page"),
     # include_all: bool = Query(False, description="Only effective for workspace owners"),
     kb_service=Depends(get_knowledge_base_service),
-    auth=Depends(get_current_user),
+    auth=Depends(get_current_user)
 ):
   try:
     tenant_id = auth["tenant_id"]
@@ -54,6 +57,7 @@ def list_knowledge_bases(
 
     rows, total = kb_service.list_knowledge_bases(
         tenant_id=tenant_id,
+        access_token=auth.get("token"),
         # keyword=keyword,
         # tag_ids=tag_ids or [],
         # page=page,
@@ -183,3 +187,28 @@ def update_knowledge_base(
     if "exists" in str(e):
       raise HTTPException(status_code=409, detail=str(e))
     raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete(
+    "/knowledge_bases/{knowledge_base_id}",
+    summary="Delete Knowledge Base",
+    description="Deletes a knowledge base and all its associated data (documents, chunks, vectors)."
+)
+def delete_knowledge_base(
+    knowledge_base_id: UUID = Path(..., description="KB ID"),
+    kb_service=Depends(get_knowledge_base_service),
+    auth=Depends(get_current_user)
+):
+  tenant_id = auth["tenant_id"]
+  kb_id = str(knowledge_base_id)
+
+  try:
+    success = kb_service.delete_knowledge_base(kb_id, tenant_id)
+    if not success:
+      raise HTTPException(
+        status_code=404, detail="Knowledge base not found or failed to delete.")
+
+    return {"status": "success", "message": "Knowledge base deleted successfully."}
+  except Exception as e:
+    logger.exception(f"Failed to delete knowledge base {kb_id}")
+    raise HTTPException(status_code=500, detail=f"Internal server error: {e}")

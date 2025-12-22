@@ -186,7 +186,7 @@ class CustomEmbedding(BaseEmbedding):
   _embedding_service: EmbeddingService = PrivateAttr()
 
   def __init__(self, embedding_service: EmbeddingService, **kwargs):
-    super().__init__(**kwargs)
+    super().__init__(model_name=embedding_service.model_name, **kwargs)
     self._embedding_service = embedding_service
 
   def _get_query_embedding(self, query: str) -> List[float]:

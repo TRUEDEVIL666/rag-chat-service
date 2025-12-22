@@ -14,3 +14,6 @@ class UserService:
   def delete_users(self, user_ids: list[str]) -> None:
     for user_id in user_ids:
       self.user_repo.delete_user(user_id)
+
+  def get_total_users(self) -> int:
+    return self.user_repo.get_total_users()

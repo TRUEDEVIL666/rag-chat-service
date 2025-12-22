@@ -45,6 +45,7 @@ def get_current_user(
         "user_id": user_id,
         "tenant_id": tenant_id,
         "role": role,
+        "token": token
     }
   except JWTError as e:
     logger.warning(f"[Auth] JWT decoding failed: {str(e)}")
