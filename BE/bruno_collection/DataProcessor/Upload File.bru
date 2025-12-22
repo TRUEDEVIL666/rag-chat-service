@@ -14,12 +14,11 @@ auth:bearer {
   token: {{token}}
 }
 
-query {
-}
-
 body:multipart-form {
-  files: @file()
-  knowledge_base_id: 36bc7fc0-d495-47b2-b470-3b8345c1a1f1
+  files: @file(D:\Programming\E.S.C.A.P.E\Cross_Platform\522H0087_522H0086_522H0036\522H0087_522H0086_522H0036.docx)
+  knowledge_base_id: a768a1b0-1e7d-4ae4-a21e-ba215338116d
+  use_sparse: true
+  chunking_method: hierarchical
 }
 
 script:post-response {

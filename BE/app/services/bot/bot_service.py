@@ -32,6 +32,7 @@ class LLMConfig(BaseModel):
   provider: str
   model: str
   temperature: float
+  system_prompt: Optional[str] = None
 
 
 class RetrievalConfig(BaseModel):
@@ -39,6 +40,9 @@ class RetrievalConfig(BaseModel):
   score_threshold: float
   rerank: bool
   rerank_model: Optional[str] = None
+  embedding_model: Optional[str] = None
+  search_method: str = "semantic"
+  auto_merging: bool = False
 
 
 class BotService:
@@ -49,7 +53,7 @@ class BotService:
       vector_repo: VectorRepository,
       llm_service: LLMService,
       message_repo: ChatMessageRepository,
-      kb_repo: KnowledgeBaseRepository,
+      kb_repo: KnowledgeBaseRepository
   ):
     self.bot_repo = bot_repo
     self.session_repo = session_repo
@@ -61,43 +65,63 @@ class BotService:
   # ----------------------------------------------------------------------
   # BOT MANAGEMENT (CRUD) - Now Async to avoid blocking
   # ----------------------------------------------------------------------
-  async def create_bot(self, data: BotCreateRequest, tenant_id: str, user_id: str):
-    return await asyncio.to_thread(self.bot_repo.create_bot, data, tenant_id, user_id)
+  async def create_bot(self, data: BotCreateRequest, tenant_id: str, user_id: str, access_token: str = None):
+    return await asyncio.to_thread(self.bot_repo.create_bot, data, tenant_id, user_id, access_token)
 
-  async def update_config(self, bot_id: str, tenant_id: str, request: BotUpdateConfigRequest):
-    return await asyncio.to_thread(self.bot_repo.update_config, bot_id, tenant_id, request)
+  async def update_config(self, bot_id: str, tenant_id: str, request: BotUpdateConfigRequest, access_token: str = None):
+    return await asyncio.to_thread(self.bot_repo.update_config, bot_id, tenant_id, request, access_token)
 
-  async def list_bots(self, tenant_id: str):
-    return await asyncio.to_thread(self.bot_repo.list_bots, tenant_id)
+  async def list_bots(self, tenant_id: str, access_token: str = None):
+    return await asyncio.to_thread(self.bot_repo.list_bots, tenant_id, access_token)
 
-  async def get_bot(self, bot_id: str, tenant_id: str):
-    return await asyncio.to_thread(self.bot_repo.get_bot, bot_id, tenant_id)
+  async def get_bot(self, bot_id: str, tenant_id: str, access_token: str = None):
+    return await asyncio.to_thread(self.bot_repo.get_bot, bot_id, tenant_id, access_token)
 
-  async def delete_bot(self, bot_id: str, tenant_id: str):
-    return await asyncio.to_thread(self.bot_repo.delete_bot, bot_id, tenant_id)
+  async def delete_bot(self, bot_id: str, tenant_id: str, access_token: str = None):
+    return await asyncio.to_thread(self.bot_repo.delete_bot, bot_id, tenant_id, access_token)
 
   # ----------------------------------------------------------------------
   # SESSION HELPER
   # ----------------------------------------------------------------------
-  async def _ensure_session(self, session_id: str, tenant_id: str, user_id: str, bot_id: str) -> str:
+  async def _ensure_session(self, session_id: str, tenant_id: str, user_id: str, bot_id: str, access_token: str = None) -> str:
     if session_id:
       try:
-        session = await asyncio.to_thread(self.session_repo.get_session, session_id)
+        session = await asyncio.to_thread(self.session_repo.get_session, session_id, access_token)
         if session:
-          return session["id"]
-      except Exception:
-        logger.warning(
-            f"Session {session_id} not found or error accessing it. Creating new session."
-        )
+          # Verify Session Ownership
+          s_bot_id = str(session.get("bot_id"))
+          s_user_id = str(session.get("user_id"))
 
-    # Create new session if None or not found
+          if s_bot_id != bot_id:
+            logger.warning(
+                f"Session {session_id} mismatch: Bot {s_bot_id} != {bot_id}"
+            )
+            # Generic error to avoid leaking existence
+            raise ValueError("Session not found")
+
+          elif s_user_id != user_id:
+            logger.warning(
+                f"Session {session_id} mismatch: User {s_user_id} != {user_id}"
+            )
+            raise ValueError("Session not found")
+
+          return session["id"]
+        else:
+          # Session ID provided but not found in DB
+          raise ValueError("Session not found")
+
+      except ValueError:
+        raise
+      except Exception as e:
+        logger.error(f"Error checking session {session_id}: {e}")
+        raise ValueError("Session not found")
+
+    # Create new session if passed session_id was None/Empty
     session = await asyncio.to_thread(
-        self.session_repo.create_session, user_id, bot_id, tenant_id
+        self.session_repo.create_session, user_id, bot_id, tenant_id, access_token
     )
     # Assuming create_session might return None on failure based on repo code
     if not session:
-      # Fallback or strict error? Original code assumed it returned a dict with "id".
-      # If repo raises, it's caught outside or bubbles up.
       raise RuntimeError("Failed to create new session.")
 
     return session["id"]
@@ -110,6 +134,7 @@ class BotService:
     Parses bot config to determine provider, model, and temperature.
     """
     config_model = bot_config.get("config_model")
+    system_prompt = bot_config.get("config_prompt")
 
     if not config_model:
       combined = settings.DEFAULT_CHAT_MODEL
@@ -122,7 +147,7 @@ class BotService:
         provider = parts[0]
         model = parts[1]
 
-      return LLMConfig(provider=provider, model=model, temperature=temp)
+      return LLMConfig(provider=provider, model=model, temperature=temp, system_prompt=system_prompt)
 
     # Config exists
     combined = config_model.get("model", settings.DEFAULT_CHAT_MODEL)
@@ -136,7 +161,7 @@ class BotService:
       provider = config_model.get("provider", "ollama")
       model = combined
 
-    return LLMConfig(provider=provider, model=model, temperature=temp)
+    return LLMConfig(provider=provider, model=model, temperature=temp, system_prompt=system_prompt)
 
   async def _resolve_retrieval_config(self, kb_id: str, tenant_id: str) -> RetrievalConfig:
     """
@@ -147,14 +172,33 @@ class BotService:
     score_threshold = 0.1
     rerank = False
     rerank_model = settings.RERANKER_MODEL
+    embedding_model = settings.EMBEDDING_MODEL
 
+    search_method = "semantic"
+    auto_merging = False
     try:
       kb_config = await asyncio.to_thread(
           self.kb_repo.get_retrieval_model, kb_id, tenant_id
       )
-      if kb_config and kb_config.get("retrieval_model"):
-        rm = kb_config["retrieval_model"]
+      if kb_config:
+        if kb_config.get("embedding_model"):
+          embedding_model = kb_config.get("embedding_model")
 
+        # Initialize rm to avoid unbound local error if retrieval_model is missing
+        rm = {}
+        if kb_config.get("retrieval_model"):
+          rm_raw = kb_config["retrieval_model"]
+          # Handle potential JSON string
+          if isinstance(rm_raw, str):
+            import json
+            try:
+              rm = json.loads(rm_raw)
+            except Exception:
+              rm = {}
+          elif isinstance(rm_raw, dict):
+            rm = rm_raw
+
+        # Parse fields from rm
         if rm.get("top_k", 0) > 0:
           top_k = rm["top_k"]
 
@@ -163,6 +207,12 @@ class BotService:
 
         rerank = rm.get("reranking_enable", False)
         reranking_mode = rm.get("reranking_mode", {})
+
+        auto_merging = rm.get("auto_merging", False)
+
+        # Extract Search Method
+        # It might be under "search_method" or "method" depending on DB consistency
+        search_method = rm.get("search_method", "semantic")
 
         # Parse rerank model
         if reranking_mode:
@@ -186,7 +236,10 @@ class BotService:
         top_k=top_k,
         score_threshold=score_threshold,
         rerank=rerank,
-        rerank_model=rerank_model
+        rerank_model=rerank_model,
+        embedding_model=embedding_model,
+        search_method=search_method,
+        auto_merging=auto_merging
     )
 
   async def _search_knowledge_bases(self, query: str, kb_ids: List[str], tenant_id: str) -> List[Dict]:
@@ -196,68 +249,95 @@ class BotService:
     all_results = []
 
     # We can optimize this to run in parallel
+    # Group KBs by Embedding Model to optimize searching
+    # Structure: { model_name: [ (kb_id, config), ... ] }
+    grouped_kbs = {}
+
     for kb_id in kb_ids:
       try:
-        retrieval_config = await self._resolve_retrieval_config(str(kb_id), tenant_id)
+        config = await self._resolve_retrieval_config(str(kb_id), tenant_id)
+        model = config.embedding_model or settings.EMBEDDING_MODEL
+        if model not in grouped_kbs:
+          grouped_kbs[model] = []
+        grouped_kbs[model].append((kb_id, config))
+      except Exception as e:
+        logger.error(f"Error resolving config for KB {kb_id}: {e}")
 
-        # If reranking, fetch more candidates
-        search_k = retrieval_config.top_k * \
-            3 if retrieval_config.rerank else retrieval_config.top_k
+    # Process each model group
+    for model_name, queue in grouped_kbs.items():
+      try:
+        # For each KB in this group, perform search using the specific model
+        # Note: We can likely optimize to batch search if vector_repo supported it,
+        # but standard usage is per-KB filtering.
 
-        results = await asyncio.to_thread(
-            self.vector_repo.search,
-            query=query,
-            k=search_k,
-            kb_id=str(kb_id),
-            score_threshold=retrieval_config.score_threshold
-        )
+        # Current vector_repo.search takes 'kb_id' as a filter.
+        # We must iterate.
+        for kb_id, retrieval_config in queue:
+          try:
+            # If reranking, fetch more candidates
+            search_k = retrieval_config.top_k * \
+                3 if retrieval_config.rerank else retrieval_config.top_k
 
-        if results:
-          if retrieval_config.rerank:
-            results = await asyncio.to_thread(
-                self.vector_repo.rerank_results,
-                results=results,
+            results = await self.vector_repo.search(
                 query=query,
-                top_k=retrieval_config.top_k,
-                model_name=retrieval_config.rerank_model
+                k=search_k,
+                kb_id=str(kb_id),
+                score_threshold=retrieval_config.score_threshold,
+                model_name=model_name,
+                search_method=retrieval_config.search_method,
+                enable_auto_merging=retrieval_config.auto_merging  # Pass the flag
             )
-          else:
-            results = results[:retrieval_config.top_k]
 
-          all_results.extend(results)
+            if results:
+              if retrieval_config.rerank:
+                results = await asyncio.to_thread(
+                    self.vector_repo.rerank_results,
+                    results=results,
+                    query=query,
+                    top_k=retrieval_config.top_k,
+                    model_name=retrieval_config.rerank_model
+                )
+              else:
+                results = results[:retrieval_config.top_k]
+
+              all_results.extend(results)
+          except Exception as e:
+            logger.error(
+              f"Error searching KB {kb_id} (Model: {model_name}): {e}", exc_info=True)
 
       except Exception as e:
-        logger.error(f"Error searching KB {kb_id}: {e}", exc_info=True)
+        logger.error(
+          f"Error processing model group {model_name}: {e}", exc_info=True)
 
     # Sort all aggregated results by score
     all_results.sort(key=lambda x: x["score"], reverse=True)
     return all_results[:5]  # Global top 5
 
   async def _prepare_chat_execution(
-      self, bot_id: str, query: str, tenant_id: str, user_id: str, session_id: str
+      self, bot_id: str, query: str, tenant_id: str, user_id: str, session_id: str, access_token: str = None
   ) -> Tuple[Optional[str], Optional[LLMConfig], Optional[str]]:
     """
     Orchestrate the context retrieval and prompt setup.
-    Returns: (context, llm_config, error_message)
+    Returns: (context, llm_config, bot_name, error_message)
     """
     # 1. Save User Message
     await asyncio.to_thread(
-        self.message_repo.create_message, session_id, query, role=MessageRole.USER, sender_id=user_id
+        self.message_repo.create_message, session_id, query, role=MessageRole.USER, sender_id=user_id, access_token=access_token
     )
 
     # 2. Get Bot
-    bot = await self.get_bot(bot_id, tenant_id)
+    bot = await self.get_bot(bot_id, tenant_id, access_token)
     if not bot:
-      return None, None, f"Bot {bot_id} not found"
+      return None, None, None, f"Bot {bot_id} not found"
 
     # 3. Check KBs
     kb_ids = bot.get("kb_ids")
     if not kb_ids:
       msg = "Bot is not configured with any knowledge bases."
       await asyncio.to_thread(
-          self.message_repo.create_message, session_id, msg, role=MessageRole.SYSTEM, sender_id=bot_id
+          self.message_repo.create_message, session_id, msg, role=MessageRole.SYSTEM, sender_id=bot_id, access_token=access_token
       )
-      return None, None, msg
+      return None, None, None, msg
 
     # 4. Resolve Model
     llm_config = self._resolve_model_config(bot)
@@ -270,21 +350,21 @@ class BotService:
       await asyncio.to_thread(
           self.message_repo.create_message, session_id, msg, role=MessageRole.ASSISTANT, sender_id=bot_id
       )
-      return None, None, msg
+      return None, None, None, msg
 
     context = "\n".join([r["text"] for r in results])
-    return context, llm_config, None
+    return context, llm_config, bot.get("name", "AI Assistant"), None
 
   # ----------------------------------------------------------------------
   # CHAT INTERFACE
   # ----------------------------------------------------------------------
   async def ask_bot(
-      self, bot_id: str, query: str, tenant_id: str, user_id: str, session_id: str = None
+      self, bot_id: str, query: str, tenant_id: str, user_id: str, session_id: str = None, access_token: str = None
   ) -> Tuple[str, str]:
-    session_id = await self._ensure_session(session_id, tenant_id, user_id, bot_id)
+    session_id = await self._ensure_session(session_id, tenant_id, user_id, bot_id, access_token)
 
-    context, llm_config, error_msg = await self._prepare_chat_execution(
-        bot_id, query, tenant_id, user_id, session_id
+    context, llm_config, bot_name, error_msg = await self._prepare_chat_execution(
+        bot_id, query, tenant_id, user_id, session_id, access_token
     )
 
     if error_msg:
@@ -303,7 +383,7 @@ class BotService:
       )
 
       await asyncio.to_thread(
-          self.message_repo.create_message, session_id, response, role=MessageRole.ASSISTANT, sender_id=bot_id
+          self.message_repo.create_message, session_id, response, role=bot_name, sender_id=bot_id, access_token=access_token
       )
 
       return response, session_id
@@ -314,19 +394,19 @@ class BotService:
       # Best effort to log error to user chat
       try:
         await asyncio.to_thread(
-            self.message_repo.create_message, session_id, msg, role=MessageRole.SYSTEM, sender_id=bot_id
+            self.message_repo.create_message, session_id, msg, role=MessageRole.SYSTEM, sender_id=bot_id, access_token=access_token
         )
       except Exception:
         pass  # Fail silently if DB is broken, we already logged the error
       raise e
 
   async def ask_bot_stream(
-      self, bot_id: str, query: str, tenant_id: str, user_id: str, session_id: str = None
+      self, bot_id: str, query: str, tenant_id: str, user_id: str, session_id: str = None, access_token: str = None
   ):
-    session_id = await self._ensure_session(session_id, tenant_id, user_id, bot_id)
+    session_id = await self._ensure_session(session_id, tenant_id, user_id, bot_id, access_token)
 
-    context, llm_config, error_msg = await self._prepare_chat_execution(
-        bot_id, query, tenant_id, user_id, session_id
+    context, llm_config, bot_name, error_msg = await self._prepare_chat_execution(
+        bot_id, query, tenant_id, user_id, session_id, access_token
     )
 
     if error_msg:
@@ -345,7 +425,9 @@ class BotService:
         context=context,
         config=llm_config,
         session_id=session_id,
-        bot_id=bot_id
+        bot_id=bot_id,
+        bot_name=bot_name,
+        access_token=access_token
     ), session_id
 
   async def _stream_response_wrapper(
@@ -354,7 +436,9 @@ class BotService:
       context: str,
       config: LLMConfig,
       session_id: str,
-      bot_id: str
+      bot_id: str,
+      bot_name: str,
+      access_token: str = None
   ):
     """
     Internal helper to handle the streaming, aggregation, and final logging.
@@ -375,7 +459,7 @@ class BotService:
       # Only start saving to DB after stream completes successfully
       await asyncio.to_thread(
           self.message_repo.create_message,
-          session_id, full_response, role=MessageRole.ASSISTANT, sender_id=bot_id
+          session_id, full_response, role=bot_name, sender_id=bot_id, access_token=access_token
       )
 
     except Exception as e:
@@ -383,7 +467,7 @@ class BotService:
       msg = f"Error during streaming: {str(e)}"
       try:
         await asyncio.to_thread(
-            self.message_repo.create_message, session_id, msg, role=MessageRole.SYSTEM, sender_id=bot_id
+            self.message_repo.create_message, session_id, msg, role=MessageRole.SYSTEM, sender_id=bot_id, access_token=access_token
         )
       except Exception:
         pass
@@ -399,9 +483,13 @@ class BotService:
       config: LLMConfig,
       streaming: bool = False
   ):
-    # NOTE: Keeping the naive prompt construction as requested by User Constraints.
+    # Use configured system prompt or fallback to default
+    instruction = config.system_prompt \
+      if config.system_prompt \
+        else "Based on the information below, answer the question accurately and clearly."
+
     prompt = f"""
-      Based on the information below, answer the question accurately and clearly.
+      {instruction}
       ===
       {context}
       ===

@@ -92,8 +92,9 @@ class LLMService:
               continue
             parsed = json.loads(data)
             yield parsed.get("response", "")
-          except Exception:
-            continue
+          except Exception as e:
+            print(f"Error parsing Ollama stream: {e}. Data: '{data}'")
+            raise ValueError("Error parsing message")
 
 
 llm_service = LLMService()

@@ -1,11 +1,11 @@
-from app.services.supabase.supabase_client import supabase
+from app.services.supabase.supabase_client import get_supabase_client, supabase
 from app.schemas.bot import BotCreateRequest, BotUpdateConfigRequest
 from datetime import datetime
 from uuid import uuid4
 
 
 class BotRepository:
-  def create_bot(self, data: BotCreateRequest, tenant_id: str, user_id: str):
+  def create_bot(self, data: BotCreateRequest, tenant_id: str, user_id: str, access_token: str = None):
     bot_id = str(uuid4())
     now = datetime.utcnow().isoformat()
 
@@ -20,15 +20,17 @@ class BotRepository:
         "created_at": now,
     }
 
-    result = supabase.table("bots").insert(insert_data).execute()
+    client = get_supabase_client(access_token) if access_token else supabase
+    result = client.table("bots").insert(insert_data).execute()
     if result.data:
       return result.data[0]
     else:
       raise Exception("Failed to insert bot")
 
-  def update_config(self, bot_id: str, tenant_id: str, request: BotUpdateConfigRequest):
+  def update_config(self, bot_id: str, tenant_id: str, request: BotUpdateConfigRequest, access_token: str = None):
+    client = get_supabase_client(access_token) if access_token else supabase
     existing = (
-        supabase.table("bots")
+        client.table("bots")
         .select("*")
         .eq("id", bot_id)
         .eq("tenant_id", tenant_id)
@@ -47,7 +49,7 @@ class BotRepository:
       update_data["kb_ids"] = request.kb_ids
 
     updated = (
-        supabase.table("bots")
+        client.table("bots")
         .update(update_data)
         .eq("id", bot_id)
         .execute()
@@ -57,9 +59,10 @@ class BotRepository:
     else:
       raise ValueError("Failed to update bot")
 
-  def list_bots(self, tenant_id: str):
+  def list_bots(self, tenant_id: str, access_token: str = None):
+    client = get_supabase_client(access_token) if access_token else supabase
     result = (
-        supabase.table("bots")
+        client.table("bots")
         .select("*")
         # .eq("tenant_id", tenant_id)
         .order("created_at", desc=True)
@@ -67,22 +70,24 @@ class BotRepository:
     )
     return result.data or []
 
-  def get_bot(self, bot_id: str, tenant_id: str):
-    print(f"Fetching bot {bot_id} for tenant {tenant_id}")
+  def get_bot(self, bot_id: str, tenant_id: str, access_token: str = None):
+    client = get_supabase_client(access_token) if access_token else supabase
+    # print(f"Fetching bot {bot_id} for tenant {tenant_id}")
     result = (
-        supabase.table("bots")
+        client.table("bots")
         .select("*")
         .eq("id", bot_id)
         .eq("tenant_id", tenant_id)
-        .single()
+        .maybe_single()
         .execute()
     )
-    print(f"Bot fetch result: {result.data}")
+    # print(f"Bot fetch result: {result.data}")
     return result.data
 
-  def delete_bot(self, bot_id: str, tenant_id: str):
+  def delete_bot(self, bot_id: str, tenant_id: str, access_token: str = None):
+    client = get_supabase_client(access_token) if access_token else supabase
     result = (
-        supabase.table("bots")
+        client.table("bots")
         .delete()
         .eq("id", bot_id)
         .eq("tenant_id", tenant_id)

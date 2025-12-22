@@ -1,7 +1,7 @@
 # app/services/supabase/knowledge_base_repository.py
 
 from datetime import datetime, timezone
-from app.services.supabase.supabase_client import supabase
+from app.services.supabase.supabase_client import get_supabase_client, supabase
 from app.core.logger import get_logger
 from typing import Any, Dict, Optional, List, Tuple
 
@@ -65,6 +65,7 @@ class KnowledgeBaseRepository:
   def list_knowledge_bases(
       self,
       tenant_id: str,
+      access_token: str = None,
       # keyword: Optional[str],
       # tag_ids: List[str],
       # page: int,
@@ -82,8 +83,8 @@ class KnowledgeBaseRepository:
       # offset = (page - 1) * limit
       # start = offset
       # end = offset + limit - 1
-
-      q = (supabase.table(self.table_name)
+      client = get_supabase_client(access_token)
+      q = (client.table(self.table_name)
            .select("*")
            .eq("tenant_id", tenant_id)
            .execute())
@@ -179,8 +180,9 @@ class KnowledgeBaseRepository:
         f"[Supabase] Failed to get knowledge base detail {knowledge_base_id}: {e}")
       return None, [], {"app_count": 0, "document_count": 0, "word_count": 0}
 
-  def get_one(self, kb_id: str, tenant_id: str) -> Optional[dict]:
-    res = (supabase.table(self.table_name)
+  def get_one(self, kb_id: str, tenant_id: str, access_token: str = None) -> Optional[dict]:
+    client = get_supabase_client(access_token)
+    res = (client.table(self.table_name)
            .select("*")
            .eq("id", kb_id)
            .eq("tenant_id", tenant_id)
@@ -213,7 +215,7 @@ class KnowledgeBaseRepository:
     try:
       res = (
           supabase.table(self.table_name)
-          .select("retrieval_model")
+          .select("retrieval_model, embedding_model")
           .eq("id", kb_id)
           .eq("tenant_id", tenant_id)
           .limit(1)
@@ -224,3 +226,35 @@ class KnowledgeBaseRepository:
       logger.exception(
         f"[Supabase] Failed to get retrieval model for {kb_id}: {e}")
       return None
+
+  def delete_kb(self, kb_id: str, tenant_id: str) -> bool:
+    """
+    Delete a knowledge base.
+    This should trigger ON DELETE CASCADE for metadata and documents if configured in DB.
+    """
+    try:
+      response = (
+          supabase.table(self.table_name)
+          .delete()
+          .eq("id", kb_id)
+          .eq("tenant_id", tenant_id)
+          .execute()
+      )
+      # Check if any row was returned (deleted)
+      if response.data:
+        logger.info(f"[Supabase] Deleted KB {kb_id}")
+        return True
+      logger.warning(f"[Supabase] KB {kb_id} not found or not deleted")
+      return False
+    except Exception as e:
+      logger.exception(f"[Supabase] Failed to delete KB {kb_id}: {e}")
+      return False
+
+  def get_total_kbs(self, tenant_id: str) -> int:
+    try:
+      res = supabase.table(self.table_name).select(
+        "*", count="exact", head=True).eq("tenant_id", tenant_id).execute()
+      return res.count or 0
+    except Exception as e:
+      logger.exception("Failed to get total KBs count")
+      return 0

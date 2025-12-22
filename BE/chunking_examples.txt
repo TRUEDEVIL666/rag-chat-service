@@ -141,22 +141,37 @@ Number of Chunks: 10
 ----------------------------------------
 
 --- Method: Hierarchical Chunking ---
-Description: Generates chunks at multiple sizes (parent/child).
-Input Text (280 chars):
-Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Leve...
-Number of Chunks: 4
+Description: Splits documents into "Parents" (Large Context) and "Children" (Precise Match).
+Concept: "Index the Child, Retrieve the Parent." (Small chunks search better; Big chunks answer better).
 
-[Chunk 1]
-  Content: "Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text."
+[Mechanism Flow]
+1. Ingestion: We save BOTH Parent and Child nodes. Child nodes link to Parent ID.
+2. Search: We search against the SMALL Child nodes (more precise).
+3. Retrieval: If a Child matches, we swap it for its PARENT node to give the LLM full context.
 
-[Chunk 2]
-  Content: "Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text."
+Input Text: A document about "Photosynthesis" (~800 tokens).
+Number of Chunks: Multiple levels (Parent + Children)
 
-[Chunk 3]
-  Content: "Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text."
+[Level 1: Parent Node (Root)]
+  Chunk Size: 512 tokens
+  Node ID: `Parent_1`
+  Content: "Photosynthesis is the process by which green plants and some other organisms use sunlight to synthesize nutrients... [Full Text continues] ... and thus the cycle of life."
 
-[Chunk 4]
-  Content: "Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text. Level 1 text."
+[Level 2: Child Nodes (Leafs)]
+  Chunk Size: 128 tokens
+  Parent ID: `Parent_1`
+
+  [Child Node A]
+    Node ID: `Child_A`
+    Content: "Photosynthesis is the process by which green plants... use sunlight to synthesize foods from carbon dioxide and water. Photosynthesis in plants generally involves the green pigment chlorophyll..."
+
+  [Child Node B]
+    Node ID: `Child_B`
+    Content: "...pigment chlorophyll and generates oxygen as a byproduct. The global equation is 6CO2 + 6H2O + Light -> C6H12O6 + O6. This process is crucial..."
+
+  [Child Node C]
+    Node ID: `Child_C`
+    Content: "...crucial for life on Earth. The process consists of two stages: the light-dependent reactions and the Calvin cycle. In the light-dependent reactions..."
 ----------------------------------------
 
 --- Method: Semantic Chunking (Mocked) ---

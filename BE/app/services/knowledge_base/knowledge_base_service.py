@@ -10,12 +10,16 @@ from app.helper.utils_kb import (
 )
 
 
-class KnowledgeBaseService:
-  def __init__(self, kb_repo: KnowledgeBaseRepository):
-    self.kb_repo = kb_repo
+from app.services.indexer.vector_store import VectorRepository
 
-  def list_knowledge_bases(self, tenant_id: str) -> Tuple[List[dict], int]:
-    return self.kb_repo.list_knowledge_bases(tenant_id)
+
+class KnowledgeBaseService:
+  def __init__(self, kb_repo: KnowledgeBaseRepository, vector_repo: VectorRepository):
+    self.kb_repo = kb_repo
+    self.vector_repo = vector_repo
+
+  def list_knowledge_bases(self, tenant_id: str, access_token: str = None) -> Tuple[List[dict], int]:
+    return self.kb_repo.list_knowledge_bases(tenant_id, access_token)
 
   def create_knowledge_base(self, tenant_id: str, request: KnowledgeBaseInput) -> Optional[dict]:
     kb_name = (request.name or "").strip()
@@ -140,3 +144,47 @@ class KnowledgeBaseService:
 
   def check_name_conflict(self, tenant_id: str, name: str, exclude_id: str) -> bool:
     return self.kb_repo.name_conflict(tenant_id, name, exclude_id)
+
+  def delete_knowledge_base(self, kb_id: str, tenant_id: str) -> bool:
+    """
+    Delete a KB (Cascade: Files -> Vectors -> DB Rows).
+    """
+    # 0. Delete Orphaned Files from MinIO
+    from app.core.factory import get_document_repository, get_minio_storage
+    doc_repo = get_document_repository()
+    minio_storage = get_minio_storage()
+
+    documents = doc_repo.get_documents_by_kb(kb_id, tenant_id)
+    for doc in documents:
+        # data_source_info might be a dict or json string depending on DB
+        # Assuming it's a dict based on typical Supabase usage
+      ds_info = doc.get("data_source_info", {})
+      if not ds_info:
+        continue
+
+      # MinIO path is stored here usually
+      file_path = ds_info.get("upload_file_id")
+      if file_path:
+        minio_storage.delete_file(file_path)
+
+    # 1. Delete Vectors from Qdrant
+    # We need to know WHICH model this KB uses to find the correct collection.
+    # Fetch KB details first.
+    kb_detail, _, _ = self.kb_repo.get_knowledge_base_detail(kb_id, tenant_id)
+    model_name = kb_detail.get("embedding_model") if kb_detail else None
+
+    # We do this first or parallel. If it fails, we might want to stop, or continue (leaving orphan vectors).
+    # Since we can't transact across Qdrant+Postgres, we try best effort.
+    vector_deleted = self.vector_repo.delete_by_kb(
+      kb_id, model_name=model_name)
+    if not vector_deleted:
+        # Log warning but proceed? Or fail?
+        # Generally preferable to proceed so we can at least remove the DB record,
+        # otherwise user can't "delete" the broken KB.
+      pass
+
+    # 2. Delete DB Row (Cascade handles children)
+    return self.kb_repo.delete_kb(kb_id, tenant_id)
+
+  def get_total_kbs(self, tenant_id: str) -> int:
+    return self.kb_repo.get_total_kbs(tenant_id)
