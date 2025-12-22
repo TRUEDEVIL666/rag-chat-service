@@ -9,6 +9,7 @@ class FileUploadRequest:
   knowledge_base_id: str = Form(...)
   files: List[UploadFile] = File(...)
   chunking_method: str = Form("sentence")
+  use_sparse: bool = Form(True)
 
 
 class FileUploadResult(BaseModel):

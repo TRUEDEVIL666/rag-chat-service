@@ -1,5 +1,6 @@
 import re
 import uuid
+import hashlib
 from typing import Any, List, Optional, Tuple
 
 from langchain_text_splitters import CharacterTextSplitter, RecursiveCharacterTextSplitter
@@ -14,7 +15,6 @@ from llama_index.core.node_parser import (
     TokenTextSplitter,
 )
 from llama_index.node_parser.topic import TopicNodeParser
-from llama_index.node_parser.slide import SlideNodeParser
 from llama_index.core.schema import BaseNode
 
 from app.config.config import settings as AppSettings
@@ -111,12 +111,10 @@ def process_chunks(
     case "sliding":
       # Extract sliding-window specific params
       window_size = kwargs.get("window_size", 3)
-      use_llm = kwargs.get("use_llm", False)
       return sliding_window_chunk_documents(
           documents,
           filename,
           window_size=window_size,
-          use_llm=use_llm,
       )
 
     case "hierarchical":
@@ -180,8 +178,6 @@ def topic_chunk_documents(
   splitter = TopicNodeParser(
       chunk_size=chunk_size,
       window_size=window_size,
-      # FIXME: Ask about this part carefully
-      llm=Settings.llm,
   )
   return apply_chunking_logic(documents, splitter, filename)
 
@@ -291,24 +287,16 @@ def sliding_window_chunk_documents(
     documents: List[Document],
     filename: str,
     window_size: int = 3,
-    use_llm: bool = False,
 ) -> List[BaseNode]:
   """
   Chunk documents using a sliding window approach.
   Suitable for documents where context retention is critical.
   """
-  if use_llm:
-    splitter = SlideNodeParser(
-        # FIXME: Ask about this part carefully
-        llm=Settings.llm,
-        window_size=window_size,
-    )
-  else:
-    splitter = SentenceWindowNodeParser(
-        window_size=window_size,
-        window_metadata_key="window",
-        original_text_metadata_key="original_text",
-    )
+  splitter = SentenceWindowNodeParser(
+      window_size=window_size,
+      window_metadata_key="window",
+      original_text_metadata_key="original_text",
+  )
   return apply_chunking_logic(documents, splitter, filename)
 
 
@@ -318,8 +306,8 @@ def hierarchical_chunk_documents(
     chunk_sizes: List[int] = [2048, 512, 128],
 ) -> List[BaseNode]:
   """
-  Chunk documents using HierarchicalNodeParser.
-  Suitable for AutoMergingRetriever to merge small context into larger parent context (Parent-Child hierarchy).
+  Chunk documents using HierarchicalNodeParser and AutoMergingRetriever to merge small context into larger parent context (Parent-Child hierarchy).
+  Suitable for documents where context is too big, hence the requirement to split into smaller chunks connected to it.
   """
   splitter = HierarchicalNodeParser.from_defaults(
       chunk_sizes=chunk_sizes,
@@ -382,7 +370,12 @@ def apply_chunking_logic(
     nodes = splitter.get_nodes_from_documents([new_doc])
     for n in nodes:
       if len(n.text.strip()) >= 10:
-        n.metadata.update({"chunk_size": len(n.text), "source_file": filename})
+        chunk_hash = hashlib.sha256(n.text.encode("utf-8")).hexdigest()
+        n.metadata.update({
+            "chunk_size": len(n.text),
+            "source_file": filename,
+            "chunk_hash": chunk_hash
+        })
         chunks.append(n)
 
     logger.info(
