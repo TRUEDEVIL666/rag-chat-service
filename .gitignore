@@ -62,3 +62,4 @@ FE/.github/
 FE/.gitignore
 
 .history/
+node_modules
