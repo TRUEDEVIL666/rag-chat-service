@@ -17,6 +17,18 @@ document.addEventListener("DOMContentLoaded", function () {
 
                 // 5. Thông báo cho các script khác là sidebar đã sẵn sàng
                 window.dispatchEvent(new Event('sidebarLoaded'));
+
+                // 6. Xử lý đăng xuất
+                const logoutBtn = document.getElementById('logout-btn');
+                if (logoutBtn) {
+                    logoutBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        if (confirm('Bạn có chắc muốn đăng xuất?')) {
+                            localStorage.removeItem('token');
+                            window.location.href = '../login.html';
+                        }
+                    });
+                }
             })
             .catch(error => console.error('Lỗi tải sidebar:', error));
     }

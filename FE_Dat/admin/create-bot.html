@@ -237,6 +237,9 @@
     <script>
         const API_URL = "http://localhost:8000/api/v1/bots";
         const TOKEN = localStorage.getItem('token');
+        if (!TOKEN) {
+            window.location.href = '../login.html';
+        }
 
         function updatePreview() {
             const name = document.getElementById('botName').value;
