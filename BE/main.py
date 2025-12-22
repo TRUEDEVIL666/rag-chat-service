@@ -1,10 +1,26 @@
-# main.py
 from fastapi import FastAPI
 from app.api import router as api_router
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
+from fastapi_cache import FastAPICache
+from fastapi_cache.backends.redis import RedisBackend
+from redis import asyncio as aioredis
+from app.config.config import settings
+from fastapi_limiter import FastAPILimiter
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+  # Initialize Redis for Caching
+  redis_url = settings.REDIS_BACKEND or "redis://localhost:6379/0"
+  redis = aioredis.from_url(redis_url, encoding="utf8", decode_responses=False)
+  FastAPICache.init(RedisBackend(redis), prefix="fastapi-cache")
+  await FastAPILimiter.init(redis)
+  yield
+
+
+app = FastAPI(lifespan=lifespan)
 app.include_router(api_router, prefix="/api")
 
 
@@ -22,4 +38,4 @@ app.add_middleware(
 )
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+  uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
