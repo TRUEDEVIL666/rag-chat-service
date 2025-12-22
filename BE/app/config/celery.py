@@ -5,7 +5,7 @@ from app.config.config import settings
 celery_app = Celery(
     "rag_app",
     broker=settings.CELERY_BROKER,
-    backend=settings.CELERY_BACKEND
+    backend=settings.REDIS_BACKEND
 )
 
 celery_app.conf.update(

@@ -4,6 +4,19 @@ A complete framework for building and configuring a **Retrieval-Augmented Genera
 
 ---
 
+## Access Points
+
+| Service             | URL                                                             |
+| :------------------ | :-------------------------------------------------------------- |
+| Backend API Docs    | [http://localhost:8000/docs](http://localhost:8000/docs)           |
+| Frontend UI         | [http://localhost:3000](http://localhost:3000)                     |
+| Qdrant UI           | [http://localhost:6333/dashboard](http://localhost:6333/dashboard) |
+| MinIO Console       | [http://localhost:9001](http://localhost:9001)                     |
+| RabbitMQ Management | [http://localhost:15672](http://localhost:15672)                   |
+| Redis Stack         | [http://localhost:8001/redis-stack/browser](http://localhost:8001/redis-stack/browser) |
+
+---
+
 ## Getting Started — Backend (BE)
 
 ### 1. Prerequisites
@@ -183,6 +196,7 @@ The app will start at [http://localhost:3000](http://localhost:3000)
 | Qdrant UI           | [http://localhost:6333/dashboard](http://localhost:6333/dashboard) |
 | MinIO Console       | [http://localhost:9001](http://localhost:9001)                     |
 | RabbitMQ Management | [http://localhost:15672](http://localhost:15672)                   |
+| Redis Stack         | [http://localhost:8001/redis-stack/browser](http://localhost:8001/redis-stack/browser) |
 
 ---
 
