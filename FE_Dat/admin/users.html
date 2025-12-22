@@ -55,6 +55,9 @@
     <script>
         const API_URL = "http://localhost:8000/api/v1/users";
         const TOKEN = localStorage.getItem('token');
+        if (!TOKEN) {
+            window.location.href = '../login.html';
+        }
 
         // 1. Fetch Users (Mock data for now as requested)
         async function loadUsers() {

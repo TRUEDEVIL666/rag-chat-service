@@ -56,6 +56,11 @@
     <script src="js/main.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = '../login.html';
+                return;
+            }
             const tbody = document.getElementById('document-list');
 
             // Dữ liệu mẫu (Static Data)

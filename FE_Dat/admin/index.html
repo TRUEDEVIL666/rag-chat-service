@@ -279,6 +279,11 @@
 
     <script src="js/main.js"></script>
     <script>
+        const token = localStorage.getItem('token');
+        if (!token) {
+            window.location.href = '../login.html';
+        }
+
         function startTour() {
             const driver = window.driver.js.driver;
 
