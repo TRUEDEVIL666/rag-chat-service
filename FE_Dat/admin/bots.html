@@ -63,22 +63,84 @@
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const tbody = document.getElementById('bot-list');
+            const API_BASE = "http://localhost:8000/api/v1";
 
-            // Dữ liệu mẫu (Static Data)
-            const mockBots = [
-                { id: "BOT-001", name: "Bot Tuyển Sinh (TDTU)", model: "Gemini 1.5 Pro", prompt: "Giải đáp thắc mắc về quy chế tuyển sinh và các ngành học tại TDTU...", status: "active", icon: "ph-robot", color: "blue" },
-                { id: "BOT-002", name: "Trợ Lý Sinh Viên", model: "Gemini 1.5 Flash", prompt: "Hỗ trợ tra cứu thời khóa biểu, điểm số và các thủ tục hành chính sinh viên...", status: "active", icon: "ph-student", color: "indigo" },
-                { id: "BOT-003", name: "Bot It Helpdesk", model: "Llama 3 70B", prompt: "Hỗ trợ kỹ thuật, xử lý sự cố mạng, phần mềm và tài khoản hệ thống...", status: "paused", icon: "ph-headset", color: "orange" },
-                { id: "BOT-004", name: "Bot Thư Viện", model: "GPT-4o", prompt: "Tra cứu sách, tài liệu nghiên cứu và hướng dẫn mượn trả tài liệu...", status: "active", icon: "ph-books", color: "green" }
-            ];
+            // 1. Check Authentication
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = '../login.html';
+                return;
+            }
 
-            setTimeout(() => {
-                tbody.innerHTML = mockBots.map(bot => `
+            // 2. Fetch API
+            async function fetchBots() {
+                try {
+                    const response = await fetch(`${API_BASE}/bots`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    if (response.status === 401) {
+                        console.error('Unauthorized: invalid token');
+                        // alert('Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.');
+                        // Token hết hạn hoặc không hợp lệ
+                        localStorage.removeItem('token');
+                        window.location.href = '../login.html';
+                        return;
+                    }
+
+                    if (!response.ok) {
+                        const errText = await response.text();
+                        console.error('Fetch error:', response.status, errText);
+                        throw new Error('Failed to fetch bots: ' + response.status);
+                    }
+
+                    const bots = await response.json();
+                    renderBots(bots);
+
+                } catch (error) {
+                    console.error('Error fetching bots:', error);
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="5" class="px-6 py-12 text-center text-red-500">
+                                <i class="ph ph-warning text-2xl mb-2"></i>
+                                <p>Không thể tải dữ liệu. Vui lòng thử lại sau.</p>
+                            </td>
+                        </tr>
+                    `;
+                }
+            }
+
+            // 3. Render Data
+            function renderBots(bots) {
+                if (!bots || bots.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="5" class="px-6 py-12 text-center text-gray-500">
+                                <p>Chưa có Bot nào. Hãy tạo mới!</p>
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                tbody.innerHTML = bots.map(bot => {
+                    // Xử lý dữ liệu an toàn (Safety checks)
+                    const modelName = bot.config_model?.model || 'Chưa cấu hình';
+                    const promptText = bot.config_prompt || bot.description || 'Chưa có mô tả';
+                    const status = 'active'; // Backend chưa có field status, mặc định active
+                    const color = 'blue';    // Random hoặc cố định
+                    const icon = 'ph-robot';
+
+                    return `
                     <tr class="hover:bg-gray-50 transition">
                         <td class="px-6 py-4">
                             <div class="flex items-center gap-3">
-                                <div class="w-10 h-10 rounded-full bg-${bot.color}-100 flex items-center justify-center text-${bot.color}-600 text-xl shadow-sm">
-                                    <i class="ph-fill ${bot.icon}"></i>
+                                <div class="w-10 h-10 rounded-full bg-${color}-100 flex items-center justify-center text-${color}-600 text-xl shadow-sm">
+                                    <i class="ph-fill ${icon}"></i>
                                 </div>
                                 <div>
                                     <p class="font-bold text-gray-900">${bot.name}</p>
@@ -88,30 +150,29 @@
                         </td>
                         <td class="px-6 py-4">
                             <span class="bg-gray-100 text-gray-700 px-2 py-1 rounded text-[11px] font-bold border border-gray-200">
-                                ${bot.model}
+                                ${modelName}
                             </span>
                         </td>
-                        <td class="px-6 py-4 text-gray-500 max-w-xs truncate" title="${bot.prompt}">
-                            ${bot.prompt}
+                        <td class="px-6 py-4 text-gray-500 max-w-xs truncate" title="${promptText}">
+                            ${promptText}
                         </td>
                         <td class="px-6 py-4">
-                            ${bot.status === 'active'
-                        ? `<span class="flex items-center gap-2 text-green-600 font-bold bg-green-50 px-3 py-1 rounded-full w-fit text-[11px]">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span> Hoạt động
-                                   </span>`
-                        : `<span class="flex items-center gap-2 text-gray-500 font-bold bg-gray-100 px-3 py-1 rounded-full w-fit text-[11px]">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span> Tạm dừng
-                                   </span>`
-                    }
+                             <span class="flex items-center gap-2 text-green-600 font-bold bg-green-50 px-3 py-1 rounded-full w-fit text-[11px]">
+                                <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span> Hoạt động
+                             </span>
                         </td>
                         <td class="px-6 py-4 text-right space-x-2">
-                            <button class="text-gray-400 hover:text-blue-600 transition" title="Chỉnh sửa"><i class="ph ph-pencil-simple text-lg"></i></button>
+                            <button onclick="window.location.href='chatbot.html?id=${bot.id}'" class="text-gray-400 hover:text-green-600 transition" title="Chat với Bot"><i class="ph ph-chat-circle-dots text-lg"></i></button>
+                            <button onclick="window.location.href='edit-bot.html?id=${bot.id}'" class="text-gray-400 hover:text-blue-600 transition" title="Chỉnh sửa"><i class="ph ph-pencil-simple text-lg"></i></button>
                             <button class="text-gray-400 hover:text-purple-600 transition" title="Cấu hình Knowledge"><i class="ph ph-books text-lg"></i></button>
                             <button class="text-gray-400 hover:text-red-600 transition" title="Xóa"><i class="ph ph-trash text-lg"></i></button>
                         </td>
                     </tr>
-                `).join('');
-            }, 500);
+                `}).join('');
+            }
+
+            // Run
+            fetchBots();
         });
     </script>
 </body>
