@@ -31,15 +31,17 @@
                 <table class="w-full text-left border-collapse">
                     <thead class="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold">
                         <tr>
-                            <th class="px-6 py-4">Email</th>
-                            <th class="px-6 py-4">Vai trò (Role)</th>
+                            <th class="px-6 py-4">ID</th>
                             <th class="px-6 py-4">Tenant ID</th>
-                            <th class="px-6 py-4 text-right">Hành động</th>
+                            <th class="px-6 py-4">Email</th>
+                            <th class="px-6 py-4">Role</th>
+                            <th class="px-6 py-4">Created At</th>
+                            <th class="px-6 py-4 text-right">Action</th>
                         </tr>
                     </thead>
                     <tbody id="user-list" class="divide-y divide-gray-100 text-sm">
                         <tr>
-                            <td colspan="4" class="px-6 py-8 text-center text-gray-500">
+                            <td colspan="6" class="px-6 py-8 text-center text-gray-500">
                                 <i class="ph ph-spinner animate-spin text-2xl"></i> Đang tải dữ liệu...
                             </td>
                         </tr>
@@ -59,26 +61,36 @@
             window.location.href = '../login.html';
         }
 
-        // 1. Fetch Users (Mock data for now as requested)
+        // 1. Fetch Users
         async function loadUsers() {
             const tbody = document.getElementById('user-list');
-            try {
-                // Giả lập dữ liệu cứng
-                const mockUsers = [
-                    { id: "1", email: "admin@tdtu.edu.vn", role: "admin", tenant_id: "SYSTEM" },
-                    { id: "2", email: "giangvien01@tdtu.edu.vn", role: "user", tenant_id: "TENANT_001" },
-                    { id: "3", email: "sinhvien.test@student.tdtu.edu.vn", role: "user", tenant_id: "TENANT_002" },
-                    { id: "4", email: "522h00xx@student.tdtu.edu.vn", role: "admin", tenant_id: "DEVELOPER" }
-                ];
+            // Show Loading
+            tbody.innerHTML = `<tr><td colspan="6" class="px-6 py-8 text-center text-gray-500"><i class="ph ph-spinner animate-spin text-2xl"></i> Đang tải dữ liệu...</td></tr>`;
 
-                // Giả lập trễ mạng
-                setTimeout(() => {
-                    renderUsers(mockUsers);
-                }, 500);
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${TOKEN}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        window.location.href = '../login.html'; // Force login if token invalid
+                        return;
+                    }
+                    const err = await response.json();
+                    throw new Error(err.detail || "Không thể tải danh sách người dùng");
+                }
+
+                const users = await response.json();
+                renderUsers(users);
 
             } catch (error) {
                 console.error(error);
-                tbody.innerHTML = `<tr><td colspan="4" class="px-6 py-8 text-center text-red-500">Lỗi: ${error.message}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6" class="px-6 py-8 text-center text-red-500">Lỗi: ${error.message}</td></tr>`;
             }
         }
 
@@ -86,27 +98,28 @@
         function renderUsers(users) {
             const tbody = document.getElementById('user-list');
             if (users.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="4" class="px-6 py-8 text-center text-gray-500">Chưa có user nào.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6" class="px-6 py-8 text-center text-gray-500">Chưa có user nào.</td></tr>`;
                 return;
             }
 
             tbody.innerHTML = users.map(user => `
                 <tr class="hover:bg-gray-50 transition">
-                    <td class="px-6 py-4">
-                        <div class="flex items-center gap-3">
-                            <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 text-sm font-bold">
-                                ${user.email.charAt(0).toUpperCase()}
-                            </div>
-                            <span class="font-medium text-gray-900">${user.email}</span>
-                        </div>
+                    <td class="px-6 py-4 font-mono text-xs text-gray-500 truncate max-w-[100px]" title="${user.id}">
+                        ${user.id}
+                    </td>
+                    <td class="px-6 py-4 font-mono text-xs text-gray-500 truncate max-w-[100px]" title="${user.tenant_id || ''}">
+                        ${user.tenant_id || '-'}
+                    </td>
+                    <td class="px-6 py-4 font-medium text-gray-900">
+                        ${user.email}
                     </td>
                     <td class="px-6 py-4">
                         <span class="px-2 py-1 rounded text-xs font-bold border ${user.role === 'admin' ? 'bg-purple-100 text-purple-700 border-purple-200' : 'bg-gray-100 text-gray-700 border-gray-200'}">
-                            ${user.role.toUpperCase()}
+                            ${user.role}
                         </span>
                     </td>
-                     <td class="px-6 py-4 text-gray-500 font-mono text-xs">
-                        ${user.tenant_id || '-'}
+                    <td class="px-6 py-4 text-gray-500 text-xs">
+                        ${new Date(user.created_at).toLocaleString('vi-VN')}
                     </td>
                     <td class="px-6 py-4 text-right">
                         <button onclick="deleteUser('${user.id}')" class="text-gray-400 hover:text-red-600 transition" title="Xóa User">

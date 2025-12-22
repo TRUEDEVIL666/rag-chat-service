@@ -4,115 +4,429 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quản lý Tài liệu - Admin</title>
+    <title>My files - OneDrive Clone</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        /* Custom scrollbar to match modern apps */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #e5e7eb;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #d1d5db;
+        }
+
+        .folder-icon {
+            color: #fbbf24;
+            /* Amber-400 for folders */
+        }
+
+        /* OneDrive-like selection check */
+        .check-circle {
+            opacity: 0;
+            transition: opacity 0.1s;
+        }
+
+        tr:hover .check-circle {
+            opacity: 1;
+        }
+
+        tr.selected .check-circle {
+            opacity: 1;
+            color: #0284c7;
+            /* Blue-600 */
+        }
+
+        tr.selected {
+            background-color: #f0f9ff;
+            /* Sky-50 */
+        }
+    </style>
 </head>
 
-<body class="bg-gray-50 text-gray-800 font-sans flex h-screen">
+<body class="bg-white text-gray-800 font-sans flex h-screen overflow-hidden selection:bg-blue-100">
 
-    <!-- SIDEBAR -->
-    <!-- CHỖ NÀY ĐỂ TRỐNG, JS SẼ TỰ ĐIỀN VÀO -->
+    <!-- SIDEBAR (Placeholder for injection) -->
     <div id="sidebar-container"></div>
 
     <!-- MAIN CONTENT -->
-    <main class="flex-1 flex flex-col overflow-hidden ml-64 relative">
-        <!-- Header -->
-        <header class="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-8">
-            <h1 class="text-xl font-semibold">Kho Tài liệu Khoa CNTT</h1>
-            <button onclick="window.location.href='upload-document.html'"
-                class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 shadow-sm transition">
-                <i class="ph ph-upload-simple"></i> Upload Tài liệu mới
-            </button>
+    <main class="flex-1 flex flex-col min-w-0 ml-64">
+
+        <!-- Top Navigation Bar (Breadcrumbs & Actions) -->
+        <header class="px-6 py-2 border-b border-gray-100 flex flex-col gap-2">
+            <!-- Top Row: Breadcrumbs & Search -->
+            <div class="flex items-center justify-between h-10">
+                <!-- Breadcrumbs & Back -->
+                <div class="flex items-center gap-2">
+                    <button onclick="navigateUp(-1)"
+                        class="p-1.5 text-gray-500 hover:bg-gray-100 hover:text-blue-600 rounded-md transition"
+                        title="Back to Root">
+                        <i class="ph ph-house text-lg"></i>
+                    </button>
+                    <div class="h-4 w-px bg-gray-300 mx-1"></div>
+                    <div class="flex items-center text-sm font-medium text-gray-500 gap-2" id="breadcrumbs">
+                        <!-- Javascript will render breadcrumbs here -->
+                        <span class="font-bold text-gray-800">My files</span>
+                    </div>
+                </div>
+
+                <!-- Search Bar -->
+                <div class="relative w-64">
+                    <i
+                        class="ph ph-magnifying-glass absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                    <input type="text" id="searchInput" placeholder="Search" oninput="handleSearch(this.value)"
+                        class="w-full pl-9 pr-4 py-1.5 bg-gray-50 border border-gray-200 rounded-md text-sm focus:outline-none focus:bg-white focus:border-blue-500 transition">
+                </div>
+            </div>
+
+            <!-- Action Toolbar -->
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <button
+                        class="flex items-center gap-2 bg-blue-600 text-white px-3 py-1.5 rounded-md hover:bg-blue-700 transition shadow-sm text-sm font-semibold"
+                        onclick="window.location.href='upload-document.html'">
+                        <i class="ph ph-plus text-lg"></i> New
+                    </button>
+                    <div class="h-6 w-px bg-gray-300 mx-2"></div>
+                    <button
+                        class="flex items-center gap-2 px-2 py-1.5 text-gray-600 hover:bg-gray-100 rounded-md transition text-sm">
+                        <i class="ph ph-upload-simple text-lg"></i> Upload
+                    </button>
+                    <button
+                        class="flex items-center gap-2 px-2 py-1.5 text-gray-600 hover:bg-gray-100 rounded-md transition text-sm">
+                        <i class="ph ph-arrows-clock-wise text-lg"></i> Sync
+                    </button>
+                </div>
+
+                <!-- View Options -->
+                <div class="flex items-center gap-2">
+                    <button class="p-1.5 text-gray-600 hover:bg-gray-100 rounded-md transition">
+                        <i class="ph ph-list-dashes text-lg"></i>
+                    </button>
+                    <button class="p-1.5 text-gray-600 hover:bg-gray-100 rounded-md transition">
+                        <i class="ph ph-info text-lg"></i>
+                    </button>
+                </div>
+            </div>
         </header>
 
-        <!-- Table Content -->
-        <div class="flex-1 overflow-auto p-8">
-            <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <table class="w-full text-left border-collapse">
-                    <thead class="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold">
-                        <tr>
-                            <th class="px-6 py-4">Tên tài liệu</th>
-                            <th class="px-6 py-4">Loại file</th>
-                            <th class="px-6 py-4">Ngày upload</th>
-                            <th class="px-6 py-4">Trạng thái (RAG)</th>
-                            <th class="px-6 py-4 text-right">Hành động</th>
-                        </tr>
-                    </thead>
-                    <tbody id="document-list" class="divide-y divide-gray-100 text-sm">
-                        <!-- Data will be loaded here -->
-                        <tr>
-                            <td colspan="5" class="px-6 py-12 text-center text-gray-500">
-                                <i class="ph ph-spinner animate-spin text-2xl mb-2"></i>
-                                <p>Đang tải dữ liệu...</p>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+        <!-- File List Header -->
+        <div class="flex-1 overflow-auto">
+            <table class="w-full text-left text-sm border-collapse">
+                <thead
+                    class="sticky top-0 bg-white z-10 border-b border-gray-200 text-gray-500 font-medium cursor-default">
+                    <tr>
+                        <th class="pl-4 pr-2 py-3 w-10 text-center"><i class="ph ph-circle text-lg opacity-0"></i></th>
+                        <th class="px-2 py-3 w-8">Type</th>
+                        <th class="px-2 py-3 min-w-[200px] hover:bg-gray-50 cursor-pointer group">
+                            Name <i class="ph ph-caret-down text-xs ml-1 opacity-0 group-hover:opacity-100"></i>
+                        </th>
+                        <th class="px-2 py-3 w-48 hover:bg-gray-50 cursor-pointer">Date Modified</th>
+                        <th class="px-2 py-3 w-32 hover:bg-gray-50 cursor-pointer">Size / Items</th>
+                        <th class="px-2 py-3 w-32 hover:bg-gray-50 cursor-pointer hidden md:table-cell">Sharing</th>
+                    </tr>
+                </thead>
+                <tbody id="file-list" class="divide-y divide-gray-50">
+                    <!-- Javascript will populate this -->
+                </tbody>
+            </table>
+
+            <!-- Empty State / Footer buffer -->
+            <div class="h-20"></div>
+        </div>
+
+        <!-- Footer Status Bar -->
+        <div
+            class="bg-gray-50 border-t border-gray-200 px-4 py-1 text-xs text-gray-500 flex justify-between items-center">
+            <span id="item-count">Loading...</span>
+            <span>Last synced: Just now</span>
         </div>
     </main>
 
     <script src="js/main.js"></script>
     <script>
+        // API Configuration
+        const API_BASE = '/api/v1';
+
+        // State
+        let currentPath = []; // Array of {id, name}
+        let currentItems = []; // All items in current view
+        let filteredItems = []; // Items after search
+        const token = localStorage.getItem('token');
+
         document.addEventListener('DOMContentLoaded', () => {
-            const token = localStorage.getItem('token');
-            if (!token) {
-                window.location.href = '../login.html';
-                return;
+            if (!token && window.location.hostname !== "") {
+                // Auth check simplified
             }
-            const tbody = document.getElementById('document-list');
-
-            // Dữ liệu mẫu (Static Data)
-            const mockDocs = [
-                { name: "Giao_trinh_Cau_truc_du_lieu.pdf", type: "PDF", date: "20/12/2025", status: "success", statusText: "Đã học xong" },
-                { name: "Quy_che_dao_tao_2025.docx", type: "DOCX", date: "19/12/2025", status: "processing", statusText: "Đang xử lý..." },
-                { name: "De_cuong_chi_tiet_AI.pdf", type: "PDF", date: "18/12/2025", status: "success", statusText: "Đã học xong" },
-                { name: "Bai_tap_lon_Python.txt", type: "TXT", date: "15/12/2025", status: "error", statusText: "Lỗi định dạng" }
-            ];
-
-            setTimeout(() => {
-                tbody.innerHTML = mockDocs.map(doc => `
-                    <tr class="hover:bg-gray-50 transition">
-                        <td class="px-6 py-4 font-medium text-gray-900">${doc.name}</td>
-                        <td class="px-6 py-4">
-                            <span class="px-2 py-1 rounded text-xs font-bold border ${getTypeClass(doc.type)}">${doc.type}</span>
-                        </td>
-                        <td class="px-6 py-4 text-gray-500">${doc.date}</td>
-                        <td class="px-6 py-4">
-                            <span class="flex items-center gap-2 font-medium ${getStatusClass(doc.status)}">
-                                ${getStatusIcon(doc.status)} ${doc.statusText}
-                            </span>
-                        </td>
-                        <td class="px-6 py-4 text-right space-x-2">
-                            <button class="text-gray-400 hover:text-blue-600"><i class="ph ph-eye text-lg"></i></button>
-                            <button class="text-gray-400 hover:text-red-600"><i class="ph ph-trash text-lg"></i></button>
-                        </td>
-                    </tr>
-                `).join('');
-            }, 500);
+            renderBreadcrumbs();
+            loadItems();
         });
 
-        function getTypeClass(type) {
-            switch (type) {
-                case 'PDF': return 'bg-red-50 text-red-600 border-red-100';
-                case 'DOCX': return 'bg-blue-50 text-blue-600 border-blue-100';
-                case 'TXT': return 'bg-gray-50 text-gray-600 border-gray-100';
-                default: return 'bg-slate-50 text-slate-600 border-slate-100';
+        // --- CORE LOGIC ---
+
+        async function loadItems() {
+            setLoading(true);
+            document.getElementById('searchInput').value = ''; // Clear search on nav
+            try {
+                if (currentPath.length === 0) {
+                    await fetchKnowledgeBases();
+                } else {
+                    const currentFolder = currentPath[currentPath.length - 1];
+                    await fetchDocuments(currentFolder.id);
+                }
+            } catch (error) {
+                console.error("Load failed:", error);
+                // Fallback logic
+                if (currentPath.length === 0) {
+                    setItems(mockKBs, 'folder');
+                } else {
+                    setItems(mockDocs, 'file');
+                }
+            } finally {
+                setLoading(false);
             }
         }
 
-        function getStatusClass(status) {
-            if (status === 'success') return 'text-green-600';
-            if (status === 'processing') return 'text-yellow-600';
-            return 'text-red-500';
+        async function fetchKnowledgeBases() {
+            try {
+                const response = await fetch(`${API_BASE}/knowledge_bases`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!response.ok) throw new Error('Failed to fetch KBs');
+
+                const result = await response.json();
+                const items = result.data.map(kb => ({
+                    id: kb.id,
+                    name: kb.name,
+                    type: 'folder',
+                    date: formatDate(kb.updated_at),
+                    meta: `${kb.document_count || 0} items`,
+                    shared: 'Private'
+                }));
+
+                setItems(items, 'folder');
+            } catch (e) {
+                console.warn("API Error, using mock KBs.", e);
+                setItems(mockKBs, 'folder');
+            }
         }
 
-        function getStatusIcon(status) {
-            if (status === 'success') return '<i class="ph-fill ph-check-circle"></i>';
-            if (status === 'processing') return '<i class="ph ph-spinner animate-spin"></i>';
-            return '<i class="ph-fill ph-warning-circle"></i>';
+        async function fetchDocuments(kbId) {
+            try {
+                // Endpoint intended for future backend implementation
+                const response = await fetch(`${API_BASE}/knowledge_bases/${kbId}/documents`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) throw new Error("Docs API not ready");
+
+                const result = await response.json();
+                const items = result.map(doc => ({
+                    id: doc.id,
+                    name: doc.name,
+                    type: 'file',
+                    ext: getExtension(doc.name),
+                    date: formatDate(doc.created_at),
+                    meta: formatSize(doc.size),
+                    shared: 'Private'
+                }));
+
+                setItems(items, 'file');
+            } catch (e) {
+                console.warn("API Error, using mock Docs.", e);
+                await new Promise(r => setTimeout(r, 300));
+                setItems(mockDocs, 'file');
+            }
         }
+
+        function setItems(items, type) {
+            currentItems = items;
+            currentItems.forEach(i => i._type = type); // Tagging for render
+            filteredItems = items;
+            renderList(filteredItems, type);
+            updateStatusBar(`${items.length} items`);
+        }
+
+        function handleSearch(query) {
+            const lowerQuery = query.toLowerCase();
+            filteredItems = currentItems.filter(item =>
+                item.name.toLowerCase().includes(lowerQuery)
+            );
+            // Re-render using the type of the first item found, or default to current view context
+            // A bit hacky but works since all items in list are same type usually
+            const type = currentItems.length > 0 ? currentItems[0]._type : 'folder';
+            renderList(filteredItems, type);
+            updateStatusBar(`${filteredItems.length} items`);
+        }
+
+        function navigateTo(item) {
+            if (item.type === 'folder') {
+                currentPath.push({ id: item.id, name: item.name });
+                renderBreadcrumbs();
+                loadItems();
+            } else {
+                console.log("Opening file:", item.name);
+            }
+        }
+
+        function navigateUp(index) {
+            if (index === -1) {
+                currentPath = [];
+            } else {
+                currentPath = currentPath.slice(0, index + 1);
+            }
+            renderBreadcrumbs();
+            loadItems();
+        }
+
+        // --- RENDERING ---
+
+        function renderBreadcrumbs() {
+            const container = document.getElementById('breadcrumbs');
+            let html = `
+                <span class="hover:underline cursor-pointer ${currentPath.length === 0 ? 'font-bold text-gray-800' : ''}" onclick="navigateUp(-1)">My files</span>
+            `;
+
+            currentPath.forEach((folder, index) => {
+                const isLast = index === currentPath.length - 1;
+                html += `
+                    <i class="ph ph-caret-right text-xs"></i>
+                    <span class="hover:underline cursor-pointer ${isLast ? 'font-bold text-gray-800' : ''}" onclick="navigateUp(${index})">${folder.name}</span>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function renderList(items, viewType) {
+            const tbody = document.getElementById('file-list');
+
+            // Icons
+            const folderIcon = `
+                <svg viewBox="0 0 24 24" fill="none" class="w-6 h-6">
+                    <path d="M2.5 11.5V6.5C2.5 5.39543 3.39543 4.5 4.5 4.5H9.5L11.5 6.5H19.5C20.6046 6.5 21.5 7.39543 21.5 8.5V11.5" stroke="#F59E0B" fill="#FCD34D" stroke-width="0"/>
+                    <path d="M2 10.5C2 9.39543 2.89543 8.5 4 8.5H20C21.1046 8.5 22 9.39543 22 10.5V18.5C22 19.6046 21.1046 20.5 20 20.5H4C2.89543 20.5 2 19.6046 2 18.5V10.5Z" fill="#FCD34D" stroke="#D97706" stroke-width="0.5"/>
+                </svg>
+            `;
+            const fileIcons = {
+                'pdf': '<i class="ph-fill ph-file-pdf text-2xl text-red-500"></i>',
+                'docx': '<i class="ph-fill ph-file-doc text-2xl text-blue-600"></i>',
+                'txt': '<i class="ph-fill ph-file-text text-2xl text-gray-500"></i>',
+                'default': '<i class="ph-fill ph-file text-2xl text-gray-400"></i>'
+            };
+
+            tbody.innerHTML = items.map(item => {
+                const icon = item.type === 'folder'
+                    ? folderIcon
+                    : (fileIcons[item.ext] || fileIcons['default']);
+
+                return `
+                    <tr class="group border-b border-transparent hover:border-gray-100 hover:bg-gray-50 transition cursor-default text-gray-700" 
+                        onclick="event.stopPropagation(); navigateTo({id: '${item.id}', name: '${item.name}', type: '${item.type}'})">
+                        <td class="pl-4 pr-2 py-2 text-center" onclick="event.stopPropagation(); toggleSelection(this.parentElement)">
+                            <button class="check-circle text-gray-400 hover:text-blue-600 focus:outline-none">
+                                <i class="ph ph-circle text-xl"></i>
+                            </button>
+                        </td>
+                        <td class="px-2 py-2 flex items-center justify-center">
+                            ${icon}
+                        </td>
+                        <td class="px-2 py-2 font-medium text-gray-900 group-hover:text-blue-700">
+                            ${item.name}
+                        </td>
+                        <td class="px-2 py-2 text-gray-500 text-xs sm:text-sm whitespace-nowrap">
+                            ${item.date}
+                        </td>
+                        <td class="px-2 py-2 text-gray-500 text-xs sm:text-sm">
+                            ${item.meta || '--'}
+                        </td>
+                        <td class="px-2 py-2 text-gray-500 text-xs sm:text-sm hidden md:table-cell">
+                            ${item.shared || 'Private'}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            if (items.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="text-center py-10 text-gray-500">No items found</td></tr>`;
+            }
+        }
+
+        function setLoading(isLoading) {
+            const tbody = document.getElementById('file-list');
+            if (isLoading) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="px-6 py-12 text-center text-gray-500">
+                             <div class="flex flex-col items-center justify-center">
+                                <i class="ph ph-spinner animate-spin text-2xl mb-2 text-blue-600"></i>
+                                <span class="text-xs">Loading...</span>
+                             </div>
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+
+        // --- UTILS ---
+
+        function formatDate(epoch) {
+            if (!epoch) return '--';
+            const date = new Date(typeof epoch === 'number' ? epoch * 1000 : epoch);
+            return date.toLocaleDateString('vi-VN', { month: 'short', day: 'numeric', year: 'numeric' });
+        }
+
+        function getExtension(filename) {
+            if (!filename) return 'default';
+            return filename.split('.').pop().toLowerCase();
+        }
+
+        function formatSize(bytes) {
+            if (!bytes) return '--';
+            return bytes + ' B';
+        }
+
+        function updateStatusBar(text) {
+            const el = document.getElementById('item-count');
+            if (el) el.innerText = text;
+        }
+
+        function toggleSelection(row) {
+            const checkIcon = row.querySelector('.check-circle i');
+            if (row.classList.contains('selected')) {
+                row.classList.remove('selected');
+                checkIcon.classList.remove('ph-check-circle', 'text-blue-600', 'ph-fill');
+                checkIcon.classList.add('ph-circle');
+            } else {
+                row.classList.add('selected');
+                checkIcon.classList.remove('ph-circle');
+                checkIcon.classList.add('ph-check-circle', 'ph-fill');
+            }
+        }
+
+        // --- MOCK DATA (Fallback) ---
+        const mockKBs = [
+            { id: '1', name: 'Tài liệu Văn Phòng Khoa', type: 'folder', updated_at: 1708156000, document_count: 12 },
+            { id: '2', name: 'Báo cáo Sinh viên', type: 'folder', updated_at: 1709146000, document_count: 5 },
+            { id: '3', name: 'Kho Luận văn 2024', type: 'folder', updated_at: 1710156000, document_count: 45 }
+        ];
+
+        const mockDocs = [
+            { id: '101', name: 'Quy_che_dao_tao.pdf', type: 'file', ext: 'pdf', created_at: 1708159000, size: '2.4 MB' },
+            { id: '102', name: 'Danh_sach_SV.xlsx', type: 'file', ext: 'default', created_at: 1708169000, size: '15 KB' },
+            { id: '103', name: 'Bien_ban_hop.docx', type: 'file', ext: 'docx', created_at: 1708179000, size: '500 KB' }
+        ];
     </script>
 </body>
 
