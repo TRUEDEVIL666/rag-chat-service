@@ -1,6 +1,7 @@
 import logging
 from app.config.config import settings
 from app.services.auth.auth_service import AuthService
+from app.services.analytics.analytics_service import AnalyticsService
 from app.services.data_processor.file_processor import FileProcessor
 from app.services.indexer.embedding_service import EmbeddingService
 from app.services.indexer.vector_store import VectorRepository
@@ -16,12 +17,16 @@ from app.services.supabase.document_repository import DocumentRepository
 from app.services.supabase.chat_message_repository import ChatMessageRepository
 from app.services.supabase.session_summary_repository import SessionSummaryRepository
 from app.services.supabase.tenant_repository import TenantRepository
+from app.services.supabase.ai_model_repository import AiModelRepository
 from app.services.session.session_service import SessionService
 from app.services.users.user_service import UserService
 from app.services.knowledge_base.knowledge_base_service import KnowledgeBaseService
+from app.services.ai_model.ai_model_service import AiModelService
+from app.services.document.document_service import DocumentService
 
 logger = logging.getLogger("service_factory")
 
+_analytics_service_instance: AnalyticsService | None = None
 _user_repository_instance: UserRepository | None = None
 _auth_service_instance: AuthService | None = None
 _file_service_instance: FileProcessor | None = None
@@ -34,43 +39,67 @@ _bot_service_instance: BotService | None = None
 _session_service_instance: SessionService | None = None
 _user_service_instance: UserService | None = None
 _knowledge_base_service_instance: KnowledgeBaseService | None = None
+_ai_model_service_instance: AiModelService | None = None
 _document_repo_instance: DocumentRepository | None = None
 _chat_message_repo_instance: ChatMessageRepository | None = None
 _session_summary_repo_instance: SessionSummaryRepository | None = None
 _tenant_repo_instance: TenantRepository | None = None
+_ai_model_repo_instance: AiModelRepository | None = None
 _bot_repo_instance: BotRepository | None = None
 _session_repo_instance: SessionRepository | None = None
+_document_service_instance: DocumentService | None = None
 
 
 def get_embedding_service(provider: str = None, model: str = None) -> EmbeddingService:
   global _embedding_service_instance
 
   # If specific provider/model requested, return a new instance (don't use singleton)
-  if provider:
+  # logic: If model is passed like "ollama/gemma", we need to split it if provider is missing
+  target_model = model
+  if model and not provider:
+    if "/" in model:
+      provider, target_model = model.split("/", 1)
+
+  if provider or model:
     api_key = None
-    endpoint = settings.EMBEDDING_API_URL
-    target_model = model
+    endpoint = None
 
-    match provider.lower():
-      case "openai":
-        api_key = settings.OPENAI_API_KEY
-        endpoint = None  # OpenAI SDK doesn't need endpoint usually, or uses default
-        if not target_model:
-          target_model = settings.OPENAI_EMBEDDING_MODEL
-      case "ollama":
-        # Use OLLAMA_URL for consistency if provider is explicitly ollama
+    # Try to resolve credentials from Database
+    try:
+      # Only attempt DB resolution if we have a provider
+      if provider:
+        repo = get_ai_model_repository()
+        # Note: We likely don't have user access_token here in factory/background tasks.
+        # This relies on Service Role or public access if configured, or no RLS.
+        # Assuming internal call for now.
+        resolved_key, resolved_url, _ = repo.resolve_model_config(
+          provider_name=provider, model_name=target_model
+        )
+
+        if resolved_key:
+          api_key = resolved_key
+        if resolved_url:
+          endpoint = resolved_url
+
+        # Defaults if DB resolution failed (e.g. initial setup)
+        if not endpoint and provider.lower() == "ollama":
+          endpoint = settings.OLLAMA_EMBEDDING_API_URL
+
+        # Fix for Ollama: Ensure endpoint ends with /api/embed for embedding tasks
+        if provider.lower() == "ollama" and endpoint:
+          endpoint = endpoint.rstrip("/")
+          if endpoint.endswith("/api/embeddings"):
+            endpoint = endpoint.replace("/api/embeddings", "/api/embed")
+          elif endpoint.endswith("/api"):
+            endpoint = f"{endpoint}/embed"
+          elif not endpoint.endswith("/api/embed"):
+            endpoint = f"{endpoint}/api/embed"
+
+    except Exception as e:
+      logger.warning(f"Failed to resolve config for {provider} from DB: {e}")
+      # Fallback for Ollama if DB fail
+      if provider and provider.lower() == "ollama":
         endpoint = settings.OLLAMA_EMBEDDING_API_URL
-        if not target_model:
-          target_model = settings.OLLAMA_EMBEDDING_MODEL
-      case "google":
-        api_key = settings.GEMINI_API_KEY
-        endpoint = None
-        if not target_model:
-          target_model = settings.GEMINI_EMBEDDING_MODEL
-
-    # Fallback to default if still not set
-    if not target_model:
-      target_model = settings.EMBEDDING_MODEL
 
     return EmbeddingService(
         provider=provider,
@@ -98,7 +127,6 @@ def get_vector_store() -> VectorRepository:
         host=settings.QDRANT_HOST,
         port=settings.QDRANT_PORT,
         collection=settings.QDRANT_COLLECTION,
-        embedding_service=get_embedding_service(),
     )
   return _vector_repo_instance
 
@@ -194,8 +222,8 @@ def get_file_processor_service() -> FileProcessor:
   global _file_service_instance
   if _file_service_instance is None:
     _file_service_instance = FileProcessor(
-        embedding_service=get_embedding_service(),
-        vector_repository=get_vector_store(),
+        # embedding_service=get_embedding_service(),
+        # vector_repository=get_vector_store(),
         original_file_store=get_minio_storage(),
         meta_data_store=get_metadata_repository(),
         document_repository=get_document_repository(),
@@ -210,10 +238,11 @@ def get_bot_service() -> BotService:
     _bot_service_instance = BotService(
         bot_repo=get_bot_repository(),
         session_repo=get_session_repository(),
-        vector_repo=get_vector_store(),
+        # vector_repo=get_vector_store(),
         llm_service=LLMService(),
         message_repo=get_chat_message_repository(),
         kb_repo=get_knowledge_base_repository(),
+        ai_model_service=get_ai_model_service(),
     )
   return _bot_service_instance
 
@@ -222,7 +251,9 @@ def get_session_service() -> SessionService:
   global _session_service_instance
   if _session_service_instance is None:
     _session_service_instance = SessionService(
-        session_repo=get_session_repository())
+        session_repo=get_session_repository(),
+        chat_message_repo=get_chat_message_repository()
+    )
   return _session_service_instance
 
 
@@ -238,9 +269,32 @@ def get_knowledge_base_service() -> KnowledgeBaseService:
   if _knowledge_base_service_instance is None:
     _knowledge_base_service_instance = KnowledgeBaseService(
         kb_repo=get_knowledge_base_repository(),
-        vector_repo=get_vector_store()
+        doc_repo=get_document_repository(),
+        # vector_repo=get_vector_store(),
+        tenant_repo=get_tenant_repository()
     )
   return _knowledge_base_service_instance
+
+
+def get_ai_model_service() -> AiModelService:
+  global _ai_model_service_instance
+  if _ai_model_service_instance is None:
+    _ai_model_service_instance = AiModelService(
+        repo=get_ai_model_repository()
+    )
+  return _ai_model_service_instance
+
+
+def get_document_service() -> DocumentService:
+  global _document_service_instance
+  if _document_service_instance is None:
+    _document_service_instance = DocumentService(
+        doc_repo=get_document_repository(),
+        minio_storage=get_minio_storage(),
+        metadata_repo=get_metadata_repository(),
+        kb_repo=get_knowledge_base_repository()
+    )
+  return _document_service_instance
 
 
 def get_document_repository() -> DocumentRepository:
@@ -289,3 +343,28 @@ def get_tenant_repository() -> TenantRepository:
       logger.exception("Failed to initialize TenantRepository")
       raise
   return _tenant_repo_instance
+
+
+def get_ai_model_repository() -> AiModelRepository:
+  global _ai_model_repo_instance
+  if _ai_model_repo_instance is None:
+    try:
+      _ai_model_repo_instance = AiModelRepository()
+      logger.info("Initialized AiModelRepository")
+    except Exception as e:
+      logger.exception("Failed to initialize AiModelRepository")
+      raise
+  return _ai_model_repo_instance
+
+
+def get_analytics_service() -> "AnalyticsService":
+  global _analytics_service_instance
+  if _analytics_service_instance is None:
+    _analytics_service_instance = AnalyticsService(
+        user_service=get_user_service(),
+        session_service=get_session_service(),
+        kb_service=get_knowledge_base_service(),
+        doc_repo=get_document_repository(),
+        chat_repo=get_chat_message_repository()
+    )
+  return _analytics_service_instance
