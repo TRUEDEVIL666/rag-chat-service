@@ -11,17 +11,32 @@ from app.helper.utils_kb import (
 
 
 from app.services.indexer.vector_store import VectorRepository
+from app.services.supabase.document_repository import DocumentRepository
+from app.services.supabase.tenant_repository import TenantRepository
 
 
 class KnowledgeBaseService:
-  def __init__(self, kb_repo: KnowledgeBaseRepository, vector_repo: VectorRepository):
+  def __init__(
+      self,
+      kb_repo: KnowledgeBaseRepository,
+      doc_repo: DocumentRepository,
+      tenant_repo: TenantRepository
+  ):
     self.kb_repo = kb_repo
-    self.vector_repo = vector_repo
+    self.doc_repo = doc_repo
+    self.tenant_repo = tenant_repo
 
   def list_knowledge_bases(self, tenant_id: str, access_token: str = None) -> Tuple[List[dict], int]:
     return self.kb_repo.list_knowledge_bases(tenant_id, access_token)
 
-  def create_knowledge_base(self, tenant_id: str, request: KnowledgeBaseInput) -> Optional[dict]:
+  def create_knowledge_base(
+      self,
+      tenant_id: str,
+      user_id: str,
+      access_token: str,
+      request: KnowledgeBaseInput
+  ) -> Optional[dict]:
+
     kb_name = (request.name or "").strip()
     if not kb_name:
       raise ValueError("Knowledge base name cannot be empty.")
@@ -37,19 +52,38 @@ class KnowledgeBaseService:
     else:
       kb_dict = dict(request)
 
+    # Map permission and indexing_technique
+    perm = kb_dict.get("permission")
+    if perm:
+      # Default to as-is if not found, or None? Update logic uses strict check.
+      perm = PERM_MAP.get(perm, perm)
+
+    idx = kb_dict.get("indexing_technique")
+    if idx:
+      idx = INDEX_MAP.get(idx, idx)
+
     payload = {
-        "tenant_id": tenant_id,
+        "tenant_id": str(tenant_id),
         "name": kb_name,
         "description": kb_dict.get("description"),
-        "embedding_model": kb_dict.get("embedding_model"),
+        "permission": perm,
+        "indexing_technique": idx,
+        "embedding_provider_id": str(kb_dict.get("embedding_provider_id")) if kb_dict.get("embedding_provider_id") else None,
+        "embedding_model_id": str(kb_dict.get("embedding_model_id")) if kb_dict.get("embedding_model_id") else None,
         "created_at": datetime.utcnow().isoformat(),
+        "retrieval_model": api_to_db_retrieval(kb_dict.get("retrieval_model").dict() if hasattr(kb_dict.get("retrieval_model"), "dict") else (kb_dict.get("retrieval_model") or {
+            "search_method": "semantic",
+            "reranking_enable": False,
+            "top_k": 10,
+            "score_threshold_enabled": False
+        })),
     }
 
-    return self.kb_repo.create(payload)
+    return self.kb_repo.create(payload, access_token=access_token)
 
-  def get_knowledge_base_details(self, knowledge_base_id: str, tenant_id: str) -> Optional[KnowledgeBaseDetail]:
-    row, tags, counts = self.kb_repo.get_knowledge_base_detail(
-      knowledge_base_id, tenant_id)
+  def get_knowledge_base_details(self, knowledge_base_id: str, tenant_id: str, access_token: str = None) -> Optional[KnowledgeBaseDetail]:
+    row = self.kb_repo.get_one(
+      knowledge_base_id, tenant_id, access_token=access_token)
     if not row:
       return None
 
@@ -62,12 +96,12 @@ class KnowledgeBaseService:
       }
 
     retrieval_model_dict = RetrievalModelSchema(
-        search_method=str(rm.get("search_method") or ""),
-        reranking_enable=bool(rm.get("reranking_enable")),
+        search_method=str(rm.get("search_method", "semantic")),
+        reranking_enable=bool(rm.get("reranking_enable", False)),
         reranking_mode=RetrievalModeSchema(**rm_mode) if rm_mode else None,
         top_k=int(rm.get("top_k", 0)),
-        score_threshold_enabled=bool(rm.get("score_threshold_enabled")),
-        score_threshold=rm.get("score_threshold"),
+        score_threshold_enabled=bool(rm.get("score_threshold_enabled", False)),
+        score_threshold=rm.get("score_threshold", 0.4),
         weights=rm.get("weights"),
     )
 
@@ -77,20 +111,15 @@ class KnowledgeBaseService:
         description=row.get("description"),
         permission=row.get("permission"),
         indexing_technique=row.get("indexing_technique"),
-        app_count=counts.get("app_count", 0),
-        document_count=counts.get("document_count", 0),
-        word_count=counts.get("word_count", 0),
-        created_by=row.get("created_by"),
-        created_at=row.get("created_at"),
-        updated_by=row.get("updated_by"),
-        updated_at=row.get("updated_at"),
-        embedding_model=row.get("embedding_model"),
-        retrieval_model_dict=retrieval_model_dict,
-        tags=tags,
+        document_count=row.get("document_count", 0),
+        created_at=str(row.get("created_at")),
+        updated_at=str(row.get("updated_at")),
+        embedding_model=row.get("embedding_model_name"),
+        retrieval_model=retrieval_model_dict,
         doc_form=row.get("doc_form"),
     )
 
-  def update_knowledge_base(self, kb_id: str, tenant_id: str, body: UpdateKnowledgeBaseRequest) -> Optional[dict]:
+  def update_knowledge_base(self, kb_id: str, tenant_id: str, body: UpdateKnowledgeBaseRequest, access_token: str = None) -> Optional[dict]:
     upd: Dict[str, Any] = {}
 
     if body.name is not None:
@@ -129,8 +158,15 @@ class KnowledgeBaseService:
       upd["retrieval_model"] = api_to_db_retrieval(
           body.retrieval_model.dict(exclude_unset=True))
 
+    if body.embedding_provider_id is not None:
+      upd["embedding_provider_id"] = str(body.embedding_provider_id)
+
+    if body.embedding_model_id is not None:
+      upd["embedding_model_id"] = str(body.embedding_model_id)
+
     if body.partial_member_list is not None:
-      row, _, _ = self.kb_repo.get_knowledge_base_detail(kb_id, tenant_id)
+      row = self.kb_repo.get_knowledge_base_detail(
+        kb_id, tenant_id, access_token=access_token)
       if not row:
         return None
 
@@ -140,51 +176,44 @@ class KnowledgeBaseService:
           "partial_member_list allowed only when permission=partial_members.")
       upd["partial_member_list"] = body.partial_member_list
 
-    return self.kb_repo.patch(kb_id, tenant_id, upd)
+    return self.kb_repo.patch(kb_id, tenant_id, upd, access_token=access_token)
 
-  def check_name_conflict(self, tenant_id: str, name: str, exclude_id: str) -> bool:
-    return self.kb_repo.name_conflict(tenant_id, name, exclude_id)
+  def check_name_conflict(self, tenant_id: str, name: str, exclude_id: str, access_token: str = None) -> bool:
+    return self.kb_repo.name_conflict(tenant_id, name, exclude_id, access_token=access_token)
 
-  def delete_knowledge_base(self, kb_id: str, tenant_id: str) -> bool:
+  def delete_knowledge_base(self, kb_id: str, tenant_id: str, access_token: str = None) -> bool:
     """
     Delete a KB (Cascade: Files -> Vectors -> DB Rows).
     """
     # 0. Delete Orphaned Files from MinIO
-    from app.core.factory import get_document_repository, get_minio_storage
-    doc_repo = get_document_repository()
+    from app.core.factory import get_minio_storage
     minio_storage = get_minio_storage()
 
-    documents = doc_repo.get_documents_by_kb(kb_id, tenant_id)
+    documents = self.doc_repo.get_documents_by_kb(
+      kb_id, tenant_id, access_token=access_token)
     for doc in documents:
-        # data_source_info might be a dict or json string depending on DB
-        # Assuming it's a dict based on typical Supabase usage
-      ds_info = doc.get("data_source_info", {})
-      if not ds_info:
-        continue
-
-      # MinIO path is stored here usually
-      file_path = ds_info.get("upload_file_id")
+      file_path = doc.get("path")
       if file_path:
         minio_storage.delete_file(file_path)
 
-    # 1. Delete Vectors from Qdrant
-    # We need to know WHICH model this KB uses to find the correct collection.
-    # Fetch KB details first.
-    kb_detail, _, _ = self.kb_repo.get_knowledge_base_detail(kb_id, tenant_id)
+    kb_detail = self.kb_repo.get_knowledge_base_detail(
+      kb_id, tenant_id, access_token=access_token)
     model_name = kb_detail.get("embedding_model") if kb_detail else None
 
-    # We do this first or parallel. If it fails, we might want to stop, or continue (leaving orphan vectors).
-    # Since we can't transact across Qdrant+Postgres, we try best effort.
-    vector_deleted = self.vector_repo.delete_by_kb(
+    from app.core.factory import get_vector_store
+    vector_deleted = get_vector_store().delete_by_kb(
       kb_id, model_name=model_name)
     if not vector_deleted:
-        # Log warning but proceed? Or fail?
-        # Generally preferable to proceed so we can at least remove the DB record,
-        # otherwise user can't "delete" the broken KB.
       pass
 
     # 2. Delete DB Row (Cascade handles children)
-    return self.kb_repo.delete_kb(kb_id, tenant_id)
+    return self.kb_repo.delete_kb(kb_id, tenant_id, access_token=access_token)
 
-  def get_total_kbs(self, tenant_id: str) -> int:
-    return self.kb_repo.get_total_kbs(tenant_id)
+  def get_total_kbs(self, tenant_id: str = None, access_token: str = None) -> int:
+    return self.kb_repo.get_total_kbs(tenant_id, access_token)
+
+  def list_documents(self, kb_id: str, tenant_id: str, access_token: str = None) -> List[dict]:
+    """
+    List all documents in a knowledge base.
+    """
+    return self.doc_repo.get_documents_by_kb(kb_id, tenant_id, access_token)
