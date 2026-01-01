@@ -1,5 +1,5 @@
 from typing import List, Optional
-from app.services.supabase.supabase_client import get_supabase_client, supabase
+from app.services.supabase.supabase_client import get_supabase_client
 from app.core.logger import get_logger
 
 logger = get_logger("chat_message_repository")
@@ -11,7 +11,7 @@ class ChatMessageRepository:
 
   def create_message(self, session_id: str, content: str, role: str, sender_id: Optional[str] = None, access_token: str = None) -> dict | None:
     try:
-      client = get_supabase_client(access_token) if access_token else supabase
+      client = get_supabase_client(access_token)
       data = {
           "session_id": session_id,
           "content": content,
@@ -23,23 +23,59 @@ class ChatMessageRepository:
         return response.data[0]
       return None
     except Exception as e:
-      logger.exception(f"Failed to create chat message: {e}")
+      logger.error(
+        f"Failed to create chat message. Data: {data}, Token (last 6): {access_token[-6:] if access_token else 'None'}. Error: {e}")
       raise RuntimeError(f"Failed to create chat message: {e}")
 
-  def get_messages_by_session(self, session_id: str, limit: int = 50, offset: int = 0, access_token: str = None) -> List[dict]:
+  def get_messages_by_session(
+      self,
+      session_id: str,
+      limit: int = 50,
+      cursor_timestamp: int = None,
+      sort_column: str = "created_at",
+      sort_desc: bool = True,
+      access_token: str = None
+  ) -> List[dict]:
     try:
-      client = get_supabase_client(access_token) if access_token else supabase
-      response = (
+      client = get_supabase_client(access_token)
+      query = (
           client.table(self.table_name)
           .select("*")
           .eq("session_id", session_id)
-          # Usually we want latest first for pagination, or asc for display. Let's do desc for now.
-          .order("created_at", desc=True)
-          .range(offset, offset + limit - 1)
-          .execute()
+          .order(sort_column, desc=sort_desc)
+          .limit(limit)
       )
+
+      if cursor_timestamp:
+        from datetime import datetime
+        dt_cursor = datetime.fromtimestamp(cursor_timestamp).isoformat()
+        if sort_desc:
+          query = query.lt(sort_column, dt_cursor)
+        else:
+          query = query.gt(sort_column, dt_cursor)
+
+      response = query.execute()
       # Reverse to return in chronological order if needed, but usually API returns as is.
       return response.data or []
     except Exception as e:
       logger.exception(f"Failed to get messages for session {session_id}: {e}")
+      return []
+
+  def get_analytics_counts(
+      self,
+      interval: str,
+      start_date: str,
+      end_date: str,
+      access_token: str = None
+  ) -> List[dict]:
+    try:
+      client = get_supabase_client(access_token)
+      response = client.rpc("get_message_counts_by_period", {
+          "interval_type": interval,
+          "start_date": start_date,
+          "end_date": end_date
+      }).execute()
+      return response.data or []
+    except Exception as e:
+      logger.exception(f"Failed to get analytics counts: {e}")
       return []
