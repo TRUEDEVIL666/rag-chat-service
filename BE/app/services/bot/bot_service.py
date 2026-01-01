@@ -15,6 +15,7 @@ from app.services.supabase.bot_repository import BotRepository
 from app.services.supabase.chat_message_repository import ChatMessageRepository
 from app.services.supabase.knowledge_base_repository import KnowledgeBaseRepository
 from app.services.supabase.session_repository import SessionRepository
+from app.services.ai_model.ai_model_service import AiModelService
 
 logger = logging.getLogger(__name__)
 
@@ -29,18 +30,22 @@ class MessageRole(str, Enum):
 
 
 class LLMConfig(BaseModel):
-  provider: str
   model: str
   temperature: float
   system_prompt: Optional[str] = None
+  api_key: Optional[str] = None
+  base_url: Optional[str] = None
 
 
-class RetrievalConfig(BaseModel):
+class BotRetrievalConfig(BaseModel):
   top_k: int
   score_threshold: float
   rerank: bool
   rerank_model: Optional[str] = None
-  embedding_model: Optional[str] = None
+
+
+class KBIndexConfig(BaseModel):
+  embedding_model: str
   search_method: str = "semantic"
   auto_merging: bool = False
 
@@ -50,17 +55,17 @@ class BotService:
       self,
       bot_repo: BotRepository,
       session_repo: SessionRepository,
-      vector_repo: VectorRepository,
       llm_service: LLMService,
       message_repo: ChatMessageRepository,
-      kb_repo: KnowledgeBaseRepository
+      kb_repo: KnowledgeBaseRepository,
+      ai_model_service: AiModelService
   ):
     self.bot_repo = bot_repo
     self.session_repo = session_repo
-    self.vector_repo = vector_repo
     self.llm_service = llm_service
     self.message_repo = message_repo
     self.kb_repo = kb_repo
+    self.ai_model_service = ai_model_service
 
   # ----------------------------------------------------------------------
   # BOT MANAGEMENT (CRUD) - Now Async to avoid blocking
@@ -132,203 +137,296 @@ class BotService:
   def _resolve_model_config(self, bot_config: Dict[str, Any]) -> LLMConfig:
     """
     Parses bot config to determine provider, model, and temperature.
+    Identity is resolved via provider_id/model_id columns.
+    Hyperparameters (temperature) are taken from config_model JSONB.
     """
-    config_model = bot_config.get("config_model")
+    provider_id = bot_config.get("provider_id")
+    model_id = bot_config.get("model_id")
+    config_model_json = bot_config.get("config_model") or {}
     system_prompt = bot_config.get("config_prompt")
+    temp = config_model_json.get(
+      "temperature", settings.DEFAULT_CHAT_TEMPERATURE)
 
-    if not config_model:
-      combined = settings.DEFAULT_CHAT_MODEL
-      temp = settings.DEFAULT_CHAT_TEMPERATURE
-      provider = "ollama"  # default fallback
-      model = combined
+    # 1. Resolve via Structured IDs
+    if provider_id and model_id:
+      try:
+        model_data = self.ai_model_service.get_model_by_id(str(model_id))
+        if model_data:
+          provider_data = model_data.get("ai_providers", {})
+          provider_name = provider_data.get("name", "ollama")
 
-      if "/" in combined:
-        parts = combined.split("/", 1)
-        provider = parts[0]
-        model = parts[1]
+          # Fetch secure API key
+          api_key = None
+          provider_id = provider_data.get("id")
+          if provider_id:
+            api_key = self.ai_model_service.get_decrypted_key(provider_id)
 
-      return LLMConfig(provider=provider, model=model, temperature=temp, system_prompt=system_prompt)
+          base_url = provider_data.get("base_url")
 
-    # Config exists
-    combined = config_model.get("model", settings.DEFAULT_CHAT_MODEL)
-    temp = config_model.get("temperature", settings.DEFAULT_CHAT_TEMPERATURE)
+          model = model_data.get("model_id")
+          return LLMConfig(
+              model=f"{provider_name}/{model}",
+              temperature=temp,
+              system_prompt=system_prompt,
+              api_key=api_key,
+              base_url=base_url
+          )
+      except Exception as e:
+        logger.error(f"Failed to resolve model via structured columns: {e}")
 
-    if "/" in combined:
-      parts = combined.split("/", 1)
-      provider = parts[0]
-      model = parts[1]
-    else:
-      provider = config_model.get("provider", "ollama")
-      model = combined
+    # 2. Final Fallback to Settings Defaults (No more JSONB identity parsing)
+    combined = settings.DEFAULT_CHAT_MODEL
 
-    return LLMConfig(provider=provider, model=model, temperature=temp, system_prompt=system_prompt)
+    # Ensure combined has a provider prefix if not present (default to ollama)
+    if "/" not in combined:
+      combined = f"ollama/{combined}"
 
-  async def _resolve_retrieval_config(self, kb_id: str, tenant_id: str) -> RetrievalConfig:
+    return LLMConfig(model=combined, temperature=temp, system_prompt=system_prompt)
+
+  def _parse_kb_config(self, kb_config: Optional[dict]) -> KBIndexConfig:
     """
-    Fetches retrieval settings for a KB (top_k, threshold, rerank info).
+    Parses KB-specific settings (embedding model, search method).
     """
-    # Defaults
-    top_k = 5
-    score_threshold = 0.1
-    rerank = False
-    rerank_model = settings.RERANKER_MODEL
-    embedding_model = settings.EMBEDDING_MODEL
+    if not kb_config:
+      raise ValueError("Knowledge Base configuration is missing entirely.")
 
-    search_method = "semantic"
-    auto_merging = False
-    try:
-      kb_config = await asyncio.to_thread(
-          self.kb_repo.get_retrieval_model, kb_id, tenant_id
-      )
-      if kb_config:
-        if kb_config.get("embedding_model"):
-          embedding_model = kb_config.get("embedding_model")
+    embedding_provider = None
+    if kb_config.get("embedding_provider") and isinstance(kb_config["embedding_provider"], dict):
+      embedding_provider = kb_config["embedding_provider"].get("name")
 
-        # Initialize rm to avoid unbound local error if retrieval_model is missing
-        rm = {}
-        if kb_config.get("retrieval_model"):
-          rm_raw = kb_config["retrieval_model"]
-          # Handle potential JSON string
-          if isinstance(rm_raw, str):
-            import json
-            try:
-              rm = json.loads(rm_raw)
-            except Exception:
-              rm = {}
-          elif isinstance(rm_raw, dict):
-            rm = rm_raw
+    if not embedding_provider:
+      raise ValueError(
+        "Knowledge Base is missing 'embedding_provider' configuration.")
 
-        # Parse fields from rm
-        if rm.get("top_k", 0) > 0:
-          top_k = rm["top_k"]
+    embedding_model = None
+    if kb_config.get("embedding_model"):
+      if isinstance(kb_config["embedding_model"], dict):
+        embedding_model = kb_config["embedding_model"].get("model_id")
+      else:
+        embedding_model = kb_config.get("embedding_model")
 
-        if rm.get("score_threshold_enabled", False):
-          score_threshold = rm.get("score_threshold", 0.1)
+    if not embedding_model:
+      raise ValueError(
+          "Knowledge Base is missing 'embedding_model' configuration.")
 
-        rerank = rm.get("reranking_enable", False)
-        reranking_mode = rm.get("reranking_mode", {})
+    # Check retrieval_model JSON for search_method/auto_merging ONLY
+    if kb_config.get("retrieval_model"):
+      rm_raw = kb_config["retrieval_model"]
+      rm = {}
+      if isinstance(rm_raw, dict):
+        rm = rm_raw
+      elif isinstance(rm_raw, str):
+        import json
+        try:
+          rm = json.loads(rm_raw)
+        except Exception:
+          pass
 
-        auto_merging = rm.get("auto_merging", False)
+      # Only extract what belongs to KB Indexing
+      search_method = rm.get("search_method", "semantic")
+      auto_merging = rm.get("auto_merging", False)
 
-        # Extract Search Method
-        # It might be under "search_method" or "method" depending on DB consistency
-        search_method = rm.get("search_method", "semantic")
+    # Concatenate for single-string usage
+    if "/" not in embedding_model:
+      embedding_model = f"{embedding_provider}/{embedding_model}"
 
-        # Parse rerank model
-        if reranking_mode:
-          raw_model = None
-          if isinstance(reranking_mode.get("reranking_model"), str):
-            raw_model = reranking_mode["reranking_model"]
-          elif isinstance(reranking_mode.get("model_name"), str):
-            raw_model = reranking_mode["model_name"]
-
-          if raw_model:
-            if "/" in raw_model and not raw_model.startswith("cross-encoder/"):
-              _, rerank_model = raw_model.split("/", 1)
-            else:
-              rerank_model = raw_model
-
-    except Exception as e:
-      logger.error(f"Error fetching KB config for {kb_id}: {e}", exc_info=True)
-      # Continue with defaults
-
-    return RetrievalConfig(
-        top_k=top_k,
-        score_threshold=score_threshold,
-        rerank=rerank,
-        rerank_model=rerank_model,
+    return KBIndexConfig(
         embedding_model=embedding_model,
         search_method=search_method,
         auto_merging=auto_merging
     )
 
-  async def _search_knowledge_bases(self, query: str, kb_ids: List[str], tenant_id: str) -> List[Dict]:
+  def _parse_bot_retrieval_config(self, bot_config: Dict[str, Any]) -> BotRetrievalConfig:
     """
-    Iterates through KB IDs, searches each, reranks if configured, and aggregates results.
+    Parses retrieval config from the Bot's config_model column.
+    Uses flattened reranking keys.
     """
+    config_model = bot_config.get("config_model") or {}
+
+    # Defaults
+    top_k = 10
+    score_threshold = 0.4
+    rerank = False
+    rerank_model = settings.RERANKER_MODEL
+
+    # Parse from config_model
+    if config_model.get("top_k") is not None:
+      top_k = int(config_model["top_k"])
+
+    if config_model.get("score_threshold_enabled"):
+      score_threshold = float(config_model.get("score_threshold", 0.4))
+
+    # Flattened Reranking Logic
+    rerank = config_model.get("reranking_enable", False)
+
+    # Try flattened key first, fallback to legacy for safety during transition
+    raw_model = config_model.get("reranking_model")
+    if not raw_model:
+      # Legacy fallback
+      reranking_mode = config_model.get("reranking_mode", {})
+      raw_model = reranking_mode.get(
+        "reranking_model") or reranking_mode.get("model_name")
+
+    if raw_model:
+      if "/" in raw_model and not raw_model.startswith("cross-encoder/"):
+        _, rerank_model = raw_model.split("/", 1)
+      else:
+        rerank_model = raw_model
+
+    return BotRetrievalConfig(
+        top_k=top_k,
+        score_threshold=score_threshold,
+        rerank=rerank,
+        rerank_model=rerank_model
+    )
+
+  async def _search_knowledge_bases(
+      self,
+      query: str,
+      kb_ids: List[str],
+      tenant_id: str,
+      global_config: BotRetrievalConfig,
+      access_token: str = None
+  ) -> List[Dict]:
+    """
+    Iterates through KB IDs, searches each in PARALLEL using global bot config.
+    Reranking is done GLOBALLY after aggregation.
+    """
+    if not kb_ids:
+      return []
+
+    import time
+    start_time = time.perf_counter()
+
+    # 1. Batch Fetch configurations (only for embedding_model and search_method)
+    try:
+      kb_configs_map = await asyncio.to_thread(
+          self.kb_repo.get_retrieval_configs_by_ids,
+          kb_ids,
+          tenant_id,
+          access_token=access_token
+      )
+    except Exception as e:
+      logger.error(f"Failed to batch fetch KB configs: {e}")
+      kb_configs_map = {}
+
+    # 2. Prepare Parallel Search Tasks
+    tasks = []
+
+    async def search_single_kb(kb_id_inner: str):
+      try:
+        # Determine Embedding Model & Search Method from KB Config
+        raw_kb_config = kb_configs_map.get(kb_id_inner)
+        kb_parsed = self._parse_kb_config(raw_kb_config)
+
+        # Use Global Config for Retrieval Params
+        local_k = global_config.top_k * 2 if global_config.rerank else global_config.top_k
+
+        # Execute Search
+        from app.core.factory import get_vector_store
+        results = await get_vector_store().search(
+            query=query,
+            k=local_k,
+            kb_id=str(kb_id_inner),
+            score_threshold=global_config.score_threshold,
+            model_name=kb_parsed.embedding_model,
+            search_method=kb_parsed.search_method,
+            enable_auto_merging=kb_parsed.auto_merging
+        )
+        return results
+      except Exception as ex:
+        logger.error(f"Error searching KB {kb_id_inner}: {ex}", exc_info=True)
+        return []
+
+    for kbid in kb_ids:
+      tasks.append(search_single_kb(kbid))
+
+    # 3. Execute Parallel Search
+    logger.info(f"Starting parallel search for {len(tasks)} KBs...")
+    search_results_list = await asyncio.gather(*tasks)
+
+    # 4. Aggregate
     all_results = []
+    for res_list in search_results_list:
+      if res_list:
+        all_results.extend(res_list)
 
-    # We can optimize this to run in parallel
-    # Group KBs by Embedding Model to optimize searching
-    # Structure: { model_name: [ (kb_id, config), ... ] }
-    grouped_kbs = {}
+    # 5. Global Reranking (if enabled)
+    if global_config.rerank:
+      logger.info(
+        f"Executing Global Reranking on {len(all_results)} results with model {global_config.rerank_model}")
+      from app.core.factory import get_vector_store
+      all_results = await asyncio.to_thread(
+          get_vector_store().rerank_results,
+          results=all_results,
+          query=query,
+          top_k=global_config.top_k,
+          model_name=global_config.rerank_model
+      )
+    else:
+      # Just Sort by score if no reranking
+      all_results.sort(key=lambda x: x["score"], reverse=True)
+      all_results = all_results[:global_config.top_k]
 
-    for kb_id in kb_ids:
-      try:
-        config = await self._resolve_retrieval_config(str(kb_id), tenant_id)
-        model = config.embedding_model or settings.EMBEDDING_MODEL
-        if model not in grouped_kbs:
-          grouped_kbs[model] = []
-        grouped_kbs[model].append((kb_id, config))
-      except Exception as e:
-        logger.error(f"Error resolving config for KB {kb_id}: {e}")
+    elapsed = time.perf_counter() - start_time
+    logger.info(f"Parallel KB search completed in {elapsed:.4f}s")
 
-    # Process each model group
-    for model_name, queue in grouped_kbs.items():
-      try:
-        # For each KB in this group, perform search using the specific model
-        # Note: We can likely optimize to batch search if vector_repo supported it,
-        # but standard usage is per-KB filtering.
+    return all_results
 
-        # Current vector_repo.search takes 'kb_id' as a filter.
-        # We must iterate.
-        for kb_id, retrieval_config in queue:
-          try:
-            # If reranking, fetch more candidates
-            search_k = retrieval_config.top_k * \
-                3 if retrieval_config.rerank else retrieval_config.top_k
+  async def _get_history(self, session_id: str, limit: int = 20, access_token: str = None) -> str:
+    """
+    Fetches and formats the last N messages of the session.
+    """
+    messages = await asyncio.to_thread(
+        self.message_repo.get_messages_by_session,
+        session_id=session_id,
+        limit=limit + 1,
+        access_token=access_token
+    )
+    if not messages or len(messages) <= 1:
+      return ""
 
-            results = await self.vector_repo.search(
-                query=query,
-                k=search_k,
-                kb_id=str(kb_id),
-                score_threshold=retrieval_config.score_threshold,
-                model_name=model_name,
-                search_method=retrieval_config.search_method,
-                enable_auto_merging=retrieval_config.auto_merging  # Pass the flag
-            )
+    # messages[0] is the current query just saved. messages[1:] are the past ones.
+    past_messages = messages[1:]
+    # Chronological order
+    past_messages.reverse()
 
-            if results:
-              if retrieval_config.rerank:
-                results = await asyncio.to_thread(
-                    self.vector_repo.rerank_results,
-                    results=results,
-                    query=query,
-                    top_k=retrieval_config.top_k,
-                    model_name=retrieval_config.rerank_model
-                )
-              else:
-                results = results[:retrieval_config.top_k]
+    history_lines = []
+    for msg in past_messages:
+      role = msg.get("role", "user")
+      content = msg.get("content", "")
+      history_lines.append(f"{role.capitalize()}: {content}")
 
-              all_results.extend(results)
-          except Exception as e:
-            logger.error(
-              f"Error searching KB {kb_id} (Model: {model_name}): {e}", exc_info=True)
-
-      except Exception as e:
-        logger.error(
-          f"Error processing model group {model_name}: {e}", exc_info=True)
-
-    # Sort all aggregated results by score
-    all_results.sort(key=lambda x: x["score"], reverse=True)
-    return all_results[:5]  # Global top 5
+    return "\n".join(history_lines)
 
   async def _prepare_chat_execution(
       self, bot_id: str, query: str, tenant_id: str, user_id: str, session_id: str, access_token: str = None
-  ) -> Tuple[Optional[str], Optional[LLMConfig], Optional[str]]:
+  ) -> Tuple[Optional[str], Optional[str], Optional[LLMConfig], Optional[str], Optional[str]]:
     """
     Orchestrate the context retrieval and prompt setup.
-    Returns: (context, llm_config, bot_name, error_message)
+    Returns: (history, context, llm_config, bot_name, error_message)
     """
     # 1. Save User Message
     await asyncio.to_thread(
-        self.message_repo.create_message, session_id, query, role=MessageRole.USER, sender_id=user_id, access_token=access_token
+        self.message_repo.create_message,
+        session_id=session_id,
+        content=query,
+        role=MessageRole.USER,
+        sender_id=user_id,
+        access_token=access_token
+    )
+
+    # 1b. Fetch History (memory)
+    history = await self._get_history(
+      session_id=session_id,
+      limit=20,
+      access_token=access_token
     )
 
     # 2. Get Bot
     bot = await self.get_bot(bot_id, tenant_id, access_token)
     if not bot:
-      return None, None, None, f"Bot {bot_id} not found"
+      return None, None, None, None, f"Bot {bot_id} not found"
 
     # 3. Check KBs
     kb_ids = bot.get("kb_ids")
@@ -337,23 +435,49 @@ class BotService:
       await asyncio.to_thread(
           self.message_repo.create_message, session_id, msg, role=MessageRole.SYSTEM, sender_id=bot_id, access_token=access_token
       )
-      return None, None, None, msg
+      return None, None, None, None, msg
 
     # 4. Resolve Model
     llm_config = self._resolve_model_config(bot)
 
-    # 5. Search
-    results = await self._search_knowledge_bases(query, kb_ids, tenant_id)
+    # 5. Resolve Retrieval Config (Global)
+    retrieval_config = self._parse_bot_retrieval_config(bot)
+
+    # 6. Search
+    results = await self._search_knowledge_bases(
+        query,
+        kb_ids,
+        tenant_id,
+        retrieval_config,
+        access_token=access_token
+    )
 
     if not results:
       msg = "I don't have enough information to answer your question."
       await asyncio.to_thread(
           self.message_repo.create_message, session_id, msg, role=MessageRole.ASSISTANT, sender_id=bot_id
       )
-      return None, None, None, msg
+      return None, None, None, None, msg
 
-    context = "\n".join([r["text"] for r in results])
-    return context, llm_config, bot.get("name", "AI Assistant"), None
+    context_parts = []
+    for r in results:
+      meta = r.get("metadata", {})
+      source = meta.get("file_name", "Unknown Source")
+      if "page_label" in meta:
+        source += f" (Page {meta['page_label']})"
+
+      score = r.get("score", 0.0)
+      text = r.get("text", "")
+
+      # Format:
+      # Source: filename (Page X)
+      # Relevance: 0.XX
+      # Content: ...
+      part = f"Source: {source}\nRelevance: {score:.2f}\nContent:\n{text}\n---"
+      context_parts.append(part)
+
+    context = "\n".join(context_parts)
+    return history, context, llm_config, bot.get("name", "AI Assistant"), None
 
   # ----------------------------------------------------------------------
   # CHAT INTERFACE
@@ -363,7 +487,7 @@ class BotService:
   ) -> Tuple[str, str]:
     session_id = await self._ensure_session(session_id, tenant_id, user_id, bot_id, access_token)
 
-    context, llm_config, bot_name, error_msg = await self._prepare_chat_execution(
+    history, context, llm_config, bot_name, error_msg = await self._prepare_chat_execution(
         bot_id, query, tenant_id, user_id, session_id, access_token
     )
 
@@ -377,6 +501,7 @@ class BotService:
     try:
       response = await self._call_llm(
           query=query,
+          history=history,
           context=context,
           config=llm_config,
           streaming=False
@@ -405,7 +530,7 @@ class BotService:
   ):
     session_id = await self._ensure_session(session_id, tenant_id, user_id, bot_id, access_token)
 
-    context, llm_config, bot_name, error_msg = await self._prepare_chat_execution(
+    history, context, llm_config, bot_name, error_msg = await self._prepare_chat_execution(
         bot_id, query, tenant_id, user_id, session_id, access_token
     )
 
@@ -422,6 +547,7 @@ class BotService:
     # Create generator
     return self._stream_response_wrapper(
         query=query,
+        history=history,
         context=context,
         config=llm_config,
         session_id=session_id,
@@ -433,6 +559,7 @@ class BotService:
   async def _stream_response_wrapper(
       self,
       query: str,
+      history: str,
       context: str,
       config: LLMConfig,
       session_id: str,
@@ -447,6 +574,7 @@ class BotService:
     try:
       stream = await self._call_llm(
           query=query,
+          history=history,
           context=context,
           config=config,
           streaming=True
@@ -479,6 +607,7 @@ class BotService:
   async def _call_llm(
       self,
       query: str,
+      history: str,
       context: str,
       config: LLMConfig,
       streaming: bool = False
@@ -486,27 +615,40 @@ class BotService:
     # Use configured system prompt or fallback to default
     instruction = config.system_prompt \
       if config.system_prompt \
-        else "Based on the information below, answer the question accurately and clearly."
+        else "You are a helpful AI assistant."
 
-    prompt = f"""
-      {instruction}
-      ===
-      {context}
-      ===
-      Question: {query}
-    """
+    instruction += "\nProvide your response in clear Markdown format. Use headers, bold text, lists, and code blocks where appropriate to make the information easy to read."
+
+    # Construct clean prompt without leading whitespace
+    prompt_user_content = (
+      f"Here's the previous conversation:\n{history if history else 'No previous history.'}\n\n"
+      f"Context from Knowledge Base:\n{context}\n\n"
+      f"User Question:\n{query}\n\n"
+    )
+
+    # Parse concatenated model string
+    provider = "ollama"
+    model = config.model
+    if "/" in config.model:
+      provider, model = config.model.split("/", 1)
 
     if streaming:
       return self.llm_service.stream_chat(
-          prompt=prompt,
-          provider=config.provider,
-          model=config.model,
-          temperature=config.temperature
+          prompt=prompt_user_content,
+          system_instruction=instruction,
+          provider=provider,
+          model=model,
+          temperature=config.temperature,
+          api_key=config.api_key,
+          base_url=config.base_url
       )
     else:
       return self.llm_service.chat(
-          prompt=prompt,
-          provider=config.provider,
-          model=config.model,
-          temperature=config.temperature
+          prompt=prompt_user_content,
+          system_instruction=instruction,
+          provider=provider,
+          model=model,
+          temperature=config.temperature,
+          api_key=config.api_key,
+          base_url=config.base_url
       )
