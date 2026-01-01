@@ -1,4 +1,4 @@
-from app.services.supabase.supabase_client import supabase, get_supabase_client
+from app.services.supabase.supabase_client import get_supabase_client
 from app.core.logger import get_logger
 
 logger = get_logger("SessionRepository")
@@ -11,7 +11,7 @@ class SessionRepository:
   def create_session(self, user_id: str, bot_id: str, tenant_id: str = None, access_token: str = None) -> dict | None:
     try:
       # Start the query builder
-      client = get_supabase_client(access_token) if access_token else supabase
+      client = get_supabase_client(access_token)
       payload = {
           "user_id": user_id,
           "bot_id": bot_id
@@ -32,7 +32,7 @@ class SessionRepository:
 
   def get_session(self, session_id: str, access_token: str = None) -> dict | None:
     try:
-      client = get_supabase_client(access_token) if access_token else supabase
+      client = get_supabase_client(access_token)
       response = (
           client.table(self.table_name)
           .select("*")
@@ -47,18 +47,28 @@ class SessionRepository:
       logger.exception(f"Failed to get session {session_id}: {e}")
       return None
 
-  def list_sessions(self, user_id: str, tenant_id: str, limit: int = 20, offset: int = 0, access_token: str = None) -> list[dict]:
+  def list_sessions(self, user_id: str, tenant_id: str, limit: int = 20, cursor_timestamp: int = None, access_token: str = None, bot_id: str = None) -> list[dict]:
     try:
-      client = get_supabase_client(access_token) if access_token else supabase
+      client = get_supabase_client(access_token)
       query = (
           client.table(self.table_name)
           .select("*")
           .eq("user_id", user_id)
           .order("updated_at", desc=True)
-          .range(offset, offset + limit - 1)
+          .limit(limit)
       )
+      if cursor_timestamp:
+        # Convert timestamp to datetime string if needed, or if DB stores as timestamp
+        # Ideally client passes a timestamp (int/float) or ISO string. Supabase expects ISO string for timestamp columns.
+        # Assuming cursor_timestamp is unix timestamp (int).
+        from datetime import datetime
+        dt_cursor = datetime.fromtimestamp(cursor_timestamp).isoformat()
+        query = query.lt("updated_at", dt_cursor)
+
       if tenant_id:
         query = query.eq("tenant_id", tenant_id)
+      if bot_id:
+        query = query.eq("bot_id", bot_id)
 
       response = query.execute()
       return response.data or []
@@ -66,9 +76,10 @@ class SessionRepository:
       logger.exception(f"Failed to list sessions for user {user_id}: {e}")
       return []
 
-  def update_session(self, session_id: str, data: dict) -> dict | None:
+  def update_session(self, session_id: str, data: dict, access_token: str = None) -> dict | None:
     try:
-      response = supabase.table(self.table_name).update(
+      client = get_supabase_client(access_token)
+      response = client.table(self.table_name).update(
         data).eq("id", session_id).execute()
       if response.data:
         return response.data[0]
@@ -77,14 +88,15 @@ class SessionRepository:
       logger.exception(f"Failed to update session {session_id}: {e}")
       raise RuntimeError(f"Failed to update session {session_id}: {e}")
 
-  def delete_session(self, session_id: str, user_id: str) -> bool:
+  def delete_session(self, session_id: str, user_id: str, access_token: str = None) -> bool:
     """
     Delete a session.
     This should trigger ON DELETE CASCADE for chat_messages if configured in DB.
     """
     try:
+      client = get_supabase_client(access_token)
       response = (
-          supabase.table(self.table_name)
+          client.table(self.table_name)
           .delete()
           .eq("id", session_id)
           .eq("user_id", user_id)
@@ -99,9 +111,10 @@ class SessionRepository:
       logger.exception(f"Failed to delete session {session_id}: {e}")
       return False
 
-  def get_total_sessions(self, tenant_id: str = None) -> int:
+  def get_total_sessions(self, tenant_id: str = None, access_token: str = None) -> int:
     try:
-      q = supabase.table(self.table_name).select("*", count="exact", head=True)
+      client = get_supabase_client(access_token)
+      q = client.table(self.table_name).select("*", count="exact", head=True)
       if tenant_id:
         q = q.eq("tenant_id", tenant_id)
       res = q.execute()

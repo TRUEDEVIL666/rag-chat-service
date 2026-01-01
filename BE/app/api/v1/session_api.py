@@ -1,18 +1,25 @@
+from app.schemas.common import MessageResponse
+from app.schemas.common_params import PaginationParams
+from app.schemas.session import (
+    SessionResponse, SessionListRequest, SessionIdRequest,
+    ChatMessageListResponse, SessionMessagesRequest
+)
+from fastapi_cache import FastAPICache
 from fastapi_cache.decorator import cache
 from fastapi import APIRouter, Depends, HTTPException
 from typing import List
 from app.utils.auth import get_current_user
 from app.core.factory import get_session_service
 from app.services.session.session_service import SessionService
+from datetime import datetime
 
 router = APIRouter()
 
 
-@router.get("/sessions", summary="List all chat sessions")
-@cache(expire=60)
+@router.get("/sessions", summary="List all chat sessions", response_model=List[SessionResponse])
+@cache(expire=300, namespace="sessions")
 async def list_sessions(
-    limit: int = 20,
-    offset: int = 0,
+    req: SessionListRequest = Depends(),
     session_service: SessionService = Depends(get_session_service),
     auth=Depends(get_current_user)
 ):
@@ -21,24 +28,70 @@ async def list_sessions(
   access_token = auth.get("token")
   try:
     sessions = session_service.list_sessions(
-      user_id, tenant_id, limit, offset, access_token)
+      user_id=user_id,
+      tenant_id=tenant_id,
+      limit=req.limit,
+      cursor_timestamp=req.cursor_timestamp,
+      access_token=access_token,
+      bot_id=str(req.bot_id) if req.bot_id else None
+    )
     return sessions
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.delete("/sessions/{session_id}", summary="Delete a chat session")
+@router.get("/sessions/{session_id}/messages", summary="List chat messages for a session", response_model=ChatMessageListResponse)
+async def get_messages(
+    req: SessionMessagesRequest = Depends(),
+    pagination: PaginationParams = Depends(),
+    session_service: SessionService = Depends(get_session_service),
+    auth: dict = Depends(get_current_user)
+):
+  try:
+    messages = session_service.get_chat_messages(
+        session_id=str(req.session_id),
+        limit=pagination.limit,
+        cursor_timestamp=pagination.cursor_timestamp,
+        sort_column=pagination.sort_column,
+        sort_desc=pagination.sort_desc,
+        access_token=auth["token"]
+    )
+
+    if messages:
+      last_msg_time = messages[-1]["created_at"]
+      if isinstance(last_msg_time, str):
+        last_msg_time = datetime.fromisoformat(last_msg_time)
+      next_cursor = int(last_msg_time.timestamp())
+    else:
+      next_cursor = None
+
+    return ChatMessageListResponse(
+        items=messages,
+        total=len(messages),
+        limit=pagination.limit,
+        next_cursor=next_cursor
+    )
+  except Exception as e:
+    raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/sessions/{session_id}", summary="Delete a chat session", response_model=MessageResponse)
 async def delete_session(
-    session_id: str,
+    req: SessionIdRequest = Depends(),
     session_service: SessionService = Depends(get_session_service),
     auth=Depends(get_current_user)
 ):
   user_id = auth["user_id"]
   try:
-    success = session_service.delete_session(session_id, user_id)
+    success = session_service.delete_session(
+      str(req.session_id), user_id, access_token=auth.get("token"))
     if not success:
       raise HTTPException(
         status_code=404, detail="Session not found or failed to delete")
+
+    # Clear cache so the list reflects the deletion
+    await FastAPICache.clear(namespace="sessions")
+
     return {"message": "Session deleted successfully"}
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
