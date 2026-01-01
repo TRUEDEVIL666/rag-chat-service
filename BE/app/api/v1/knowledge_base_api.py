@@ -1,4 +1,5 @@
 # app/api/v1/knowledge_base.py
+from app.schemas.common import MessageResponse
 from fastapi_cache.decorator import cache
 from uuid import UUID
 from datetime import datetime
@@ -17,6 +18,7 @@ from app.schemas.knowledge_base import (
     KnowledgeBaseResponse, KnowledgeBaseListResponse,
     RetrievalModeSchema, RetrievalModel, RetrievalModelSchema, UpdateKnowledgeBaseRequest
 )
+from app.schemas.document import DocumentListResponse, DocumentItem
 
 logger = get_logger("kb_api")
 router = APIRouter()
@@ -57,16 +59,8 @@ def list_knowledge_bases(
 
     rows, total = kb_service.list_knowledge_bases(
         tenant_id=tenant_id,
-        access_token=auth.get("token"),
-        # keyword=keyword,
-        # tag_ids=tag_ids or [],
-        # page=page,
-        # limit=limit,
-        # include_all=include_all,
-        # is_owner=is_owner,
+        access_token=auth.get("token")
     )
-
-    # has_more = ((page - 1) * limit + len(rows)) < total
 
     data = []
     for r in rows:
@@ -74,22 +68,18 @@ def list_knowledge_bases(
           id=str(r["id"]),
           name=r["name"],
           description=r.get("description"),
-          provider=r.get("provider"),
           permission=r.get("permission"),
-          data_source_type=r.get("data_source_type"),
           indexing_technique=r.get("indexing_technique"),
-          app_count=r.get("app_count") or 0,
           document_count=r.get("document_count") or 0,
-          word_count=r.get("word_count") or 0,
-          created_by=str(r.get("created_by")) if r.get(
-            "created_by") is not None else None,
           created_at=_to_epoch(r.get("created_at")),
-          updated_by=str(r.get("updated_by")) if r.get(
-            "updated_by") is not None else None,
           updated_at=_to_epoch(r.get("updated_at")),
-          embedding_model=r.get("embedding_model"),
-          embedding_model_provider=r.get("embedding_model_provider"),
-          embedding_available=bool(r.get("embedding_model")),
+          embedding_model=r.get("embedding_model_name"),
+          embedding_model_id=r.get("embedding_model_id"),
+          embedding_provider_id=r.get("embedding_provider_id"),
+          embedding_model_provider=r["embedding_provider"]["name"] if r.get(
+            "embedding_provider") else None,
+          embedding_available=r["embedding_model"]["is_active"] if r.get(
+            "embedding_model") else False,
       ))
 
     return KnowledgeBaseListResponse(
@@ -116,10 +106,15 @@ def create_knowledge_base(
     auth=Depends(get_current_user)
 ):
   try:
-    created = kb_service.create_knowledge_base(auth["tenant_id"], request)
+    created = kb_service.create_knowledge_base(
+        tenant_id=auth["tenant_id"],
+        user_id=auth.get("user_id"),
+        access_token=auth.get("token"),
+        request=request
+    )
     if not created:
       raise HTTPException(
-        status_code=500, detail="Failed to create knowledge base in Supabase.")
+        status_code=500, detail="Failed to create knowledge base.")
 
     return KnowledgeBaseResponse(
         id=created["id"],
@@ -147,6 +142,7 @@ def get_knowledge_base_details(
   kb_detail = kb_service.get_knowledge_base_details(
       knowledge_base_id=str(knowledge_base_id),
       tenant_id=tenant_id,
+      access_token=auth.get("token")
   )
 
   if not kb_detail:
@@ -169,20 +165,14 @@ def update_knowledge_base(
   kb_id = str(knowledge_base_id)
 
   try:
-    updated = kb_service.update_knowledge_base(kb_id, tenant_id, body)
+    updated = kb_service.update_knowledge_base(
+        kb_id, tenant_id, body, access_token=auth.get("token"))
     if not updated:
       raise HTTPException(
         status_code=404, detail="Knowledge base not found or update failed.")
 
-    rm_api = db_to_api_retrieval(updated.get("retrieval_model") or {})
-    resp = {
-        "id": str(updated["id"]),
-        "name": updated["name"],
-        "description": updated.get("description"),
-        "created_at": to_epoch(updated.get("created_at")),
-        "embedding_model": updated.get("embedding_model"),
-    }
-    return resp
+    full_detail = kb_service.get_knowledge_base_details(kb_id, tenant_id)
+    return full_detail
   except ValueError as e:
     if "exists" in str(e):
       raise HTTPException(status_code=409, detail=str(e))
@@ -192,7 +182,8 @@ def update_knowledge_base(
 @router.delete(
     "/knowledge_bases/{knowledge_base_id}",
     summary="Delete Knowledge Base",
-    description="Deletes a knowledge base and all its associated data (documents, chunks, vectors)."
+    description="Deletes a knowledge base and all its associated data (documents, chunks, vectors).",
+    response_model=MessageResponse
 )
 def delete_knowledge_base(
     knowledge_base_id: UUID = Path(..., description="KB ID"),
@@ -203,7 +194,8 @@ def delete_knowledge_base(
   kb_id = str(knowledge_base_id)
 
   try:
-    success = kb_service.delete_knowledge_base(kb_id, tenant_id)
+    success = kb_service.delete_knowledge_base(
+        kb_id, tenant_id, access_token=auth.get("token"))
     if not success:
       raise HTTPException(
         status_code=404, detail="Knowledge base not found or failed to delete.")
@@ -211,4 +203,42 @@ def delete_knowledge_base(
     return {"status": "success", "message": "Knowledge base deleted successfully."}
   except Exception as e:
     logger.exception(f"Failed to delete knowledge base {kb_id}")
+    raise HTTPException(status_code=500, detail=f"Internal server error: {e}")
+
+
+@router.get(
+    "/knowledge_bases/{knowledge_base_id}/documents",
+    response_model=DocumentListResponse,
+    summary="List Documents in Knowledge Base",
+)
+def list_documents(
+    knowledge_base_id: UUID = Path(..., description="KB ID"),
+    kb_service=Depends(get_knowledge_base_service),
+    auth=Depends(get_current_user)
+):
+  tenant_id = auth["tenant_id"]
+  kb_id = str(knowledge_base_id)
+
+  try:
+    docs = kb_service.list_documents(
+        kb_id, tenant_id, access_token=auth.get("token"))
+    data = []
+    for d in docs:
+      data.append(DocumentItem(
+          id=str(d["id"]),
+          name=d["name"],
+          path=d.get("path"),
+          status=d.get("status"),
+          knowledgebase_id=str(d["knowledgebase_id"]),
+          tenant_id=str(d["tenant_id"]) if d.get("tenant_id") else None,
+          created_by=d["created_by"],
+          creator=d.get("creator"),
+          created_at=_to_epoch(d.get("created_at")),
+          updated_at=_to_epoch(d.get("updated_at")),
+      ))
+    logger.info(
+      f"[API] list_documents for KB {kb_id}: Found {len(data)} items")
+    return DocumentListResponse(data=data, total=len(data))
+  except Exception as e:
+    logger.exception(f"Failed to list documents for {kb_id}")
     raise HTTPException(status_code=500, detail=f"Internal server error: {e}")

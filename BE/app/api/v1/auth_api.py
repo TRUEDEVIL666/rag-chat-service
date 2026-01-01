@@ -15,6 +15,7 @@ async def register(data: RegisterRequest, auth_service=Depends(get_auth_service)
     auth_service.sign_up(
       email=data.email,
       password=data.password,
+      name=data.name,
       tenant_id=data.tenant_id if data.tenant_id else None
     )
     return {
@@ -31,10 +32,12 @@ async def register(data: RegisterRequest, auth_service=Depends(get_auth_service)
 @router.post("/login")
 async def login(data: LoginRequest, auth_service=Depends(get_auth_service)):
   if not data.email or not data.password:
-    raise HTTPException(status_code=400, detail="Email and password are required")
+    raise HTTPException(
+      status_code=400, detail="Email and password are required")
 
   try:
-    result = auth_service.sign_in_with_password(email=data.email, password=data.password)
+    result = auth_service.sign_in_with_password(
+      email=data.email, password=data.password)
     return result
   except LookupError as le:
     raise HTTPException(status_code=404, detail=str(le))

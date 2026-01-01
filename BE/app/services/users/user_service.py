@@ -8,12 +8,11 @@ class UserService:
   def get_all_users(self) -> list[dict]:
     return self.user_repo.get_all_users_not_admin()
 
-  def delete_user(self, user_id: str) -> None:
-    return self.user_repo.delete_user(user_id)
+  def delete_user(self, user_id: str, access_token: str) -> None:
+    return self.user_repo.delete_user(user_id, access_token)
 
-  def delete_users(self, user_ids: list[str]) -> None:
-    for user_id in user_ids:
-      self.user_repo.delete_user(user_id)
+  def delete_users(self, user_ids: list[str], access_token: str) -> None:
+    return self.user_repo.delete_users(user_ids, access_token)
 
-  def get_total_users(self) -> int:
-    return self.user_repo.get_total_users()
+  def get_total_users(self, access_token: str = None) -> int:
+    return self.user_repo.get_total_users(access_token)

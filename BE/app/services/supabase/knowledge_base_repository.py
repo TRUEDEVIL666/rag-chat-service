@@ -1,7 +1,7 @@
 # app/services/supabase/knowledge_base_repository.py
 
 from datetime import datetime, timezone
-from app.services.supabase.supabase_client import get_supabase_client, supabase
+from app.services.supabase.supabase_client import get_supabase_client
 from app.core.logger import get_logger
 from typing import Any, Dict, Optional, List, Tuple
 
@@ -12,13 +12,14 @@ class KnowledgeBaseRepository:
   def __init__(self):
     self.table_name = "knowledgebases"
 
-  def check_exists(self, tenant_id: str, kb_name: str) -> bool:
+  def check_exists(self, tenant_id: str, kb_name: str, access_token: str = None) -> bool:
     """
     Kiểm tra knowledge base đã tồn tại theo tenant + kb_name
     """
     try:
+      client = get_supabase_client(access_token)
       response = (
-          supabase.table(self.table_name)
+          client.table(self.table_name)
           .select("id")
           .eq("tenant_id", tenant_id)
           .eq("name", kb_name)
@@ -30,7 +31,7 @@ class KnowledgeBaseRepository:
       logger.exception(f"[Supabase] Error checking KB exists: {e}")
       return False
 
-  def create(self, kb_data: dict) -> Optional[dict]:
+  def create(self, kb_data: dict, access_token: str = None) -> Optional[dict]:
     """
     Tạo mới knowledge base (nếu chưa tồn tại). Trả về toàn bộ bản ghi vừa insert.
     """
@@ -38,12 +39,13 @@ class KnowledgeBaseRepository:
       tenant_id = kb_data["tenant_id"]
       kb_name = kb_data["name"]
 
-      if self.check_exists(tenant_id, kb_name):
+      if self.check_exists(tenant_id, kb_name, access_token):
         raise ValueError(f"Knowledge base '{kb_name}' already exists.")
 
       kb_data.setdefault("created_at", datetime.utcnow().isoformat())
 
-      response = supabase.table(self.table_name).insert(kb_data).execute()
+      client = get_supabase_client(access_token)
+      response = client.table(self.table_name).insert(kb_data).execute()
 
       created = response.data[0] if getattr(response, "data", None) else None
       if not created:
@@ -85,7 +87,7 @@ class KnowledgeBaseRepository:
       # end = offset + limit - 1
       client = get_supabase_client(access_token)
       q = (client.table(self.table_name)
-           .select("*")
+           .select("*, embedding_provider:embedding_provider_id(name), embedding_model:embedding_model_id(name, model_id, is_active)")
            .eq("tenant_id", tenant_id)
            .execute())
 
@@ -116,6 +118,12 @@ class KnowledgeBaseRepository:
       # rows = page_res.data or []
       # total = page_res.count or 0
       if q.data:
+        for row in q.data:
+          if row.get("embedding_model") and row.get("embedding_provider"):
+            provider = row["embedding_provider"].get("name", "ollama")
+            model_id = row["embedding_model"].get("model_id")
+            if provider and model_id:
+              row["embedding_model_name"] = f"{provider}/{model_id}"
         return q.data, len(q.data)
       return [], 0
     except Exception as e:
@@ -126,115 +134,110 @@ class KnowledgeBaseRepository:
       self,
       knowledge_base_id: str,
       tenant_id: str,
-  ) -> Tuple[Optional[dict], List[dict], Dict[str, int]]:
+      access_token: str = None
+  ) -> Optional[dict]:
     """
     Lấy chi tiết 1 KB theo id + tenant scope.
-    Trả về: (row kb, tags[], counts{app_count, document_count, word_count})
     """
     try:
+      client = get_supabase_client(access_token)
       kb_q = (
-          supabase.table(self.table_name)
+          client.table(self.table_name)
           .select("*")
           .eq("id", knowledge_base_id)
           .eq("tenant_id", tenant_id)
           .limit(1)
           .execute()
       )
-      row = (kb_q.data or [None])[0]
-      if not row:
-        return None, [], {"app_count": 0, "document_count": 0, "word_count": 0}
-
-      tags: List[dict] = []
-      try:
-        kb_tags = (
-            supabase.table("knowledge_base_tags")
-            .select("tag_id")
-            .eq("kb_id", knowledge_base_id)
-            .execute()
-        )
-        tag_ids = [t["tag_id"] for t in (kb_tags.data or [])]
-        if tag_ids:
-          tag_rows = (
-              supabase.table("tags")
-              .select("*")
-              .in_("id", tag_ids)
-              .execute()
-          )
-          tags = tag_rows.data or []
-      except Exception:
-        tags = []
-
-      app_count = 0
-      document_count = 0
-      word_count = 0
-
-      counts = {
-          "app_count": app_count,
-          "document_count": document_count,
-          "word_count": word_count,
-      }
-      return row, tags, counts
+      return (kb_q.data or [None])[0]
 
     except Exception as e:
       logger.exception(
         f"[Supabase] Failed to get knowledge base detail {knowledge_base_id}: {e}")
-      return None, [], {"app_count": 0, "document_count": 0, "word_count": 0}
+      return None
 
   def get_one(self, kb_id: str, tenant_id: str, access_token: str = None) -> Optional[dict]:
     client = get_supabase_client(access_token)
     res = (client.table(self.table_name)
-           .select("*")
+           .select("*, embedding_provider:embedding_provider_id(name), embedding_model:embedding_model_id(name, model_id)")
            .eq("id", kb_id)
            .eq("tenant_id", tenant_id)
            .limit(1)
            .execute())
-    return (res.data or [None])[0]
 
-  def name_conflict(self, tenant_id: str, name: str, exclude_id: str) -> bool:
-    res = (supabase.table(self.table_name)
+    data = (res.data or [None])[0]
+    if data:
+      if data.get("embedding_model") and data.get("embedding_provider"):
+        provider = data["embedding_provider"].get("name", "ollama")
+        model_id = data["embedding_model"].get("model_id")
+        if provider and model_id:
+          data["embedding_model_name"] = f"{provider}/{model_id}"
+
+    return data
+
+  def name_conflict(self, tenant_id: str, name: str, exclude_id: str, access_token: str = None) -> bool:
+    client = get_supabase_client(access_token)
+    res = (client.table(self.table_name)
            .select("id").eq("tenant_id", tenant_id).eq("name", name)
            .neq("id", exclude_id).limit(1).execute())
     return bool(res.data)
 
-  def patch(self, kb_id: str, tenant_id: str, fields: Dict[str, Any]) -> Optional[dict]:
+  def patch(self, kb_id: str, tenant_id: str, fields: Dict[str, Any], access_token: str = None) -> Optional[dict]:
     if not fields:
-      return self.get_one(kb_id, tenant_id)
+      return self.get_one(kb_id, tenant_id, access_token)
 
     fields["updated_at"] = datetime.now(timezone.utc).isoformat()
 
-    res = (supabase.table(self.table_name)
+    client = get_supabase_client(access_token)
+    res = (client.table(self.table_name)
            .update(fields)
            .eq("id", kb_id).eq("tenant_id", tenant_id)
            .execute())
     return (res.data or [None])[0]
 
-  def get_retrieval_model(self, kb_id: str, tenant_id: str) -> Optional[dict]:
+  def get_retrieval_configs_by_ids(self, kb_ids: List[str], tenant_id: str, access_token: str = None) -> Dict[str, dict]:
     """
-    Fetch only the retrieval_model column for a KB.
+    Batch fetch retrieval configs for multiple KBs.
+    Returns: { kb_id: { "retrieval_model": ..., "embedding_model": ... } }
     """
+    if not kb_ids:
+      return {}
+
     try:
+      client = get_supabase_client(access_token)
       res = (
-          supabase.table(self.table_name)
-          .select("retrieval_model, embedding_model")
-          .eq("id", kb_id)
+          client.table(self.table_name)
+          .select("id, retrieval_model, embedding_model:embedding_model_id(name, model_id), embedding_provider:embedding_provider_id(name)")
+          .in_("id", kb_ids)
           .eq("tenant_id", tenant_id)
-          .limit(1)
           .execute()
       )
-      return (res.data or [None])[0]
+
+      result_map = {}
+      for row in (res.data or []):
+        if row.get("embedding_model") and row.get("embedding_provider"):
+          provider = row["embedding_provider"].get("name", "ollama")
+          model_id = row["embedding_model"].get("model_id")
+          if provider and model_id:
+            row["embedding_model_name"] = f"{provider}/{model_id}"
+
+        result_map[row["id"]] = row
+      return result_map
+
     except Exception as e:
       logger.exception(
-        f"[Supabase] Failed to get retrieval model for {kb_id}: {e}")
-      return None
+        f"[Supabase] Failed to batch get retrieval models: {e}")
+      return {}
 
-  def delete_kb(self, kb_id: str, tenant_id: str) -> bool:
+  def delete_kb(self, kb_id: str, tenant_id: str, access_token: str = None) -> bool:
     """
     Delete a knowledge base.
     This should trigger ON DELETE CASCADE for metadata and documents if configured in DB.
     """
     try:
+      client = get_supabase_client(access_token)
       response = (
-          supabase.table(self.table_name)
+          client.table(self.table_name)
           .delete()
           .eq("id", kb_id)
           .eq("tenant_id", tenant_id)
@@ -250,10 +253,16 @@ class KnowledgeBaseRepository:
       logger.exception(f"[Supabase] Failed to delete KB {kb_id}: {e}")
       return False
 
-  def get_total_kbs(self, tenant_id: str) -> int:
+  def get_total_kbs(self, tenant_id: str = None, access_token: str = None) -> int:
     try:
-      res = supabase.table(self.table_name).select(
-        "*", count="exact", head=True).eq("tenant_id", tenant_id).execute()
+      client = get_supabase_client(access_token)
+      res = client.table(self.table_name).select(
+        "*", count="exact", head=True)
+
+      if tenant_id:
+        res = res.eq("tenant_id", tenant_id)
+
+      res = res.execute()
       return res.count or 0
     except Exception as e:
       logger.exception("Failed to get total KBs count")

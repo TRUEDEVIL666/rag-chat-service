@@ -1,5 +1,7 @@
 import re
 from typing import List, Optional
+import asyncio
+import json
 
 from llama_index.core import Document, Settings, StorageContext, VectorStoreIndex
 from llama_index.core.base.embeddings.base import BaseEmbedding
@@ -33,6 +35,9 @@ def sanitize_collection_name(name: str) -> str:
   Sanitize text to be a valid Qdrant collection name.
   Replaces non-alphanumeric characters with underscores.
   """
+  # Strip provider prefix if present (e.g. "ollama/gemma" -> "gemma")
+  if "/" in name:
+    name = name.split("/")[-1]
   # Replace slashes, colons, dots, spaces with underscores
   sanitized = re.sub(r'[^a-zA-Z0-9]', '_', name)
   # Ensure it doesn't start with numbers or special chars if Qdrant requires (optional but safer)
@@ -51,10 +56,10 @@ class VectorRepository:
 
   def __init__(
       self,
-      embedding_service: EmbeddingService,
       host: str,
       port: int,
       collection: str,
+      embedding_service: Optional[EmbeddingService] = None,
       vector_size: int = 768
   ):
     self.host = settings.QDRANT_HOST
@@ -65,18 +70,23 @@ class VectorRepository:
 
     # Dynamic Collection Name Logic
     # 1. Start with the model name from embedding service
-    model_name_raw = self.embedding_service.model_name
-    # 2. Sanitize it
-    model_name_safe = sanitize_collection_name(model_name_raw)
-    # 3. Formulate collection name (e.g., "vec_ollama_gemma3_4b")
-    self.qdrant_collection = f"vec_{model_name_safe}"
+    model_name_raw = self.embedding_service.model_name if self.embedding_service else None
+
+    if model_name_raw:
+      # 2. Sanitize it
+      model_name_safe = sanitize_collection_name(model_name_raw)
+      # 3. Formulate collection name (e.g., "vec_ollama_gemma3_4b")
+      self.qdrant_collection = f"vec_{model_name_safe}"
+    else:
+      self.qdrant_collection = collection
 
     logger.info(
       f"[VectorRepo] Using dynamic collection name: {self.qdrant_collection}")
 
-    Settings.embed_model = CustomEmbedding(
-      self.embedding_service, embed_batch_size=64
-    )
+    # Settings.embed_model = CustomEmbedding(
+    #   self.embedding_service, embed_batch_size=64
+    # )
+    # Avoid modifying global settings to prevent concurrency issues
 
     # Initialize Sparse Embedding Model (BM25 / SPLADE)
     # This runs locally on CPU
@@ -87,8 +97,12 @@ class VectorRepository:
         port=self.port
     )
 
-    # Ensure collection exists
-    self.create_collection(self.qdrant_collection)
+    # Ensure collection exists ONLY if we have a concrete model
+    if model_name_raw:
+      self.create_collection(self.qdrant_collection)
+    else:
+      logger.info(
+        "[VectorRepo] Lazy initialization: Skipping eager collection creation (using default name waiting for runtime override).")
 
     self.vector_store = QdrantVectorStore(
         client=self.qdrant_client,
@@ -98,68 +112,14 @@ class VectorRepository:
       vector_store=self.vector_store)
     self.index: Optional[VectorStoreIndex] = None
 
-  def _resolve_index(self, model_name: Optional[str] = None) -> VectorStoreIndex:
-    """
-    Get or create a VectorStoreIndex for the specified model.
-    If model_name is None, uses the default self.index.
-    """
-    if not model_name:
-      if self.index is None:
-        self.index = VectorStoreIndex.from_vector_store(self.vector_store)
-      return self.index
-
-    # Dynamic resolution for specific model
-    raw_name = model_name
-    if "/" in model_name:
-      _, raw_name = model_name.split("/", 1)
-
-    safe_name = sanitize_collection_name(raw_name)
-    collection_name = f"vec_{safe_name}"
-
-    # Check if we are requesting the default collection
-    if collection_name == self.qdrant_collection:
-      if self.index is None:
-        self.index = VectorStoreIndex.from_vector_store(self.vector_store)
-      return self.index
-
-    # Safe Approach: Always create a temporary lightweight Index/Context for the request
-    logger.info(
-      f"[VectorRepo] Resolving index for model: {model_name} -> {collection_name}")
-
-    # 1. Create Vector Store pointing to collection
-    temp_store = QdrantVectorStore(
-        client=self.qdrant_client,
-        collection_name=collection_name
-    )
-
-    # 2. Resolve Embedding Service
-    # Expected model_name format: "provider/model" or just "model" (defaulting to ollama?)
-    # We need to construct the embedding service.
-    provider = "ollama"  # Default assumption
-    model_str = model_name
-    if "/" in model_name:
-      provider, model_str = model_name.split("/", 1)
-
-    # Use Factory to get service (it might be cached or new)
-    from app.core.factory import get_embedding_service
-    embed_service = get_embedding_service(provider, model_str)
-    custom_embed_runner = CustomEmbedding(
-        embed_service, embed_batch_size=64
-    )
-
-    # 3. Create Index
-    # We pass the embed_model explicitly to ensure the query is embedded correctly
-    return VectorStoreIndex.from_vector_store(
-        vector_store=temp_store,
-        embed_model=custom_embed_runner
-    )
-
   def _get_reranker(self, model_name: str = None):
     target_model = model_name or settings.RERANKER_MODEL
+    import torch
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     if target_model not in self._rerankers:
       logger.info(
-        f"[VectorRepo] Initializing CrossEncoder reranker: {target_model}")
-      self._rerankers[target_model] = CrossEncoder(target_model)
+        f"[VectorRepo] Initializing CrossEncoder reranker: {target_model} on device: {device}")
+      self._rerankers[target_model] = CrossEncoder(target_model, device=device)
     return self._rerankers[target_model]
 
   def create_collection(self, collection_name: Optional[str] = None):
@@ -220,26 +180,47 @@ class VectorRepository:
       # 2. Ensure collection exists
       self.create_collection(target_collection)
 
-      # 3. Create TEMPORARY Storage Context for this specific collection
-      # We cannot reuse self.storage_context as it's bound to the default collection
-      tmp_client = QdrantClient(host=self.host, port=self.port)
-      tmp_vector_store = QdrantVectorStore(
-          client=tmp_client,
-          collection_name=target_collection
-      )
-      tmp_storage_context = StorageContext.from_defaults(
-        vector_store=tmp_vector_store)
-
-      # 4. Upsert using this ISOLATED context
-      # Note: from_documents creates nodes internally.
-      # To ensure we capture node IDs for sparse updates, we prefer explicit node creation.
+      # 3. Upsert using MANUAL creation to Optimize Storage
+      # Goal: Strip metadata from _node_content to avoid duplication
       nodes = [TextNode(text=doc.text, metadata=doc.metadata)
                for doc in documents]
 
-      VectorStoreIndex(
-          nodes=nodes,
-          storage_context=tmp_storage_context,
-          embed_model=embed_model
+      # Generate Dense Embeddings
+      embeddings = embed_model.get_text_embedding_batch(
+        [n.text for n in nodes])
+
+      points = []
+      for node, emb in zip(nodes, embeddings):
+        # 1. Get Node Dictionary
+        node_dict = node.dict()
+
+        # 2. STRIP METADATA from internal dict to save storage
+        # The metadata is already stored as top-level fields in 'payload'
+        node_dict["metadata"] = {}
+
+        # 3. Construct Payload
+        # Filter metadata to remove redundant/internal keys
+        excluded_keys = {
+            "chunk_hash", "chunk_size", "source", "source_file"
+        }
+        filtered_metadata = {
+          k: v for k, v in node.metadata.items() if k not in excluded_keys}
+
+        payload = {
+            # Minimized content (Text + Relationships + Empty Metadata)
+            "_node_content": json.dumps(node_dict),
+            "_node_type": node.class_name(),
+            "document_id": node.metadata.get("document_id"),
+            **filtered_metadata
+        }
+
+        points.append(models.PointStruct(
+          id=node.node_id, vector=emb, payload=payload))
+
+      # 5. Upsert Dense Points
+      self.qdrant_client.upsert(
+          collection_name=target_collection,
+          points=points
       )
 
       # 5. Manual Sparse Vector Update for Custom Collection (CONDITIONAL)
@@ -272,17 +253,23 @@ class VectorRepository:
 
       return
 
-    if self.index is None:
-      self.index = VectorStoreIndex.from_documents(
-          documents=documents,
-          storage_context=self.storage_context
-      )
+      if self.index is None:
+        self.index = VectorStoreIndex.from_documents(
+            documents=documents,
+            storage_context=self.storage_context,
+            embed_model=CustomEmbedding(
+              self.embedding_service, embed_batch_size=64)
+        )
     else:
       document_nodes = [
           TextNode(text=doc.text, metadata=doc.metadata)
           for doc in documents
       ]
-      self.index.insert_nodes(document_nodes)
+      self.index.insert_nodes(
+        document_nodes,
+        embed_model=CustomEmbedding(
+          self.embedding_service, embed_batch_size=64)
+      )
 
       # --- HYBRID UPDATE: UPSERT SPARSE VECTORS ---
       # LlamaIndex's insert_nodes doesn't easily support named sparse vectors yet in this version without complex config.
@@ -322,10 +309,24 @@ class VectorRepository:
       logger.info(
           f"[VectorRepo] Enriched {len(documents)} documents with BM25 sparse vectors.")
 
-  async def embed_text(self, text: str) -> List[float]:
+  async def embed_text(self, text: str, model_name: Optional[str] = None) -> List[float]:
     if not text.strip():
       return []
-    embeddings = await self.embedding_service.embed_texts([text])
+
+    # Resolve correct embedding service
+    target_service = self.embedding_service
+
+    # If explicit model requested, or if we have no default service
+    if model_name:
+      if not self.embedding_service or model_name != self.embedding_service.model_name:
+        from app.core.factory import get_embedding_service
+        target_service = get_embedding_service(model=model_name)
+    elif not target_service:
+        # No model provided AND no default service
+      raise ValueError(
+        "No embedding model specified and no default service available.")
+
+    embeddings = await target_service.embed_texts([text])
     return embeddings[0] if embeddings else []
 
   async def search(
@@ -359,7 +360,8 @@ class VectorRepository:
     # Logic branches based on search_method
 
     # Dense (Embedding Model) - Required for both
-    dense_vector = await self.embed_text(query)
+    # CRITICAL: Pass model_name to ensure we generate vector using the Correct Model!
+    dense_vector = await self.embed_text(query, model_name=model_name)
 
     # Build Filter
     qdrant_filters = None
@@ -378,13 +380,15 @@ class VectorRepository:
     if search_method == "semantic":
       # --- SEMANTIC SEARCH ONLY ---
       logger.info("[VectorRepo] Executing Semantic Search (Dense Only)")
-      results = self.qdrant_client.query_points(
+      points_result = await asyncio.to_thread(
+          self.qdrant_client.query_points,
           collection_name=target_collection,
           query=dense_vector,
           query_filter=qdrant_filters,
           limit=k,
           with_payload=True
-      ).points
+      )
+      results = points_result.points
 
     else:
       # --- HYBRID SEARCH (DEFAULT) ---
@@ -413,13 +417,15 @@ class VectorRepository:
           ),
       ]
 
-      results = self.qdrant_client.query_points(
+      points_result = await asyncio.to_thread(
+          self.qdrant_client.query_points,
           collection_name=target_collection,
           prefetch=prefetch,
           query=models.FusionQuery(fusion=models.Fusion.RRF),
           with_payload=True,
           limit=k,
-      ).points
+      )
+      results = points_result.points
 
     # 5. Format Results
     formatted_results = []
@@ -436,7 +442,8 @@ class VectorRepository:
     parent_map = {}
     if parent_ids_to_fetch:
       try:
-        parent_points = self.qdrant_client.retrieve(
+        parent_points = await asyncio.to_thread(
+            self.qdrant_client.retrieve,
             collection_name=target_collection,
             ids=list(parent_ids_to_fetch),
             with_payload=True
@@ -523,6 +530,32 @@ class VectorRepository:
       ))
     return MetadataFilters(filters=filters)
 
+  def delete_points_by_ids(self, point_ids: List[str], model_name: Optional[str] = None) -> bool:
+    """
+    Batch delete specific points from Qdrant.
+    """
+    if not point_ids:
+      return True
+    try:
+      # Resolve correct collection
+      target_collection = self.qdrant_collection
+      if model_name:
+        safe_name = sanitize_collection_name(model_name)
+        possible_collection = f"vec_{safe_name}"
+        if self.qdrant_client.collection_exists(possible_collection):
+          target_collection = possible_collection
+
+      self.qdrant_client.delete(
+          collection_name=target_collection,
+          points_selector=models.PointIdsList(
+              points=point_ids,
+          )
+      )
+      return True
+    except Exception as e:
+      logger.exception(f"[VectorRepo] Failed to delete points: {e}")
+      return False
+
   def delete_by_kb(self, kb_id: str, model_name: Optional[str] = None) -> bool:
     """
     Delete all points associated with a specific Knowledge Base ID.
@@ -562,6 +595,45 @@ class VectorRepository:
         f"[VectorRepo] Successfully deleted vectors for kb_id: {kb_id}")
       return True
     except Exception as e:
+      logger.exception(f"[VectorRepo] Failed to delete for kb_id {kb_id}: {e}")
+      return False
+
+  def delete_by_doc_id(self, doc_id: str, model_name: Optional[str] = None) -> bool:
+    """
+    Delete all points for a specific document ID.
+    """
+    try:
+      if not isinstance(doc_id, str):
+        logger.error(f"[VectorRepo] doc_id must be string, got {type(doc_id)}")
+        return False
+
+      logger.info(
+          f"[VectorRepo] Deleting vectors for doc_id: {doc_id} (model: {model_name})")
+
+      target_collection = self.qdrant_collection
+      if model_name:
+        safe_name = sanitize_collection_name(model_name)
+        possible_collection = f"vec_{safe_name}"
+        if self.qdrant_client.collection_exists(possible_collection):
+          target_collection = possible_collection
+
+      self.qdrant_client.delete(
+          collection_name=target_collection,
+          points_selector=models.FilterSelector(
+              filter=models.Filter(
+                  must=[
+                      models.FieldCondition(
+                          key="document_id",
+                          match=models.MatchValue(value=doc_id)
+                      )
+                  ]
+              )
+          )
+      )
+      logger.info(
+          f"[VectorRepo] Successfully deleted vectors for doc_id: {doc_id}")
+      return True
+    except Exception as e:
       logger.exception(
-        f"[VectorRepo] Failed to delete vectors for kb_id {kb_id}: {e}")
+          f"[VectorRepo] Failed to delete vectors for doc_id {doc_id}: {e}")
       return False

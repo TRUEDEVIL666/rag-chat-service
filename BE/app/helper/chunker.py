@@ -19,7 +19,7 @@ from llama_index.core.schema import BaseNode
 
 from app.config.config import settings as AppSettings
 from app.core.logger import get_logger
-from app.services.supabase.supabase_client import supabase
+
 
 logger = get_logger("chunker")
 
@@ -28,7 +28,10 @@ logger = get_logger("chunker")
 # CHUNKING STRATEGY IDENTIFIER
 # ----------------------------
 def process_chunks(
-    documents: List[Document], chunking_method: str, filename: str, **kwargs
+    documents: List[Document],
+    chunking_method: str,
+    filename: str,
+    **kwargs
 ) -> List[BaseNode]:
   """
   Dispatcher function to call the appropriate chunking strategy.
@@ -45,7 +48,12 @@ def process_chunks(
       threshold_percentage = kwargs.get(
           "threshold_percentage", AppSettings.THRESHOLD_PERCENTAGE
       )
-      embed_model = kwargs.get("embed_model", Settings.embed_model)
+      # Type coercion
+      buffer_size = int(buffer_size)
+      threshold_percentage = int(threshold_percentage)
+      # Use lazy evaluation for embed_model to avoid triggering LlamaIndex's default (OpenAI)
+      # if a custom model is already provided in kwargs.
+      embed_model = kwargs.get("embed_model") or Settings.embed_model
 
       return semantic_chunk_documents(
           documents,
@@ -55,19 +63,25 @@ def process_chunks(
           embed_model=embed_model,
       )
 
-    case "topic":
-      chunk_size = kwargs.get("chunk_size", 1024)
-      window_size = kwargs.get("window_size", 5)
-      return topic_chunk_documents(
-          documents,
-          filename,
-          chunk_size=chunk_size,
-          window_size=window_size,
-      )
+    # case "topic":
+    #   chunk_size = kwargs.get("chunk_size", 1024)
+    #   window_size = kwargs.get("window_size", 5)
+    #   return topic_chunk_documents(
+    #       documents,
+    #       filename,
+    #       chunk_size=chunk_size,
+    #       window_size=window_size,
+    #   )
 
     case "sentence":
       chunk_size = kwargs.get("chunk_size")
       chunk_overlap = kwargs.get("chunk_overlap")
+
+      # Type coercion to prevent LlamaIndex TypeError
+      if chunk_size is not None:
+        chunk_size = int(chunk_size)
+      if chunk_overlap is not None:
+        chunk_overlap = int(chunk_overlap)
 
       return sentence_chunk_documents(
           documents,
@@ -77,8 +91,13 @@ def process_chunks(
       )
 
     case "token":
-      chunk_size = kwargs.get("chunk_size")
-      chunk_overlap = kwargs.get("chunk_overlap")
+      chunk_size = kwargs.get("chunk_size", 512)
+      chunk_overlap = kwargs.get("chunk_overlap", 50)
+
+      # Type coercion
+      chunk_size = int(chunk_size)
+      chunk_overlap = int(chunk_overlap)
+
       return token_chunk_documents(
           documents,
           filename,
@@ -87,9 +106,14 @@ def process_chunks(
       )
 
     case "character":
-      chunk_size = kwargs.get("chunk_size")
-      chunk_overlap = kwargs.get("chunk_overlap")
+      chunk_size = kwargs.get("chunk_size", 1000)
+      chunk_overlap = kwargs.get("chunk_overlap", 200)
       separator = kwargs.get("separator", "\n\n")
+
+      # Type coercion
+      chunk_size = int(chunk_size)
+      chunk_overlap = int(chunk_overlap)
+
       return character_chunk_documents(
           documents,
           filename,
@@ -99,8 +123,13 @@ def process_chunks(
       )
 
     case "word":
-      chunk_size = kwargs.get("chunk_size")
-      chunk_overlap = kwargs.get("chunk_overlap")
+      chunk_size = kwargs.get("chunk_size", 1000)
+      chunk_overlap = kwargs.get("chunk_overlap", 200)
+
+      # Type coercion
+      chunk_size = int(chunk_size)
+      chunk_overlap = int(chunk_overlap)
+
       return word_chunk_documents(
           documents,
           filename,
@@ -111,6 +140,8 @@ def process_chunks(
     case "sliding":
       # Extract sliding-window specific params
       window_size = kwargs.get("window_size", 3)
+      window_size = int(window_size)
+
       return sliding_window_chunk_documents(
           documents,
           filename,
@@ -119,6 +150,13 @@ def process_chunks(
 
     case "hierarchical":
       chunk_sizes = kwargs.get("chunk_sizes", [2048, 512, 128])
+      # Ensure all sizes are integers
+      if isinstance(chunk_sizes, list):
+        chunk_sizes = [int(s) for s in chunk_sizes]
+      elif isinstance(chunk_sizes, str):
+        # Handle case where it might be a comma-separated string
+        chunk_sizes = [int(s.strip()) for s in chunk_sizes.split(",")]
+
       return hierarchical_chunk_documents(
           documents,
           filename,
@@ -128,6 +166,13 @@ def process_chunks(
     case "recursive":
       chunk_size = kwargs.get("chunk_size")
       chunk_overlap = kwargs.get("chunk_overlap")
+
+      # Type coercion
+      if chunk_size is not None:
+        chunk_size = int(chunk_size)
+      if chunk_overlap is not None:
+        chunk_overlap = int(chunk_overlap)
+
       return recursive_chunk_documents(
           documents,
           filename,
@@ -165,21 +210,21 @@ def semantic_chunk_documents(
   return apply_chunking_logic(documents, splitter, filename)
 
 
-def topic_chunk_documents(
-    documents: List[Document],
-    filename: str,
-    chunk_size: int = 1024,
-    window_size: int = 5,
-) -> List[BaseNode]:
-  """
-  Chunk documents using TopicNodeParser.
-  Suitable for documents with distinct topic shifts.
-  """
-  splitter = TopicNodeParser(
-      chunk_size=chunk_size,
-      window_size=window_size,
-  )
-  return apply_chunking_logic(documents, splitter, filename)
+# def topic_chunk_documents(
+#     documents: List[Document],
+#     filename: str,
+#     chunk_size: int = 1024,
+#     window_size: int = 5,
+# ) -> List[BaseNode]:
+#   """
+#   Chunk documents using TopicNodeParser.
+#   Suitable for documents with distinct topic shifts.
+#   """
+#   splitter = TopicNodeParser(
+#       chunk_size=chunk_size,
+#       window_size=window_size,
+#   )
+#   return apply_chunking_logic(documents, splitter, filename)
 
 
 def recursive_chunk_documents(
@@ -314,10 +359,11 @@ def hierarchical_chunk_documents(
   )
   return apply_chunking_logic(documents, splitter, filename)
 
-
 # ----------------
 # HELPER FUNCTIONS
 # ----------------
+
+
 def clean_text(text: str) -> str:
   """
   Clean extra whitespace and trim the text.
@@ -339,45 +385,57 @@ def adaptive_chunk_params(length: int) -> Tuple[int, int]:
   return size, overlap
 
 
-def _detect_or_create_document_id(file_name: str) -> str:
-  """
-  Detect or create a document ID based on the file name.
-  """
-  res = (
-      supabase.table("metadata")
-      .select("document_id")
-      .eq("source_file", file_name)
-      .limit(1)
-      .execute()
-  )
-  if res.data:
-    return res.data[0]["document_id"]
-  return str(uuid.uuid4())
-
-
 def apply_chunking_logic(
-    documents: List[Document], splitter: NodeParser, filename: str
-) -> List[BaseNode]:
+    documents: List[Document],
+    splitter: NodeParser,
+    filename: str,
+  ) -> List[BaseNode]:
   """
   Clean, split, and enrich nodes with metadata.
+  Processes all documents in a batch to allow the splitter to optimize (e.g. batch embeddings).
   """
   chunks: List[BaseNode] = []
+  clean_docs = []
+
+  # 1. Pre-process and clean all documents
+  # Optimization: Merge small documents (like paragraphs) into one large document
+  # to allow the Semantic Splitter to see the full context and batch embeddings effectively.
+  full_text_list = []
+  base_metadata = documents[0].metadata.copy() if documents else {}
+
   for doc in documents:
     cleaned = clean_text(doc.text)
     if not cleaned:
       continue
-    new_doc = Document(text=cleaned, metadata=doc.metadata)
-    nodes = splitter.get_nodes_from_documents([new_doc])
-    for n in nodes:
-      if len(n.text.strip()) >= 10:
-        chunk_hash = hashlib.sha256(n.text.encode("utf-8")).hexdigest()
-        n.metadata.update({
-            "chunk_size": len(n.text),
-            "source_file": filename,
-            "chunk_hash": chunk_hash
-        })
-        chunks.append(n)
+    full_text_list.append(cleaned)
 
-    logger.info(
-        f"[Chunker] Generated {len(chunks)} chunks from file: {filename}")
-    return chunks
+  if not full_text_list:
+    return []
+
+  # Join with double newlines to preserve paragraph separation
+  merged_text = "\n\n".join(full_text_list)
+  # Create a single merged document
+  clean_docs = [Document(text=merged_text, metadata=base_metadata)]
+
+  # 2. Process ALL documents at once (Enables batching in LlamaIndex splitters)
+  # Now the splitter receives one large doc, breaks it into sentences, and embeds them in batches.
+  nodes = splitter.get_nodes_from_documents(clean_docs)
+
+  # 3. Post-process nodes
+  for n in nodes:
+    if len(n.text.strip()) >= 10:
+      chunk_hash = hashlib.sha256(n.text.encode("utf-8")).hexdigest()
+
+      # Prepare metadata update
+      meta_update = {
+          "chunk_size": len(n.text),
+          "source_file": filename,
+          "chunk_hash": chunk_hash
+      }
+
+      n.metadata.update(meta_update)
+      chunks.append(n)
+
+  logger.info(
+      f"[Chunker] Generated {len(chunks)} chunks from file: {filename} (Batch size: {len(documents)})")
+  return chunks

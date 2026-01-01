@@ -14,14 +14,14 @@ class KnowledgeBaseItem(BaseModel):
   description: Optional[str] = None
   permission: Optional[str] = None
   indexing_technique: Optional[str] = None
-  app_count: int = 0
   document_count: int = 0
-  word_count: int = 0
-  created_by: Optional[str] = None
   created_at: int
-  updated_by: Optional[str] = None
   updated_at: int
   embedding_model: Optional[str] = None
+  embedding_model_id: Optional[UUID] = None
+  embedding_provider_id: Optional[UUID] = None
+  embedding_model_provider: Optional[str] = None
+  embedding_available: bool = False
   retrieval_model: Optional[Dict[str, Any]] = None
 
 
@@ -48,7 +48,8 @@ class KnowledgeBaseInput(BaseModel):
   description: str
   indexing_technique: Optional[str] = None
   permission: Optional[str] = None
-  embedding_model: Optional[str] = None
+  embedding_provider_id: Optional[UUID] = None
+  embedding_model_id: Optional[UUID] = None
   retrieval_model: Optional[RetrievalModel] = None
   partial_member_list: Optional[List[str]] = None
 
@@ -80,16 +81,13 @@ class KnowledgeBaseDetail(BaseModel):
   description: Optional[str] = None
   permission: Optional[str] = None
   indexing_technique: Optional[str] = None
-  app_count: int
   document_count: int
-  word_count: int
   created_by: Optional[str] = None
   created_at: str
   updated_by: Optional[str] = None
   updated_at: str
   embedding_model: Optional[str] = None
   retrieval_model: Optional[RetrievalModelSchema] = None
-  tags: List[Dict[str, Any]]
   doc_form: Optional[str] = None
 
 
@@ -112,7 +110,7 @@ class UpdateKnowledgeBaseRequest(BaseModel):
   description: Optional[str] = None
   indexing_technique: Optional[str] = None
   permission: Optional[str] = None
-  embedding_model_provider: Optional[str] = None
-  embedding_model: Optional[str] = None
+  embedding_provider_id: Optional[UUID] = None
+  embedding_model_id: Optional[UUID] = None
   retrieval_model: Optional[UpdateRetrievalModel] = None
   partial_member_list: Optional[List[str]] = None

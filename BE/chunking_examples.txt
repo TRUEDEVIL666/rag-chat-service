@@ -4,16 +4,24 @@ This file demonstrates the output of various chunking strategies.
 
 --- Method: Sentence Chunking ---
 Description: Splits by sentence, respecting chunk_size limits.
-Input Text (165 chars):
-This is the first sentence. This is the second sentence. Here is a third one, which is slightly longer than the others. Finally, a fourth sentence to wrap things up....
-Number of Chunks: 1
+Parameters: chunk_size, chunk_overlap
+Input Text (Length: Long enough to split):
+"Artificial intelligence is transforming the world. It is being used in healthcare to diagnose diseases. It is used in finance to detect fraud. Education is also benefiting from personalized learning. The future is bright."
+
+Scenario: chunk_size=Small, chunk_overlap=Medium (Forces split with overlap)
+Number of Chunks: 2
 
 [Chunk 1]
-  Content: "This is the first sentence. This is the second sentence. Here is a third one, which is slightly longer than the others. Finally, a fourth sentence to wrap things up."
+  Content: "Artificial intelligence is transforming the world. It is being used in healthcare to diagnose diseases. It is used in finance to detect fraud."
+
+[Chunk 2]
+  Content: "It is used in finance to detect fraud. Education is also benefiting from personalized learning. The future is bright."
+  (Note: "It is used in finance to detect fraud." is repeated due to overlap)
 ----------------------------------------
 
 --- Method: Token Chunking ---
 Description: Splits strictly by token count.
+Parameters: chunk_size, chunk_overlap
 Input Text (600 chars):
 Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token Token To...
 Number of Chunks: 6
@@ -39,6 +47,7 @@ Number of Chunks: 6
 
 --- Method: Recursive Chunking ---
 Description: Splits recursively using separators (ideal for code).
+Parameters: chunk_size, chunk_overlap
 Input Text (122 chars):
 
 def hello_world():
@@ -60,6 +69,7 @@ Number of Chunks: 2
 
 --- Method: Character Chunking ---
 Description: Splits by character count.
+Parameters: chunk_size, chunk_overlap, separator
 Input Text (130 chars):
 abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz...
 Number of Chunks: 3
@@ -76,6 +86,7 @@ Number of Chunks: 3
 
 --- Method: Word Chunking ---
 Description: Splits by word count.
+Parameters: chunk_size, chunk_overlap
 Input Text (150 chars):
 One two three four five six seven eight nine ten. One two three four five six seven eight nine ten. One two three four five six seven eight nine ten. ...
 Number of Chunks: 4
@@ -95,6 +106,7 @@ Number of Chunks: 4
 
 --- Method: Sliding Window (Window=1) ---
 Description: Each chunk is a single sentence, but carries neighbors as context.
+Parameters: window_size
 Input Text (350 chars):
 The quick brown fox jumps over the lazy dog. It was a sunny day in the forest. Birds were singing in the trees. A gentle breeze rustled the leaves. The fox was looking for something to eat. Suddenly, ...
 Number of Chunks: 10
@@ -142,6 +154,7 @@ Number of Chunks: 10
 
 --- Method: Hierarchical Chunking ---
 Description: Splits documents into "Parents" (Large Context) and "Children" (Precise Match).
+Parameters: chunk_sizes (list of integers)
 Concept: "Index the Child, Retrieve the Parent." (Small chunks search better; Big chunks answer better).
 
 [Mechanism Flow]
@@ -176,6 +189,7 @@ Number of Chunks: Multiple levels (Parent + Children)
 
 --- Method: Semantic Chunking (Mocked) ---
 Description: Splits based on embedding similarity.
+Parameters: buffer_size, threshold_percentage
 Input Text (170 chars):
 Topic A is about cats. Cats are furry. Cats meow. Topic B is about space. Stars are bright. Planets orbit. Topic C is about coding. Python is great. Functions are useful....
 Number of Chunks: 1

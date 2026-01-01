@@ -29,15 +29,13 @@ class Settings(BaseSettings):
   # ------------------
   # CELERY & REDIS
   # ------------------
-  CELERY_BROKER: str = os.getenv("CELERY_BROKER", "redis://localhost:6379/0")
+  CELERY_BROKER: str = os.getenv(
+    "CELERY_BROKER", "amqp://guest:guest@localhost:5672//")
   REDIS_BACKEND: str = os.getenv("REDIS_BACKEND", "redis://localhost:6379/0")
 
   # ------------------
   # GENERIC EMBEDDINGS (Fallback)
   # ------------------
-  EMBEDDING_API_URL: str = os.getenv(
-      "EMBEDDING_API_URL", "http://localhost:11434/api/embeddings")
-  EMBEDDING_MODEL: str = os.getenv("EMBEDDING_MODEL", "embeddinggemma")
   RERANKER_MODEL: str = os.getenv(
       "RERANKER_MODEL", "cross-encoder/ms-marco-MiniLM-L-6-v2")
   DEFAULT_CHAT_MODEL: str = os.getenv("DEFAULT_CHAT_MODEL", "ollama/gemma3:4b")
@@ -45,38 +43,24 @@ class Settings(BaseSettings):
       os.getenv("DEFAULT_CHAT_TEMPERATURE", 0.7))
 
   # ------------------
-  # OLLAMA
+  # OLLAMA DEFAULTS
   # ------------------
-  OLLAMA_URL: str = os.getenv("OLLAMA_URL", "http://localhost:11434")
+  OLLAMA_URL: str = os.getenv("OLLAMA_URL", "http://localhost:11434/api")
   OLLAMA_EMBEDDING_API_URL: str = os.getenv(
-      "OLLAMA_EMBEDDING_API_URL", "http://localhost:11434/api/embeddings")
-  OLLAMA_EMBEDDING_MODEL: str = os.getenv(
-      "OLLAMA_EMBEDDING_MODEL", "embeddinggemma")
-
-  # ------------------
-  # OPENAI
-  # ------------------
-  OPENAI_URL: str = os.getenv("OPENAI_URL", "https://api.openai.com/v1")
-  OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
-  OPENAI_EMBEDDING_MODEL: str = os.getenv(
-      "OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
-
-  # ------------------
-  # GEMINI
-  # ------------------
-  GEMINI_URL: str = os.getenv("GEMINI_URL", "")
-  GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
-  GEMINI_EMBEDDING_MODEL: str = os.getenv(
-      "GEMINI_EMBEDDING_MODEL", "models/gemini-embedding-001")
+      "OLLAMA_EMBEDDING_API_URL", "http://localhost:11434/api/embed")
 
   # ------------------
   # APP SETTINGS
   # ------------------
   BUFFER_SIZE: int = int(os.getenv("BUFFER_SIZE", 500))
   THRESHOLD_PERCENTAGE: int = int(os.getenv("THRESHOLD_PERCENTAGE", 10))
+  MAX_FILE_SIZE: int = int(
+    os.getenv("MAX_FILE_SIZE", 200 * 1024 * 1024))  # 200MB default
+  ALLOWED_EXTENSIONS: set = {'.pdf', '.docx', '.txt', '.md', '.csv', '.pptx'}
 
   class Config:
     env_file = ".env"
+    extra = "ignore"
 
 
 settings = Settings()

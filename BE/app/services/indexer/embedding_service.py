@@ -23,8 +23,8 @@ class EmbeddingService:
   def __init__(
       self,
       provider: str = "ollama",
-      endpoint: str = settings.EMBEDDING_API_URL,
-      model_name: str = settings.EMBEDDING_MODEL,
+      endpoint: str = settings.OLLAMA_EMBEDDING_API_URL,
+      model_name: str = None,
       api_key: str = None,
       max_tokens_per_batch: int = 300_000,
   ):
@@ -76,6 +76,10 @@ class EmbeddingService:
   async def embed_texts(self, texts: List[str]) -> List[List[float]]:
     if not texts:
       raise HTTPException(status_code=422, detail="No texts to embed.")
+
+    if not self.model_name:
+      raise HTTPException(
+        status_code=500, detail="EmbeddingService has no configured model_name.")
 
     logger.info(
       f"Embedding {len(texts)} chunks using provider '{self.provider}' and model '{self.model_name}'")
@@ -141,7 +145,7 @@ class EmbeddingService:
     results = []
 
     try:
-      async with httpx.AsyncClient(timeout=60.0) as client:
+      async with httpx.AsyncClient(timeout=300.0) as client:
         for i, batch in enumerate(batches):
           logger.info(
             f"Embedding batch {i + 1}/{len(batches)} with {len(batch)} chunks")
@@ -151,7 +155,8 @@ class EmbeddingService:
               "model": self.model_name,
           }
 
-          response = await client.post(self.endpoint, json=payload)
+          target_endpoint = self.endpoint or settings.OLLAMA_EMBEDDING_API_URL
+          response = await client.post(target_endpoint, json=payload)
 
           if response.status_code != 200:
             logger.error(f"Embedding failed on batch {i + 1}: {response.text}")

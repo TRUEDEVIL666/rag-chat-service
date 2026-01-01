@@ -40,6 +40,23 @@ class MinioStorage:
       f"Uploaded file '{filename}' to MinIO at: {self.bucket_name}/{unique_key}")
     return f"{self.bucket_name}/{unique_key}"
 
+  def upload_stream(self, file_stream, length: int, filename: str, content_type: str = "application/octet-stream") -> str:
+    """Upload a file stream to MinIO."""
+    file_ext = Path(filename).suffix
+    unique_key = f"{datetime.utcnow().strftime('%Y%m%d')}/{uuid4().hex}{file_ext}"
+
+    minio_client.put_object(
+        bucket_name=self.bucket_name,
+        object_name=unique_key,
+        data=file_stream,
+        length=length,
+        content_type=content_type
+    )
+
+    logger.info(
+        f"Stream uploaded file '{filename}' to MinIO at: {self.bucket_name}/{unique_key}")
+    return f"{self.bucket_name}/{unique_key}"
+
   def list_files(self) -> list[str]:
     """List all objects in the MinIO bucket."""
     return [
@@ -91,3 +108,30 @@ class MinioStorage:
     except S3Error as e:
       logger.error(f"Error deleting file from MinIO: {e}")
       return False
+
+  def download_file(self, object_name: str, file_path: str):
+    """Download an object to a local file path."""
+    clean_object_name = object_name
+    if object_name.startswith(f"{self.bucket_name}/"):
+      clean_object_name = object_name.split(f"{self.bucket_name}/", 1)[1]
+
+    minio_client.fget_object(
+        bucket_name=self.bucket_name,
+        object_name=clean_object_name,
+        file_path=file_path
+    )
+
+  def get_file_stream(self, object_name: str):
+    """
+    Get a file as a stream (response object) from MinIO.
+    Caller is responsible for closing the stream.
+    """
+    clean_object_name = object_name
+    if object_name.startswith(f"{self.bucket_name}/"):
+      clean_object_name = object_name.split(f"{self.bucket_name}/", 1)[1]
+
+    # get_object returns a urllib3.response.HTTPResponse object which is a file-like object
+    return minio_client.get_object(
+        bucket_name=self.bucket_name,
+        object_name=clean_object_name
+    )

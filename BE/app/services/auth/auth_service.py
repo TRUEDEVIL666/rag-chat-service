@@ -16,7 +16,7 @@ user_repo = UserRepository()
 
 class AuthService:
   @staticmethod
-  def sign_up(email: str, password: str, tenant_id: UUID | None = None, role: str | None = None) -> dict:
+  def sign_up(email: str, password: str, name: str, tenant_id: UUID | None = None, role: str | None = None) -> dict:
     try:
       response = supabase.auth.sign_up({
         "email": email,
@@ -27,6 +27,8 @@ class AuthService:
         user_id = response.user.id
         if tenant_id:
           user_repo.update_user_param(user_id, "tenant_id", str(tenant_id))
+        if name:
+          user_repo.update_user_param(user_id, "name", name)
         if role:
           user_repo.update_user_param(user_id, "role", role)
 
@@ -59,15 +61,15 @@ class AuthService:
         jwt_role = "service_role" if role == "admin" else "authenticated"
 
         payload = {
-            "sub": user_id,
-            "aud": "authenticated",
-            "role": jwt_role,
-            "exp": datetime.utcnow() + timedelta(days=1),  # 1 day expiration
-            "app_metadata": {
-                "provider": "email",
-                "tenant_id": tenant_id,
-                "role": role
-            },
+          "sub": user_id,
+          "aud": "authenticated",
+          "role": jwt_role,
+          "exp": datetime.utcnow() + timedelta(days=1),  # 1 day expiration
+          "app_metadata": {
+            "provider": "email",
+            "tenant_id": tenant_id,
+            "role": role
+          },
         }
 
         custom_token = jwt.encode(
@@ -76,12 +78,13 @@ class AuthService:
         return {
           "token": custom_token,
           "refresh_token": response.session.refresh_token,
-          "user": {
-            "id": user_id,
-            "email": email,
-            "tenant_id": tenant_id,
-            "role": role
-          }
+          # "user": {
+          #   "id": user_id,
+          #   "email": email,
+          #   "name": user_details.get("name"),
+          #   "tenant_id": tenant_id,
+          #   "role": role
+          # }
         }
       else:
         raise PermissionError("Invalid login credentials")

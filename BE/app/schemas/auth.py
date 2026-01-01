@@ -1,25 +1,27 @@
-from pydantic import BaseModel, EmailStr, Field
+from datetime import datetime
+from pydantic import BaseModel, EmailStr
 from uuid import UUID
+from fastapi import Path, Query
 
 
 class RegisterRequest(BaseModel):
-	email: EmailStr
-	password: str
-	tenant_id: UUID | None = None
-	role: str = Field(default="user", description="User role in system")
+  email: EmailStr
+  name: str
+  password: str
+  tenant_id: UUID | None = None
+  role: str | None = None
 
 
 class LoginRequest(BaseModel):
-	email: EmailStr = Field(default="admin@gmail.com", description="User's email address")
-	password: str = Field(default="123456", description="User's password")
+  email: EmailStr
+  password: str
 
-
-from datetime import datetime
 
 class User(BaseModel):
   id: UUID
   tenant_id: UUID | None = None
   email: EmailStr
+  name: str | None = None
   role: str
   created_at: datetime
   updated_at: datetime | None = None
@@ -27,5 +29,10 @@ class User(BaseModel):
   class Config:
     from_attributes = True
 
+
 class AuthenticationRequest(BaseModel):
   token: str
+
+
+class UserIdRequest(BaseModel):
+  user_id: UUID = Path(..., description="User ID")

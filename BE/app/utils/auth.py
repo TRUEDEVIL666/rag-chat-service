@@ -33,13 +33,25 @@ def get_current_user(
 
     user_id = payload.get("sub")
 
-    # Fetch tenant_id and role from DB since they are not in the standard Supabase token
-    from app.services.supabase.user_repository import UserRepository
-    user_repo = UserRepository()
-    user_details = user_repo.get_user_details(user_id)
+    user_id = payload.get("sub")
+    app_metadata = payload.get("app_metadata", {})
 
-    tenant_id = user_details.get("tenant_id") if user_details else None
-    role = user_details.get("role") if user_details else payload.get("role")
+    tenant_id = app_metadata.get("tenant_id")
+    role = app_metadata.get("role")
+
+    # Only fetch from DB if tenant_id or role are missing from token
+    # This handles both our custom tokens (fast path) and potential standard tokens (slow path)
+    if not tenant_id:
+      # Fallback to DB
+      from app.services.supabase.user_repository import UserRepository
+      user_repo = UserRepository()
+      user_details = user_repo.get_user_details(user_id)
+
+      if user_details:
+        tenant_id = user_details.get("tenant_id")
+        # We prefer the role from the token if it exists (e.g. service_role), otherwise DB
+        if not role:
+          role = user_details.get("role")
 
     return {
         "user_id": user_id,

@@ -7,7 +7,12 @@ from fastapi_cache import FastAPICache
 from fastapi_cache.backends.redis import RedisBackend
 from redis import asyncio as aioredis
 from app.config.config import settings
+import warnings
+from pydantic.warnings import UnsupportedFieldAttributeWarning
 from fastapi_limiter import FastAPILimiter
+
+# Suppress "UnsupportedFieldAttributeWarning" from libraries (e.g. llama_index)
+warnings.filterwarnings("ignore", category=UnsupportedFieldAttributeWarning)
 
 
 @asynccontextmanager
@@ -29,6 +34,8 @@ origins = [
     "http://127.0.0.1:3000",
     "http://127.0.0.1:5500",
     "http://localhost:5500",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
 ]
 
 app.add_middleware(

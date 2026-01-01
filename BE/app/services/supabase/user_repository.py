@@ -1,6 +1,6 @@
 # app/services/supabase/user_repository.py
 from uuid import UUID
-from app.services.supabase.supabase_client import supabase
+from app.services.supabase.supabase_client import get_supabase_client
 from app.core.logger import get_logger
 from typing import Any, Dict, Optional
 
@@ -13,7 +13,8 @@ class UserRepository:
 
   def update_user_param(self, user_id: str, param_name: str, param_value: Any) -> dict | None:
     try:
-      response = supabase.table(self.table_name).update(
+      client = get_supabase_client()
+      response = client.table(self.table_name).update(
         {param_name: param_value}).eq("id", user_id).execute()
       if response.data:
         logger.info(f"Updated user {user_id} {param_name} to {param_value}")
@@ -25,7 +26,8 @@ class UserRepository:
 
   def get_all_users_not_admin(self) -> list[dict] | None:
     try:
-      response = supabase.table(self.table_name).select(
+      client = get_supabase_client()
+      response = client.table(self.table_name).select(
         "*").neq("role", "admin").execute()
       if response.data:
         return response.data
@@ -34,16 +36,39 @@ class UserRepository:
       logger.exception("Failed to get all non-admin users")
       raise RuntimeError("Failed to get all non-admin users")
 
-  def delete_user(self, user_id: str) -> None:
+  def delete_users(self, user_ids: list[str], access_token: str) -> None:
     try:
-      supabase.table(self.table_name).delete().eq("id", user_id).execute()
+      # Invoke the Edge Function to delete users from auth.users
+      client = get_supabase_client()
+      res = client.functions.invoke(
+          "delete-users",
+          invoke_options={
+              "body": {"user_ids": user_ids},
+              "headers": {"Authorization": f"Bearer {access_token}"}
+          }
+      )
+
+      if isinstance(res, dict):
+        if res.get("error"):
+          raise RuntimeError(f"Edge Function Error: {res.get('error')}")
+        if res.get("errors") and len(res.get("errors")) > 0:
+          logger.error(f"Some users failed to delete: {res.get('errors')}")
+
+      # Manual cleanup in public.users just in case (optional if cascade exists)
+      client = get_supabase_client()
+      client.table(self.table_name).delete().in_("id", user_ids).execute()
+
     except Exception as e:
-      logger.exception(f"Failed to delete user {user_id}")
-      raise RuntimeError(f"Failed to delete user {user_id}")
+      logger.exception(f"Failed to delete users {user_ids}")
+      raise RuntimeError(f"Failed to delete users: {str(e)}")
+
+  def delete_user(self, user_id: str, access_token: str) -> None:
+    return self.delete_users([user_id], access_token)
 
   def get_user_details(self, user_id: str) -> dict | None:
     try:
-      response = supabase.from_(self.table_name).select(
+      client = get_supabase_client()
+      response = client.from_(self.table_name).select(
         "*").eq("id", user_id).single().execute()
       if response.data:
         return response.data
@@ -54,9 +79,10 @@ class UserRepository:
       raise RuntimeError(
         f"Failed to get user details from public.users for user_id: {user_id}")
 
-  def get_total_users(self) -> int:
+  def get_total_users(self, access_token: str = None) -> int:
     try:
-      res = supabase.table(self.table_name).select(
+      client = get_supabase_client(access_token)
+      res = client.table(self.table_name).select(
         "*", count="exact", head=True).execute()
       return res.count or 0
     except Exception as e:
