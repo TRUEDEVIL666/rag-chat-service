@@ -1,0 +1,108 @@
+{
+  "sidebar": {
+    "dashboard": "Dashboard",
+    "chatbots": "Manage Chatbots",
+    "documents": "Knowledge Base",
+    "users": "User Management",
+    "settings": "Settings",
+    "system": "System"
+  },
+  "topbar": {
+    "profile": "Profile",
+    "logout": "Logout",
+    "adminUser": "Admin User",
+    "superAdmin": "Super Admin",
+    "switchLanguage": "Switch Language",
+    "toggleTheme": "Toggle Theme"
+  },
+  "common": {
+    "save": "Save",
+    "saveChanges": "Save Changes",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "view": "View",
+    "create": "Create",
+    "add": "Add",
+    "upload": "Upload",
+    "search": "Search",
+    "actions": "Actions",
+    "statusLabel": "Status",
+    "logoutConfirm": "Are you sure you want to log out?",
+    "adminPortal": "Admin Portal",
+    "loadError": "Failed to load data.",
+    "deleteError": "Delete failed!",
+    "actionFailed": "Action failed",
+    "errorOccurred": "An error occurred!",
+    "processing": "Processing...",
+    "na": "N/A",
+    "justNow": "Just now",
+    "status": {
+      "active": "Active",
+      "inactive": "Inactive",
+      "closed": "Closed",
+      "completed": "Completed",
+      "processing": "Processing",
+      "pending": "Pending",
+      "failed": "Failed",
+      "unknown": "Unknown",
+      "new": "New"
+    },
+    "months": {
+      "jan": "Jan",
+      "feb": "Feb",
+      "mar": "Mar",
+      "apr": "Apr",
+      "may": "May",
+      "jun": "Jun",
+      "jul": "Jul",
+      "aug": "Aug",
+      "sep": "Sep",
+      "oct": "Oct",
+      "nov": "Nov",
+      "dec": "Dec"
+    }
+  },
+  "tour": {
+    "bots": {
+      "title": "Bots List",
+      "desc": "View and manage all your chatbots.",
+      "create": "Create Bot",
+      "createDesc": "Start a new AI assistant.",
+      "table": "Bot Table",
+      "tableDesc": "List of your active bots.",
+      "actions": "Actions",
+      "actionsDesc": "Chat, edit or remove bots."
+    },
+    "docs": {
+      "title": "Documents",
+      "desc": "Manage knowledge base files.",
+      "upload": "Upload",
+      "uploadDesc": "Add new documents.",
+      "list": "Document List",
+      "listDesc": "Browse all uploaded files."
+    },
+    "upload": {
+      "title": "Upload Document",
+      "desc": "Add new files to your system.",
+      "kb": "Knowledge Base",
+      "kbDesc": "Select where to store these files.",
+      "chunk": "Chunking Settings",
+      "chunkDesc": "Configure how the text is split for AI processing.",
+      "drop": "File Drop",
+      "dropDesc": "Drag & drop files here or click to browse.",
+      "preview": "Preview",
+      "previewDesc": "See how your text will be chunked before saving.",
+      "start": "Start Upload",
+      "startDesc": "Begin the upload and processing."
+    },
+    "users": {
+      "title": "Users",
+      "desc": "Manage system users and admins.",
+      "create": "Create User",
+      "createDesc": "Add a new user to the system.",
+      "list": "User List",
+      "listDesc": "View and manage existing users."
+    }
+  }
+}

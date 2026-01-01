@@ -1,0 +1,51 @@
+{
+  "title": "AI Providers & Models",
+  "searchPlaceholder": "Search...",
+  "providers": {
+    "title": "Providers",
+    "create": "Add Provider",
+    "edit": "Edit Provider",
+    "delete": "Delete Provider",
+    "name": "Name",
+    "displayName": "Display Name",
+    "baseUrl": "Base URL",
+    "apiKey": "API Key",
+    "apiKeyDesc": "This key will be stored securely and not returned in lists.",
+    "docUrl": "Documentation URL",
+    "isActive": "Active",
+    "status": "Status",
+    "actions": "Actions",
+    "empty": "No providers found. Add one!",
+    "confirmDelete": "Are you sure you want to delete this provider? This might affect models relying on it."
+  },
+  "models": {
+    "title": "Models",
+    "create": "Add Model",
+    "edit": "Edit Model",
+    "delete": "Delete Model",
+    "provider": "Provider",
+    "modelId": "Model ID",
+    "name": "Display Name",
+    "type": "Type",
+    "types": {
+      "chat": "Chat Completion",
+      "embedding": "Embedding",
+      "reranker": "Reranker"
+    },
+    "status": "Status",
+    "actions": "Actions",
+    "empty": "No models found. Add one!",
+    "confirmDelete": "Are you sure you want to delete this model?"
+  },
+  "common": {
+    "save": "Save Changes",
+    "cancel": "Cancel",
+    "create": "Create",
+    "active": "Active",
+    "inactive": "Inactive",
+    "successCreate": "Created successfully",
+    "successUpdate": "Updated successfully",
+    "errorFetch": "Failed to fetch data",
+    "noResults": "No matching results found"
+  }
+}

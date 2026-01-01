@@ -1,0 +1,16 @@
+{
+  "title": "System Settings",
+  "account": {
+    "title": "Account Information",
+    "email": "Login Email",
+    "role": "Role",
+    "tenant": "Tenant ID"
+  },
+  "password": {
+    "title": "Change Password",
+    "current": "Current Password",
+    "new": "New Password",
+    "inDev": "Feature in development",
+    "notSupported": "This feature is not yet supported by the Backend API."
+  }
+}

@@ -1,0 +1,77 @@
+{
+  "title": "Danh sách Chatbots",
+  "createNew": "Tạo Bot mới",
+  "empty": "Chưa có Bot nào. Hãy tạo mới!",
+  "deleteConfirm": "Bạn có chắc chắn muốn xóa Bot này không?",
+  "noModel": "Chưa cấu hình mô hình",
+  "table": {
+    "name": "Tên Bot",
+    "model": "Mô hình (Model)",
+    "description": "Mô tả",
+    "status": "Trạng thái",
+    "actions": "Hành động",
+    "dateCreated": "Ngày tạo",
+    "lastUpdated": "Cập nhật lần cuối"
+  },
+  "tooltip": {
+    "chat": "Chat với Bot",
+    "edit": "Chỉnh sửa",
+    "delete": "Xóa",
+    "kb": "Quản lý Kiến thức"
+  },
+  "kbConfig": {
+    "pageTitle": "Kho kiến thức cho",
+    "pageSubtitle": "Chọn các kho kiến thức mà bot này được phép truy cập.",
+    "searchPlaceholder": "Tìm theo tên, mô tả, mô hình...",
+    "noKbsAvailable": "Không có kho kiến thức nào. Hãy tạo mới trước.",
+    "noSearchResults": "Không tìm thấy kho kiến thức phù hợp.",
+    "sortName": "Tên Kho kiến thức"
+  },
+  "form": {
+    "createTitle": "Thiết lập Chatbot mới",
+    "editTitle": "Chỉnh sửa Chatbot",
+    "createSubtitle": "Khởi tạo trợ lý ảo",
+    "editSubtitle": "Cập nhật thông tin",
+    "nameLabel": "Tên Chatbot",
+    "namePlaceholder": "Ví dụ: Bot Tư Vấn",
+    "descLabel": "Mô tả",
+    "descPlaceholder": "Mô tả ngắn gọn về bot này...",
+    "providerLabel": "Nhà cung cấp (Provider)",
+    "selectProvider": "Chọn nhà cung cấp...",
+    "modelLabel": "Mô hình AI",
+    "selectModel": "Chọn mô hình...",
+    "promptLabel": "System Prompt",
+    "promptPlaceholder": "Nhập vai trò, ngữ cảnh và hướng dẫn...",
+    "createNow": "Khởi tạo ngay",
+    "createContinue": "Tiếp tục",
+    "createSuccess": "Tạo Bot thành công!",
+    "updateSuccess": "Cập nhật thành công!",
+    "saveChanges": "Lưu thay đổi",
+    "preview": {
+      "title": "Xem trước",
+      "defaultName": "Tên Chatbot",
+      "simResponse": "Mô phỏng phản hồi:",
+      "defaultResponse": "Chào bạn! Tôi là trợ lý ảo được cấu hình để hỗ trợ bạn...",
+      "ready": "Sẵn sàng hoạt động",
+      "tipTitle": "Mẹo hay:",
+      "tipText": "System Prompt càng chi tiết, Bot càng thông minh và xử lý tình huống tốt hơn."
+    },
+    "configuration": {
+      "title": "Cấu hình Mô hình",
+      "subtitle": "Cài đặt nâng cao cho sinh nội dung và truy xuất",
+      "temperature": "Nhiệt độ (Temperature)",
+      "temperatureDesc": "Kiểm soát độ ngẫu nhiên: Thấp là chính xác, cao là sáng tạo.",
+      "topK": "Top K Retrieval",
+      "topKDesc": "Số lượng tài liệu cần truy xuất từ kho kiến thức.",
+      "reranking": "Reranking (Xếp hạng lại)",
+      "rerankingDesc": "Tinh chỉnh độ chính xác kết quả",
+      "rerankingModel": "Mô hình Reranking",
+      "rerankingPlaceholder": "Chọn mô hình reranker",
+      "scoreThreshold": "Ngưỡng điểm (Score Threshold)",
+      "provider": "Nhà cung cấp",
+      "providerPlaceholder": "Chọn nhà cung cấp...",
+      "model": "Mô hình AI",
+      "modelPlaceholder": "Chọn mô hình..."
+    }
+  }
+}

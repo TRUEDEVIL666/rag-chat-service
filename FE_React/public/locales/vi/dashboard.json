@@ -1,0 +1,16 @@
+{
+  "title": "Tổng Quan",
+  "last7Days": "7 ngày qua",
+  "last30Days": "30 ngày qua",
+  "allTime": "Toàn thời gian",
+  "total_users": "Tổng người dùng",
+  "total_chats": "Tổng phiên chat",
+  "total_kbs": "Cơ sở tri thức",
+  "total_documents": "Tổng tài liệu",
+  "chart_title": "Thống kê hoạt động 30 ngày qua",
+  "access": "Truy cập",
+  "recent_activity": "Hoạt động gần đây",
+  "th_doc_name": "Tên tài liệu",
+  "th_status": "Trạng thái",
+  "no_recent_docs": "Không có tài liệu gần đây"
+}

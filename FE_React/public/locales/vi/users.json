@@ -1,0 +1,47 @@
+{
+  "title": "Danh sách Người dùng",
+  "createNew": "Thêm User mới",
+  "empty": "Chưa có user nào.",
+  "deleteConfirm": "Bạn có chắc chắn muốn xóa user này không? Hành động này không thể hoàn tác!",
+  "tooltip": {
+    "delete": "Xóa"
+  },
+  "table": {
+    "id": "ID",
+    "tenant": "Tenant ID",
+    "email": "Email",
+    "role": "Role",
+    "createdAt": "Ngày tạo",
+    "actions": "Hành động"
+  },
+  "role": {
+    "admin": "Quản trị viên",
+    "user": "Thành viên"
+  },
+  "create": {
+    "title": "Thêm Người Dùng",
+    "subtitle": "Tạo tài khoản mới trong hệ thống",
+    "stepInfo": "Bước 1/1: Thông tin cơ bản",
+    "newAccount": "Tài khoản mới",
+    "features": {
+      "security": "Bảo mật 2 lớp tự động",
+      "access": "Tự động gán quyền"
+    },
+    "sections": {
+      "identity": "Định danh tài khoản",
+      "security": "Thông tin bảo mật",
+      "permissions": "Phân quyền hệ thống"
+    },
+    "emailLabel": "Địa chỉ Email",
+    "passwordLabel": "Mật khẩu",
+    "confirmPasswordLabel": "Nhập lại mật khẩu",
+    "roleLabel": "Vai trò người dùng",
+    "tenantLabel": "Mã Tenant (Tùy chọn)",
+    "tenantPlaceholder": "Mặc định: Hệ thống chung",
+    "alert": {
+      "passwordMismatch": "Mật khẩu không khớp!",
+      "createSuccess": "Tạo người dùng thành công!"
+    },
+    "submit": "Xác nhận & Tạo mới"
+  }
+}

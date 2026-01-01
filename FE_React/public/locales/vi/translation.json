@@ -1,0 +1,113 @@
+{
+  "sidebar": {
+    "dashboard": "Tổng Quan",
+    "chatbots": "Quản lý Chatbots",
+    "documents": "Cơ sở tri thức",
+    "users": "Quản lý Người dùng",
+    "settings": "Cài đặt",
+    "system": "Hệ thống"
+  },
+  "topbar": {
+    "profile": "Hồ sơ",
+    "logout": "Đăng xuất",
+    "adminUser": "Quản trị viên",
+    "superAdmin": "Quản trị cấp cao",
+    "switchLanguage": "Chuyển ngôn ngữ",
+    "toggleTheme": "Chế độ tối/sáng"
+  },
+  "common": {
+    "save": "Lưu",
+    "saveChanges": "Lưu thay đổi",
+    "cancel": "Hủy bỏ",
+    "delete": "Xóa",
+    "edit": "Chỉnh sửa",
+    "view": "Xem",
+    "create": "Tạo mới",
+    "add": "Thêm",
+    "upload": "Tải lên",
+    "search": "Tìm kiếm",
+    "actions": "Hành động",
+    "statusLabel": "Trạng thái",
+    "logoutConfirm": "Bạn có chắc muốn đăng xuất?",
+    "adminPortal": "Admin Portal",
+    "loadError": "Không thể tải dữ liệu.",
+    "deleteError": "Xóa thất bại!",
+    "actionFailed": "Thao tác thất bại",
+    "errorOccurred": "Đã có lỗi xảy ra!",
+    "processing": "Đang xử lý...",
+    "na": "N/A",
+    "justNow": "Vừa xong",
+    "backToBots": "Quay lại danh sách Bot",
+    "sortBy": "Sắp xếp theo:",
+    "created": "Đã tạo:",
+    "updated": "Cập nhật:",
+    "savedSuccessfully": "Lưu thành công",
+    "status": {
+      "active": "Hoạt động",
+      "inactive": "Ngừng hoạt động",
+      "closed": "Đã đóng",
+      "completed": "Hoàn thành",
+      "processing": "Đang xử lý",
+      "pending": "Đang chờ",
+      "failed": "Thất bại",
+      "unknown": "Không xác định",
+      "new": "Mới"
+    },
+    "months": {
+      "jan": "T1",
+      "feb": "T2",
+      "mar": "T3",
+      "apr": "T4",
+      "may": "T5",
+      "jun": "T6",
+      "jul": "T7",
+      "aug": "T8",
+      "sep": "T9",
+      "oct": "T10",
+      "nov": "T11",
+      "dec": "T12"
+    }
+  },
+  "tour": {
+    "bots": {
+      "title": "Danh sách Bot",
+      "desc": "Xem và quản lý tất cả chatbot của bạn.",
+      "create": "Tạo Bot",
+      "createDesc": "Bắt đầu một trợ lý AI mới.",
+      "table": "Bảng Bot",
+      "tableDesc": "Danh sách các bot đang hoạt động của bạn.",
+      "actions": "Hành động",
+      "actionsDesc": "Trò chuyện, chỉnh sửa hoặc xóa bot."
+    },
+    "docs": {
+      "title": "Tài liệu",
+      "desc": "Quản lý các tập tin cơ sở tri thức.",
+      "upload": "Tải lên",
+      "uploadDesc": "Thêm tài liệu mới.",
+      "list": "Danh sách tài liệu",
+      "listDesc": "Duyệt tất cả các tập tin đã tải lên."
+    },
+    "upload": {
+      "title": "Tải lên Tài liệu",
+      "desc": "Thêm tập tin mới vào hệ thống.",
+      "kb": "Cơ sở tri thức",
+      "kbDesc": "Chọn nơi lưu trữ các tập tin này.",
+      "chunk": "Cài đặt Phân đoạn",
+      "chunkDesc": "Cấu hình cách chia nhỏ văn bản để AI xử lý.",
+      "drop": "Khu vực thả File",
+      "dropDesc": "Kéo & thả tập tin vào đây hoặc nhấp để duyệt.",
+      "preview": "Xem trước",
+      "previewDesc": "Xem trước cách văn bản sẽ được phân đoạn trước khi lưu.",
+      "start": "Bắt đầu Tải lên",
+      "startDesc": "Bắt đầu tải lên và xử lý."
+    },
+    "users": {
+      "title": "Người dùng",
+      "desc": "Quản lý người dùng hệ thống và quản trị viên.",
+      "create": "Tạo Người dùng",
+      "createDesc": "Thêm người dùng mới vào hệ thống.",
+      "list": "Danh sách người dùng",
+      "listDesc": "Xem và quản lý người dùng hiện có."
+    }
+  }
+}

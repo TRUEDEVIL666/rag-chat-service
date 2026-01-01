@@ -1,0 +1,16 @@
+{
+  "title": "Cài đặt Hệ thống",
+  "account": {
+    "title": "Thông tin tài khoản",
+    "email": "Email đăng nhập",
+    "role": "Vai trò",
+    "tenant": "Mã Tenant"
+  },
+  "password": {
+    "title": "Đổi mật khẩu",
+    "current": "Mật khẩu hiện tại",
+    "new": "Mật khẩu mới",
+    "inDev": "Tính năng đang phát triển",
+    "notSupported": "Tính năng này chưa được hỗ trợ bởi Backend API."
+  }
+}

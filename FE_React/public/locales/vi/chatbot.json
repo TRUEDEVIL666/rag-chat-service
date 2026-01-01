@@ -1,0 +1,10 @@
+{
+  "welcome": "Bắt đầu cuộc trò chuyện với",
+  "loadingHistory": "Đang tải tin nhắn cũ...",
+  "placeholder": "Nhập tin nhắn...",
+  "disclaimer": "AI có thể mắc lỗi. Hãy kiểm chứng thông tin quan trọng.",
+  "clearConfirm": "Bắt đầu đoạn chat mới?",
+  "clearTooltip": "Xóa đoạn chat",
+  "connectionError": "Mất kết nối server. Vui lòng thử lại.",
+  "shortError": "Lỗi kết nối."
+}
