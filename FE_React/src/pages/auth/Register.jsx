@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { authService } from '../../services/authService';
 
 const Register = () => {
-  const { t } = useTranslation(['auth', 'translation']);
+  const { t } = useTranslation();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -20,7 +20,7 @@ const Register = () => {
     e.preventDefault();
 
     if (password !== confirmPassword) {
-      setError(t('register.passwordMismatch'));
+      setError(t('auth.register.passwordMismatch'));
       return;
     }
 
@@ -34,10 +34,10 @@ const Register = () => {
         password
       });
       // On success, redirect to login
-      alert(t('register.success'));
+      alert(t('auth.register.success'));
       navigate('/login');
     } catch (err) {
-      setError(err.response?.data?.detail || t('register.fail'));
+      setError(err.response?.data?.detail || t('auth.register.fail'));
     } finally {
       setIsLoading(false);
     }
@@ -57,18 +57,18 @@ const Register = () => {
       {/* Form Side */}
       <div className="w-full md:w-1/2 p-8 md:p-10 flex flex-col justify-center">
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100 mb-2">{t('register.title')}</h1>
-          <p className="text-gray-500 dark:text-gray-400">{t('register.subtitle')}</p>
+          <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100 mb-2">{t('auth.register.title')}</h1>
+          <p className="text-gray-500 dark:text-gray-400">{t('auth.register.subtitle')}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-gray-700 dark:text-gray-300 font-medium mb-1">{t('login.email')}</label>
+            <label className="block text-gray-700 dark:text-gray-300 font-medium mb-1">{t('auth.login.email')}</label>
             <input
               type="email"
               required
               className="input-field"
-              placeholder={t('login.emailPlaceholder')}
+              placeholder={t('auth.login.emailPlaceholder')}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
@@ -87,24 +87,24 @@ const Register = () => {
           </div>
 
           <div>
-            <label className="block text-gray-700 dark:text-gray-300 font-medium mb-1">{t('login.password')}</label>
+            <label className="block text-gray-700 dark:text-gray-300 font-medium mb-1">{t('auth.login.password')}</label>
             <input
               type="password"
               required
               className="input-field"
-              placeholder={t('login.passwordPlaceholder')}
+              placeholder={t('auth.login.passwordPlaceholder')}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
           </div>
 
           <div>
-            <label className="block text-gray-700 dark:text-gray-300 font-medium mb-1">{t('register.confirmPassword')}</label>
+            <label className="block text-gray-700 dark:text-gray-300 font-medium mb-1">{t('auth.register.confirmPassword')}</label>
             <input
               type="password"
               required
               className="input-field"
-              placeholder={t('login.passwordPlaceholder')}
+              placeholder={t('auth.login.passwordPlaceholder')}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
             />
@@ -125,15 +125,15 @@ const Register = () => {
                 <span>{t('common.processing')}</span>
               </>
             ) : (
-              t('register.submit')
+              t('auth.register.submit')
             )}
           </button>
         </form>
 
         <div className="mt-6 text-center text-gray-600 dark:text-gray-400">
-          {t('register.hasAccount')}{' '}
+          {t('auth.register.hasAccount')}{' '}
           <Link to="/login" className="text-primary-600 dark:text-primary-400 font-bold hover:underline">
-            {t('register.loginNow')}
+            {t('auth.register.loginNow')}
           </Link>
         </div>
       </div>
