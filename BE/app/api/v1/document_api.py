@@ -123,3 +123,20 @@ async def retry_document(
       user_id=auth["user_id"],
       access_token=auth.get("token")
   )
+
+
+@router.get("/{document_id}/download", summary="Get Document Download URL")
+async def get_document_download_url(
+    document_id: str = Path(..., description="Document ID"),
+    service=Depends(get_document_service),
+    auth=Depends(get_current_user)
+):
+  """
+  Get a presigned URL to download/view the document.
+  """
+  url = service.get_document_file_url(
+      document_id=document_id,
+      tenant_id=auth["tenant_id"],
+      access_token=auth.get("token")
+  )
+  return {"url": url}

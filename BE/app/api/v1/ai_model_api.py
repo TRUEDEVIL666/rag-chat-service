@@ -135,3 +135,21 @@ def delete_model(
     return {"message": "Model deleted successfully"}
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/providers/{provider_id}/external-models", response_model=List[str])
+def list_external_models(
+    provider_id: str,
+    model_type: str = Query(None),
+    service=Depends(get_ai_model_service),
+    auth=Depends(get_current_user)
+):
+  """
+  Fetches available models directly from the provider's API.
+  """
+  try:
+    return service.fetch_external_models(provider_id, model_type=model_type, access_token=auth.get("token"))
+  except ValueError as e:
+    raise HTTPException(status_code=400, detail=str(e))
+  except Exception as e:
+    raise HTTPException(status_code=500, detail=str(e))

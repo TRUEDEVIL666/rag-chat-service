@@ -12,6 +12,14 @@ class FileExtension(StrEnum):
   CSV = '.csv'
   JSON = '.json'
   PPTX = '.pptx'
+  XLSX = '.xlsx'
+  MD = '.md'
+  HTML = '.html'
+  JPG = '.jpg'
+  JPEG = '.jpeg'
+  PNG = '.png'
+  BMP = '.bmp'
+  TIFF = '.tiff'
 
 
 class EncodingType(StrEnum):

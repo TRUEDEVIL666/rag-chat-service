@@ -1,4 +1,6 @@
 # app/api/v1/users.py
+from datetime import datetime
+from app.schemas.common_params import PaginationParams, UserSearchParams
 from app.schemas.common import MessageResponse
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi_cache.decorator import cache
@@ -68,13 +70,44 @@ async def delete_users(
     raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/users", response_model=List[User])
+@router.get("/users", response_model=dict)
 @cache(expire=60)
-async def get_all_users(user_service=Depends(get_user_service), current_user: dict = Depends(get_current_user)):
+async def get_all_users(
+    pagination: PaginationParams = Depends(),
+    search_params: UserSearchParams = Depends(),
+    user_service=Depends(get_user_service),
+    current_user: dict = Depends(get_current_user)
+):
   if current_user.get("role") != "admin":
     raise HTTPException(status_code=403, detail="Not authorized")
   try:
-    users = user_service.get_all_users()
-    return users
+    users = user_service.get_all_users(
+        limit=pagination.limit,
+        cursor_timestamp=pagination.cursor_timestamp,
+        search_params=search_params,
+        access_token=current_user.get("token")
+    )
+
+    total_users = user_service.get_total_users(
+      access_token=current_user.get("token"))
+
+    next_cursor = None
+    if users:
+      last_user = users[-1]
+      last_created_at = last_user.get("created_at")
+      if last_created_at:
+        # Parse ISO format string from Supabase
+        try:
+          dt = datetime.fromisoformat(last_created_at.replace("Z", "+00:00"))
+          next_cursor = int(dt.timestamp())
+        except ValueError:
+          pass  # Fail silently if date format is unexpected
+
+    return {
+        "items": users,
+        "total": total_users,
+        "next_cursor": next_cursor,
+        "limit": pagination.limit
+    }
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))

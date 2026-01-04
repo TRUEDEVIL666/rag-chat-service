@@ -1,4 +1,4 @@
-import os
+from typing import Set
 from pydantic_settings import BaseSettings
 
 
@@ -6,57 +6,61 @@ class Settings(BaseSettings):
   # ------------------
   # SECURITY
   # ------------------
-  SECRET_KEY: str = os.getenv("SECRET_KEY", "")
-  ALGORITHM: str = os.getenv("ALGORITHM", "HS256")
+  SECRET_KEY: str = ""
+  ALGORITHM: str = "HS256"
 
   # ------------------
   # DATABASE
   # ------------------
-  SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
-  SUPABASE_KEY: str = os.getenv("SUPABASE_KEY", "")
+  SUPABASE_URL: str = ""
+  SUPABASE_KEY: str = ""
 
-  QDRANT_HOST: str = os.getenv("QDRANT_HOST", "localhost")
-  QDRANT_PORT: int = int(os.getenv("QDRANT_PORT", 6333))
-  QDRANT_COLLECTION: str = os.getenv("QDRANT_COLLECTION", "rag_collection")
+  QDRANT_HOST: str = "localhost"
+  QDRANT_PORT: int = 6333
+  QDRANT_COLLECTION: str = "rag_collection"
 
   # ------------------
   # STORAGE
   # ------------------
-  MINIO_ENDPOINT: str = os.getenv("MINIO_ENDPOINT", "localhost:9000")
-  MINIO_ACCESS_KEY: str = os.getenv("MINIO_ACCESS_KEY", "minioadmin")
-  MINIO_SECRET_KEY: str = os.getenv("MINIO_SECRET_KEY", "minioadmin")
+  MINIO_ENDPOINT: str = "localhost:9000"
+  MINIO_ACCESS_KEY: str = "minioadmin"
+  MINIO_SECRET_KEY: str = "minioadmin"
 
   # ------------------
   # CELERY & REDIS
   # ------------------
-  CELERY_BROKER: str = os.getenv(
-    "CELERY_BROKER", "amqp://guest:guest@localhost:5672//")
-  REDIS_BACKEND: str = os.getenv("REDIS_BACKEND", "redis://localhost:6379/0")
+  CELERY_BROKER: str = "amqp://guest:guest@localhost:5672//"
+  REDIS_BACKEND: str = "redis://localhost:6379/0"
 
   # ------------------
   # GENERIC EMBEDDINGS (Fallback)
   # ------------------
-  RERANKER_MODEL: str = os.getenv(
-      "RERANKER_MODEL", "cross-encoder/ms-marco-MiniLM-L-6-v2")
-  DEFAULT_CHAT_MODEL: str = os.getenv("DEFAULT_CHAT_MODEL", "ollama/gemma3:4b")
-  DEFAULT_CHAT_TEMPERATURE: float = float(
-      os.getenv("DEFAULT_CHAT_TEMPERATURE", 0.7))
+  RERANKER_MODEL: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+  DEFAULT_CHAT_MODEL: str = "ollama/gemma3:4b"
+  DEFAULT_CHAT_TEMPERATURE: float = 0.7
 
   # ------------------
   # OLLAMA DEFAULTS
   # ------------------
-  OLLAMA_URL: str = os.getenv("OLLAMA_URL", "http://localhost:11434/api")
-  OLLAMA_EMBEDDING_API_URL: str = os.getenv(
-      "OLLAMA_EMBEDDING_API_URL", "http://localhost:11434/api/embed")
+  OLLAMA_URL: str = "http://localhost:11434/api"
+  OLLAMA_EMBEDDING_API_URL: str = "http://localhost:11434/api/embed"
 
   # ------------------
   # APP SETTINGS
   # ------------------
-  BUFFER_SIZE: int = int(os.getenv("BUFFER_SIZE", 500))
-  THRESHOLD_PERCENTAGE: int = int(os.getenv("THRESHOLD_PERCENTAGE", 10))
-  MAX_FILE_SIZE: int = int(
-    os.getenv("MAX_FILE_SIZE", 200 * 1024 * 1024))  # 200MB default
-  ALLOWED_EXTENSIONS: set = {'.pdf', '.docx', '.txt', '.md', '.csv', '.pptx'}
+  BUFFER_SIZE: int = 500
+  THRESHOLD_PERCENTAGE: int = 10
+  MAX_FILE_SIZE: int = 200 * 1024 * 1024  # 200MB default
+
+  # Default set of extensions if not provided in env
+  ALLOWED_EXTENSIONS: Set[str] = {
+      '.pdf', '.txt', '.docx', '.csv', '.json',
+      '.pptx', '.xlsx', '.md', '.html', '.jpg',
+      '.jpeg', '.png', '.bmp', '.tiff'
+  }
+
+  QUIZ_MODE_TOP_K: int = 20
+  MAX_QUIZ_QUESTIONS: int = 40
 
   class Config:
     env_file = ".env"

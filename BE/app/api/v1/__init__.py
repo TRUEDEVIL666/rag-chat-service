@@ -9,6 +9,7 @@ from .session_api import router as session_router
 from .analytics_api import router as analytics_router
 from .ai_model_api import router as ai_model_router
 from .document_api import router as document_router
+from .tenant_api import router as tenant_router
 
 router = APIRouter()
 
@@ -24,3 +25,4 @@ router.include_router(router=ai_model_router,
                       prefix="/ai-models", tags=["AI Models"])
 router.include_router(router=document_router,
                       prefix="/documents", tags=["Documents"])
+router.include_router(router=tenant_router, tags=["Tenants"])

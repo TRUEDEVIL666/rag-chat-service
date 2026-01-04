@@ -7,15 +7,29 @@ from app.schemas.analytics import AnalyticsSummaryResponse
 router = APIRouter()
 
 
-@router.get("/analytics/summary", summary="Get dashboard summary counts", response_model=AnalyticsSummaryResponse)
-@cache(expire=60)  # Cache for 1 minute to avoid hammering DB
-async def get_analytics_summary(
+@router.get("/analytics/stats", summary="Get dashboard stats only")
+@cache(expire=60)
+async def get_analytics_stats(
+    analytics_service=Depends(get_analytics_service),
+    auth: dict = Depends(get_current_user)
+):
+  try:
+    return analytics_service.get_summary_stats(auth)
+  except HTTPException:
+    raise
+  except Exception as e:
+    raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/analytics/chart", summary="Get dashboard chart data only")
+@cache(expire=300)
+async def get_analytics_chart(
     time_range: str = "30days",
     analytics_service=Depends(get_analytics_service),
     auth: dict = Depends(get_current_user)
 ):
   try:
-    return analytics_service.get_summary(auth, time_range)
+    return analytics_service.get_chart_data(auth, time_range)
   except HTTPException:
     raise
   except Exception as e:

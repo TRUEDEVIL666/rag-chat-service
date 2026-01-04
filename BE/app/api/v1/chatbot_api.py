@@ -131,7 +131,8 @@ async def ask_bot(
           tenant_id=tenant_id,
           user_id=user_id,
           session_id=req.session_id,
-          access_token=auth.get("token")
+          access_token=auth.get("token"),
+          quiz_mode=request.quiz_mode
       )
 
       async def token_stream():
@@ -151,7 +152,8 @@ async def ask_bot(
           tenant_id=tenant_id,
           user_id=user_id,
           session_id=req.session_id,
-          access_token=auth.get("token")
+          access_token=auth.get("token"),
+          quiz_mode=request.quiz_mode
       )
       return BotAskResponse(answer=response, session_id=new_session_id)
 

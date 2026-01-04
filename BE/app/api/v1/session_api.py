@@ -17,7 +17,6 @@ router = APIRouter()
 
 
 @router.get("/sessions", summary="List all chat sessions", response_model=List[SessionResponse])
-@cache(expire=300, namespace="sessions")
 async def list_sessions(
     req: SessionListRequest = Depends(),
     session_service: SessionService = Depends(get_session_service),
@@ -33,7 +32,10 @@ async def list_sessions(
       limit=req.limit,
       cursor_timestamp=req.cursor_timestamp,
       access_token=access_token,
-      bot_id=str(req.bot_id) if req.bot_id else None
+      bot_id=str(req.bot_id) if req.bot_id else None,
+      search=req.search,
+      start_date=req.start_date,
+      end_date=req.end_date
     )
     return sessions
   except Exception as e:
@@ -75,6 +77,22 @@ async def get_messages(
     raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/sessions/{session_id}", summary="Get session details", response_model=SessionResponse)
+async def get_session_details(
+    req: SessionIdRequest = Depends(),
+    session_service: SessionService = Depends(get_session_service),
+    auth=Depends(get_current_user)
+):
+  try:
+    session = session_service.get_session(
+      str(req.session_id), access_token=auth.get("token"))
+    if not session:
+      raise HTTPException(status_code=404, detail="Session not found")
+    return session
+  except Exception as e:
+    raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.delete("/sessions/{session_id}", summary="Delete a chat session", response_model=MessageResponse)
 async def delete_session(
     req: SessionIdRequest = Depends(),
@@ -88,9 +106,6 @@ async def delete_session(
     if not success:
       raise HTTPException(
         status_code=404, detail="Session not found or failed to delete")
-
-    # Clear cache so the list reflects the deletion
-    await FastAPICache.clear(namespace="sessions")
 
     return {"message": "Session deleted successfully"}
   except Exception as e:
