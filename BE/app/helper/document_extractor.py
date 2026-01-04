@@ -4,13 +4,17 @@ import json
 import csv
 import docx
 import tempfile
+import openpyxl
 
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 from fastapi import HTTPException
+from bs4 import BeautifulSoup
 
 from llama_index.core import Document
-from llama_index.readers.docling import DoclingReader
+from docling.document_converter import DocumentConverter, PdfFormatOption
+from docling.datamodel.pipeline_options import PdfPipelineOptions, AcceleratorOptions, AcceleratorDevice
+from docling.datamodel.base_models import InputFormat
 
 from app.core.enums.file import FileExtension, EncodingType, ParsingConstants
 from app.core.enums.http import ErrorMessage, HttpStatus
@@ -18,59 +22,111 @@ from app.core.logger import get_logger
 
 logger = get_logger("extractor")
 
+# Global singleton for DocumentConverter to avoid re-initializing models
+_docling_converter: Optional[DocumentConverter] = None
+
+
+def get_docling_converter() -> DocumentConverter:
+  global _docling_converter
+  if _docling_converter is None:
+    try:
+      import torch
+      device = AcceleratorDevice.CUDA if torch.cuda.is_available() else AcceleratorDevice.CPU
+      logger.info(f"Initializing DocumentConverter with device: {device}...")
+    except ImportError:
+      logger.warning("Torch not found, defaulting to CPU for Docling.")
+      device = AcceleratorDevice.CPU
+
+    pipeline_options = PdfPipelineOptions()
+    pipeline_options.accelerator_options = AcceleratorOptions(
+        num_threads=4, device=device
+    )
+    _docling_converter = DocumentConverter(
+        format_options={
+            InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
+        }
+    )
+  return _docling_converter
+
 
 # -------------------------------------------------------------------------
 # MAIN EXTRACTOR
 # -------------------------------------------------------------------------
 def extract_documents(file_bytes: bytes, filename: str, reader_map: dict, arg_map: dict) -> List[Document]:
   """
-  Try DoclingReader first. If it fails, fallback to LlamaIndex-specific readers.
-  If all fail, fallback to manual extractor.
+  Tiered Extraction Strategy:
+  1. DoclingReader (Default for PDF, DOCX, PPTX, XLSX, MD, HTML, Images)
+  2. LlamaIndex Specific Readers (Fallback)
+  3. Manual Extractor (Last Resort)
   """
   ext = os.path.splitext(filename.lower())[1]
+
+  # Skip Docling for simple structured sets like CSV/JSON as standard readers are better/faster
+  use_docling = ext in [
+      FileExtension.PDF, FileExtension.DOCX, FileExtension.PPTX,
+      FileExtension.XLSX, FileExtension.MD, FileExtension.HTML,
+      FileExtension.JPG, FileExtension.JPEG, FileExtension.PNG,
+      FileExtension.BMP, FileExtension.TIFF
+  ]
 
   with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
     tmp.write(file_bytes)
     tmp_path = tmp.name
 
   try:
-    logger.info(f"DoclingReader extractor {filename}")
-    docling_reader = DoclingReader()
-    docs = docling_reader.load_data(file_path=tmp_path)
-    for doc in docs:
-      doc.metadata.update({
-          "file_name": filename,
-          "file_type": ext,
-          "processing_method": "docling",
-          "reader_type": "DoclingReader"
-      })
+    if use_docling:
+      try:
+        logger.info(f"Attempting Docling extraction for {filename}")
+        converter = get_docling_converter()
+        # Docling supports file path directly
+        conv_res = converter.convert(tmp_path)
+        md_text = conv_res.document.export_to_markdown()
+
+        if md_text:
+          # Create a single document with the full text
+          docs = [Document(text=md_text, metadata={
+              "file_name": filename,
+              "file_type": ext,
+              "processing_method": "docling",
+              "reader_type": "DocumentConverter(CUDA)"
+          })]
+          os.remove(tmp_path)
+          return docs
+      except Exception as e:
+        logger.warning(f"Docling failed for {filename}, falling back: {e}")
+
+    # Tier 2: LlamaIndex Default Readers
+    if ext in reader_map:
+      try:
+        logger.info(f"Attempting LlamaIndex reader fallback for {filename}")
+        reader = reader_map[ext]
+        arg_name = arg_map.get(ext, "file")
+        docs = reader.load_data(**{arg_name: Path(tmp_path)})
+
+        if docs:
+          for doc in docs:
+            doc.metadata.update({
+                "file_name": filename,
+                "file_type": ext,
+                "processing_method": "llama_index_reader",
+                "reader_type": type(reader).__name__
+            })
+          os.remove(tmp_path)
+          return docs
+      except Exception as e:
+        logger.warning(f"LlamaIndex reader failed for {filename}: {e}")
+
+    # Tier 3: Manual Fallback
+    logger.info(f"Fallback to manual extraction for {filename}")
+    text = _extract_text_manual(file_bytes, filename)
     os.remove(tmp_path)
-    return docs
+    return [Document(text=text, metadata={"file_name": filename, "processing_method": "manual"})]
+
   except Exception as e:
-    logger.warning(f"DoclingReader failed for {filename}: {e}")
-
-  logger.info(f"LlamaIndex Default Reader extractor {filename}")
-  if ext in reader_map:
-    try:
-      reader = reader_map[ext]
-      arg_name = arg_map.get(ext, "file")
-      docs = reader.load_data(**{arg_name: Path(tmp_path)})
-
-      for doc in docs:
-        doc.metadata.update({
-            "file_name": filename,
-            "file_type": ext,
-            "processing_method": "llama_index_reader",
-            "reader_type": type(reader).__name__
-        })
+    if os.path.exists(tmp_path):
       os.remove(tmp_path)
-      return docs
-    except Exception as e:
-      logger.warning(f"LlamaIndex reader failed for {filename}: {e}")
-
-  logger.info(f"Fallback to manual extraction for {filename}")
-  text = _extract_text_manual(file_bytes, filename)
-  return [Document(text=text, metadata={"file_name": filename})]
+    logger.error(f"Total extraction failure for {filename}: {e}")
+    raise e
 
 
 # -------------------------------------------------------------------------
@@ -82,7 +138,7 @@ def _extract_text_manual(file_bytes: bytes, filename: str) -> str:
   """
   ext = os.path.splitext(filename.lower())[1]
   match ext:
-    case FileExtension.TXT:
+    case FileExtension.TXT | FileExtension.MD:
       return _extract_text_from_txt(file_bytes)
     case FileExtension.DOCX:
       return _extract_text_from_docx(file_bytes)
@@ -94,6 +150,10 @@ def _extract_text_manual(file_bytes: bytes, filename: str) -> str:
       return _extract_text_from_pptx(file_bytes)
     case FileExtension.PDF:
       return _extract_text_from_pdf(file_bytes)
+    case FileExtension.XLSX:
+      return _extract_text_from_xlsx(file_bytes)
+    case FileExtension.HTML:
+      return _extract_text_from_html(file_bytes)
     case _:
       raise HTTPException(
           status_code=HttpStatus.UNPROCESSABLE_ENTITY.value,
@@ -162,7 +222,7 @@ def _extract_text_from_csv(binary_csv: bytes) -> str:
         ])
       else:
         row_text = ParsingConstants.COLUMN_SEPARATOR.join(
-          [cell for cell in row if cell.strip()])
+            [cell for cell in row if cell.strip()])
       text_parts.append(row_text)
 
   return '\n'.join(text_parts)
@@ -219,16 +279,45 @@ def _extract_text_from_pptx(binary_pptx: bytes) -> str:
 
 def _extract_text_from_pdf(binary_pdf: bytes) -> str:
   """
-  Extract text from a PDF file.
+  Extract text from a PDF file using pymupdf4llm (Markdown).
   """
-  from pypdf import PdfReader
+  import pymupdf4llm
+  import tempfile
 
-  reader = PdfReader(io.BytesIO(binary_pdf))
+  with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+    tmp.write(binary_pdf)
+    tmp_path = tmp.name
+
+  try:
+    return pymupdf4llm.to_markdown(tmp_path)
+  except Exception as e:
+    raise e
+  finally:
+    if os.path.exists(tmp_path):
+      os.remove(tmp_path)
+
+
+def _extract_text_from_xlsx(binary_xlsx: bytes) -> str:
+  """
+  Extract text from an XLSX file using openpyxl.
+  """
+  wb = openpyxl.load_workbook(io.BytesIO(binary_xlsx), data_only=True)
   text_parts = []
-
-  for page in reader.pages:
-    text = page.extract_text()
-    if text:
-      text_parts.append(text)
-
+  for sheet in wb.worksheets:
+    text_parts.append(f"Sheet: {sheet.title}")
+    for row in sheet.iter_rows(values_only=True):
+      row_text = [str(cell).strip() for cell in row if cell is not None]
+      if row_text:
+        text_parts.append(ParsingConstants.COLUMN_SEPARATOR.join(row_text))
   return '\n'.join(text_parts)
+
+
+def _extract_text_from_html(binary_html: bytes) -> str:
+  """
+  Extract text from HTML using BeautifulSoup.
+  """
+  soup = BeautifulSoup(binary_html, "html.parser")
+  # Remove script and style elements
+  for script in soup(["script", "style"]):
+    script.decompose()
+  return soup.get_text(separator='\n', strip=True)
