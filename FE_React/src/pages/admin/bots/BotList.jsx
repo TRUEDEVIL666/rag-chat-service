@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { clsx } from 'clsx';
-import { RobotIcon, PlusCircleIcon, ChatCircleDotsIcon, PencilSimpleIcon, TrashIcon, SpinnerIcon, WarningIcon, BookBookmarkIcon } from '@phosphor-icons/react';
+import { RobotIcon, PlusCircleIcon, ChatCircleDotsIcon, PencilSimpleIcon, TrashIcon, SpinnerIcon, WarningIcon, BookBookmarkIcon, MagnifyingGlassIcon } from '@phosphor-icons/react';
 import { useAuth } from '../../../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { useBots } from '../../../hooks/useBots';
@@ -11,10 +11,11 @@ import TourButton from '../../../components/common/TourButton';
 
 
 const BotList = () => {
-  const { t } = useTranslation(['bots', 'translation']);
+  const { t } = useTranslation();
   const { bots, loading: isLoading, error, fetchBots, deleteBot } = useBots();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchTerm, setSearchTerm] = useState('');
 
 
   const tourSteps = [
@@ -43,7 +44,7 @@ const BotList = () => {
   }, [fetchBots]);
 
   const handleDelete = async (id) => {
-    if (!window.confirm(t('deleteConfirm'))) return;
+    if (!window.confirm(t('admin.bots.deleteConfirm'))) return;
 
     try {
       await deleteBot(id);
@@ -52,6 +53,18 @@ const BotList = () => {
       console.error(err);
     }
   };
+
+  // Search Filter Logic
+  const filteredBots = bots.filter(bot => {
+    if (!searchTerm) return true;
+    const lowerTerm = searchTerm.toLowerCase();
+    return (
+      bot.name?.toLowerCase().includes(lowerTerm) ||
+      bot.description?.toLowerCase().includes(lowerTerm) ||
+      bot.model?.name?.toLowerCase().includes(lowerTerm) ||
+      (bot.config_model?.model && bot.config_model.model.toLowerCase().includes(lowerTerm))
+    );
+  });
 
   if (isLoading) return <div className="flex justify-center py-10"><SpinnerIcon size={32} className="animate-spin text-primary-600" /></div>;
 
@@ -62,12 +75,29 @@ const BotList = () => {
         {/* Combined Header */}
         <div className="h-16 px-6 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between shrink-0 bg-gray-50/50 dark:bg-gray-900/20">
           <div className="flex items-center gap-3">
-            <h1 id="bot-list-header" className="text-lg font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wide">{t('title')}</h1>
+            <h1 id="bot-list-header" className="text-lg font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wide">{t('admin.bots.title')}</h1>
             <TourButton startTour={startTour} />
           </div>
-          <Link id="create-bot-btn" to="create" className="btn-primary flex items-center gap-2 px-4 py-2 rounded-lg shadow-sm hover:shadow text-sm font-medium">
-            <PlusCircleIcon size={18} weight="bold" /> <span>{t('createNew')}</span>
-          </Link>
+
+          <div className="flex items-center gap-3">
+            {/* Search Input */}
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                <MagnifyingGlassIcon size={18} />
+              </div>
+              <input
+                type="text"
+                placeholder={t('admin.bots.searchPlaceholder', 'Search bots...')}
+                className="pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-primary-500 focus:border-primary-500 w-64 transition-all"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+
+            <Link id="create-bot-btn" to="create" className="btn-primary flex items-center gap-2 px-4 py-2 rounded-lg shadow-sm hover:shadow text-sm font-medium">
+              <PlusCircleIcon size={18} weight="bold" /> <span>{t('admin.bots.createNew')}</span>
+            </Link>
+          </div>
         </div>
 
         {/* Table Content */}
@@ -75,11 +105,11 @@ const BotList = () => {
           <table className="w-full text-left border-collapse">
             <thead className="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10 backdrop-blur-sm">
               <tr className="text-xs uppercase text-gray-500 dark:text-gray-400 font-bold tracking-wider">
-                <th className="px-6 py-4">{t('table.name')}</th>
-                <th className="px-6 py-4">{t('table.model')}</th>
-                <th className="px-6 py-4">{t('table.description')}</th>
-                <th className="px-6 py-4">{t('table.status')}</th>
-                <th className="px-6 py-4 text-center">{t('table.actions')}</th>
+                <th className="px-6 py-4">{t('admin.bots.table.name')}</th>
+                <th className="px-6 py-4">{t('admin.bots.table.model')}</th>
+                <th className="px-6 py-4">{t('admin.bots.table.description')}</th>
+                <th className="px-6 py-4">{t('admin.bots.table.status')}</th>
+                <th className="px-6 py-4 text-center">{t('admin.bots.table.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700 text-sm dark:text-gray-300">
@@ -93,12 +123,14 @@ const BotList = () => {
                     </div>
                   </td>
                 </tr>
-              ) : bots.length === 0 ? (
+              ) : filteredBots.length === 0 ? (
                 <tr>
-                  <td colSpan="5" className="px-6 py-12 text-center text-gray-500">{t('empty')}</td>
+                  <td colSpan="5" className="px-6 py-12 text-center text-gray-500">
+                    {searchTerm ? t('common.noResults', 'No bots found matching your search.') : t('empty')}
+                  </td>
                 </tr>
               ) : (
-                bots.map((bot) => (
+                filteredBots.map((bot) => (
                   <tr key={bot.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition duration-150 group">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
@@ -134,28 +166,28 @@ const BotList = () => {
                               ? "text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20"
                               : "text-gray-300 cursor-not-allowed opacity-50"
                           )}
-                          title={bot.model_id ? t('tooltip.chat') : t('noModel', 'No model configured')}
+                          title={bot.model_id ? t('admin.bots.tooltip.chat') : t('admin.bots.noModel')}
                         >
                           <ChatCircleDotsIcon size={20} weight="regular" />
                         </button>
                         <Link
                           to={`edit/${bot.id}`}
                           className="text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition inline-block p-2 rounded-lg"
-                          title={t('tooltip.edit')}
+                          title={t('admin.bots.tooltip.edit')}
                         >
                           <PencilSimpleIcon size={20} />
                         </Link>
                         <button
                           onClick={() => handleDelete(bot.id)}
                           className="text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition p-2 rounded-lg"
-                          title={t('tooltip.delete')}
+                          title={t('admin.bots.tooltip.delete')}
                         >
                           <TrashIcon size={20} />
                         </button>
                         <button
                           onClick={() => navigate(`/admin/bots/${bot.id}/kbs`)}
                           className="text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition p-2 rounded-lg"
-                          title={t('tooltip.kb')}
+                          title={t('admin.bots.tooltip.kb')}
                         >
                           <BookBookmarkIcon size={20} />
                         </button>

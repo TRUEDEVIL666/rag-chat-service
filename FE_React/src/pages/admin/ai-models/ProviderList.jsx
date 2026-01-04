@@ -6,7 +6,7 @@ import clsx from 'clsx';
 import { toast } from 'react-hot-toast';
 
 const ProviderList = () => {
-  const { t } = useTranslation('ai-models');
+  const { t } = useTranslation();
   const [providers, setProviders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -81,7 +81,7 @@ const ProviderList = () => {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm(t('providers.confirmDelete'))) return;
+    if (!window.confirm(t('admin.aiModels.providers.confirmDelete'))) return;
     try {
       await aiModelService.deleteProvider(id);
       toast.success('Deleted successfully');
@@ -140,13 +140,13 @@ const ProviderList = () => {
     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
       {/* Header */}
       <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row justify-between items-center bg-gray-50/50 dark:bg-gray-900/20 gap-4">
-        <h3 className="font-bold text-gray-700 dark:text-gray-200">{t('providers.title')}</h3>
+        <h3 className="font-bold text-gray-700 dark:text-gray-200">{t('admin.aiModels.providers.title')}</h3>
         <div className="flex items-center gap-3 w-full sm:w-auto">
           <div className="relative flex-1 sm:w-64">
             <MagnifyingGlassIcon size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
-              placeholder={t('searchPlaceholder', 'Search...')}
+              placeholder={t('admin.aiModels.searchPlaceholder')}
               className="w-full pl-10 pr-4 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/20 transition shadow-sm"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -156,7 +156,7 @@ const ProviderList = () => {
             onClick={() => handleOpenModal()}
             className="btn-primary flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap"
           >
-            <Plus size={16} weight="bold" /> {t('providers.create')}
+            <Plus size={16} weight="bold" /> {t('admin.aiModels.providers.create')}
           </button>
         </div>
       </div>
@@ -168,32 +168,32 @@ const ProviderList = () => {
             <tr>
               <th className="px-6 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition group" onClick={() => handleSort('display_name')}>
                 <div className="flex items-center gap-1">
-                  {t('providers.displayName')} <SortIcon columnKey="display_name" />
+                  {t('admin.aiModels.providers.displayName')} <SortIcon columnKey="display_name" />
                 </div>
               </th>
               <th className="px-6 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition group" onClick={() => handleSort('name')}>
                 <div className="flex items-center gap-1">
-                  {t('providers.name')} <SortIcon columnKey="name" />
+                  {t('admin.aiModels.providers.name')} <SortIcon columnKey="name" />
                 </div>
               </th>
               <th className="px-6 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition group" onClick={() => handleSort('base_url')}>
                 <div className="flex items-center gap-1">
-                  {t('providers.baseUrl')} <SortIcon columnKey="base_url" />
+                  {t('admin.aiModels.providers.baseUrl')} <SortIcon columnKey="base_url" />
                 </div>
               </th>
               <th className="px-6 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition group" onClick={() => handleSort('is_active')}>
                 <div className="flex items-center gap-1">
-                  {t('providers.status')} <SortIcon columnKey="is_active" />
+                  {t('admin.aiModels.providers.status')} <SortIcon columnKey="is_active" />
                 </div>
               </th>
-              <th className="px-6 py-3 text-right">{t('providers.actions')}</th>
+              <th className="px-6 py-3 text-right">{t('admin.aiModels.providers.actions')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
             {filteredAndSortedProviders.length === 0 ? (
               <tr>
                 <td colSpan={5} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
-                  {searchQuery ? t('common.noResults', 'No matching results') : t('providers.empty')}
+                  {searchQuery ? t('common.noResults') : t('admin.aiModels.providers.empty')}
                 </td>
               </tr>
             ) : (
@@ -207,7 +207,7 @@ const ProviderList = () => {
                       "px-2 py-0.5 rounded text-[10px] font-bold uppercase",
                       p.is_active ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400" : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400"
                     )}>
-                      {p.is_active ? t('common.active') : t('common.inactive')}
+                      {p.is_active ? t('common.status.active') : t('common.status.inactive')}
                     </span>
                   </td>
                   <td className="px-6 py-3 text-right">
@@ -233,7 +233,7 @@ const ProviderList = () => {
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-fade-in-up">
             <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900/50">
               <h3 className="font-bold text-lg text-gray-800 dark:text-white">
-                {editingProvider ? t('providers.edit') : t('providers.create')}
+                {editingProvider ? t('admin.aiModels.providers.edit') : t('admin.aiModels.providers.create')}
               </h3>
               <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
                 <X size={20} />
@@ -242,7 +242,7 @@ const ProviderList = () => {
 
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">{t('providers.displayName')}</label>
+                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">{t('admin.aiModels.providers.displayName')}</label>
                 <input
                   type="text"
                   required
@@ -255,7 +255,7 @@ const ProviderList = () => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">{t('providers.name')}</label>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">{t('admin.aiModels.providers.name')}</label>
                   <select
                     required
                     className="input-field"
@@ -269,20 +269,20 @@ const ProviderList = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">{t('providers.status')}</label>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">{t('admin.aiModels.providers.status')}</label>
                   <select
                     className="input-field"
                     value={formData.is_active}
                     onChange={(e) => setFormData({ ...formData, is_active: e.target.value === 'true' })}
                   >
-                    <option value="true">{t('common.active')}</option>
-                    <option value="false">{t('common.inactive')}</option>
+                    <option value="true">{t('common.status.active')}</option>
+                    <option value="false">{t('common.status.inactive')}</option>
                   </select>
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">{t('providers.baseUrl')}</label>
+                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">{t('admin.aiModels.providers.baseUrl')}</label>
                 <input
                   type="text"
                   className="input-field font-mono text-sm"
@@ -293,7 +293,7 @@ const ProviderList = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">{t('providers.apiKey')}</label>
+                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">{t('admin.aiModels.providers.apiKey')}</label>
                 <input
                   type="password"
                   className="input-field font-mono text-sm"
@@ -301,7 +301,7 @@ const ProviderList = () => {
                   onChange={(e) => setFormData({ ...formData, api_key: e.target.value })}
                   placeholder={editingProvider?.secret_id ? "•••••••• (Stored)" : "Enter API Key"}
                 />
-                <p className="text-[10px] text-gray-400 mt-1">{t('providers.apiKeyDesc')}</p>
+                <p className="text-[10px] text-gray-400 mt-1">{t('admin.aiModels.providers.apiKeyDesc')}</p>
               </div>
 
               <div className="pt-4 flex justify-end gap-2">

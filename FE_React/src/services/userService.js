@@ -1,8 +1,12 @@
 import api from './api';
 
 export const userService = {
-  getUsers: async () => {
-    const response = await api.get('/users');
+  getUsers: async (limit = 20, cursor_timestamp = null, filters = {}) => {
+    const params = { limit, ...filters };
+    if (cursor_timestamp) {
+      params.cursor_timestamp = cursor_timestamp;
+    }
+    const response = await api.get('/users', { params });
     return response.data;
   },
 

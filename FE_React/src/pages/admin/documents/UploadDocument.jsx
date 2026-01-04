@@ -29,7 +29,7 @@ import { usePageTour } from '../../../hooks/usePageTour';
 import TourButton from '../../../components/common/TourButton';
 
 const UploadDocument = () => {
-  const { t, i18n } = useTranslation(['documents', 'translation']);
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const { kbs, loading: kbsLoading, error: kbsError, fetchKBs } = useKnowledgeBases(); // Destructure loading and error
@@ -42,19 +42,19 @@ const UploadDocument = () => {
   const [chunkingMethod, setChunkingMethod] = useState('sentence');
   const [enableSparse, setEnableSparse] = useState(false);
   // ... rest of state
-  const [previewText, setPreviewText] = useState(t('upload.preview.defaultExample'));
+  const [previewText, setPreviewText] = useState(t('admin.documents.upload.preview.defaultExample'));
   const [chunks, setChunks] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [msg, setMsg] = useState({ text: '', type: '' });
   const fileInputRef = useRef(null);
 
   const tourSteps = [
-    { element: '#upload-header', popover: { title: t('tour.upload.title', 'Upload Document'), description: t('tour.upload.desc', 'Add new files to your system.') } },
-    { element: '#kb-select', popover: { title: t('tour.upload.kb', 'Knowledge Base'), description: t('tour.upload.kbDesc', 'Select where to store these files.') } },
-    { element: '#chunk-settings', popover: { title: t('tour.upload.chunk', 'Chunking Settings'), description: t('tour.upload.chunkDesc', 'Configure how the text is split for AI processing.') } },
-    { element: '#drop-zone', popover: { title: t('tour.upload.drop', 'File Drop'), description: t('tour.upload.dropDesc', 'Drag & drop files here or click to browse.') } },
-    { element: '#preview-area', popover: { title: t('tour.upload.preview', 'Preview'), description: t('tour.upload.previewDesc', 'See how your text will be chunked before saving.') } },
-    { element: '#start-upload-btn', popover: { title: t('tour.upload.start', 'Start Upload'), description: t('tour.upload.startDesc', 'Begin the upload and processing.') } }
+    { element: '#upload-header', popover: { title: t('tour.upload.title'), description: t('tour.upload.desc') } },
+    { element: '#kb-select', popover: { title: t('tour.upload.kb'), description: t('tour.upload.kbDesc') } },
+    { element: '#chunk-settings', popover: { title: t('tour.upload.chunk'), description: t('tour.upload.chunkDesc') } },
+    { element: '#drop-zone', popover: { title: t('tour.upload.drop'), description: t('tour.upload.dropDesc') } },
+    { element: '#preview-area', popover: { title: t('tour.upload.preview'), description: t('tour.upload.previewDesc') } },
+    { element: '#start-upload-btn', popover: { title: t('tour.upload.start'), description: t('tour.upload.startDesc') } }
   ];
 
   const { startTour } = usePageTour('upload-docs', tourSteps);
@@ -91,8 +91,8 @@ const UploadDocument = () => {
     const current = normalize(previewText);
 
     const getDefaults = (lang) => [
-      i18n.getResource(lang, 'documents', 'upload.preview.defaultExample'),
-      i18n.getResource(lang, 'documents', 'upload.preview.recursiveExample')
+      i18n.getResource(lang, 'translation', 'admin.documents.upload.preview.defaultExample'),
+      i18n.getResource(lang, 'translation', 'admin.documents.upload.preview.recursiveExample')
     ].map(normalize);
 
     const enDefaults = getDefaults('en');
@@ -101,9 +101,9 @@ const UploadDocument = () => {
 
     if (allDefaults.includes(current) || !current) {
       if (chunkingMethod === 'recursive') {
-        setPreviewText(t('upload.preview.recursiveExample'));
+        setPreviewText(t('admin.documents.upload.preview.recursiveExample'));
       } else {
-        setPreviewText(t('upload.preview.defaultExample'));
+        setPreviewText(t('admin.documents.upload.preview.defaultExample'));
       }
     }
   }, [i18n.language, chunkingMethod]);
@@ -149,11 +149,11 @@ const UploadDocument = () => {
         return (
           <div onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-slide-up mt-6">
             <div>
-              <label onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 min-h-[2.5rem] flex items-end">{t('upload.chunking.params.chunkSize')}</label>
+              <label onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 min-h-[2.5rem] flex items-end">{t('admin.documents.upload.chunking.params.chunkSize')}</label>
               <input type="number" value={chunkSize} onChange={e => setChunkSize(e.target.value)} placeholder="Default" onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-none rounded-xl outline-none focus:ring-2 focus:ring-primary-500/20 transition-all text-gray-700 dark:text-gray-200" />
             </div>
             <div>
-              <label onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 min-h-[2.5rem] flex items-end">{t('upload.chunking.params.chunkOverlap')}</label>
+              <label onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 min-h-[2.5rem] flex items-end">{t('admin.documents.upload.chunking.params.chunkOverlap')}</label>
               <input type="number" value={chunkOverlap} onChange={e => setChunkOverlap(e.target.value)} placeholder="Default" onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-none rounded-xl outline-none focus:ring-2 focus:ring-primary-500/20 transition-all text-gray-700 dark:text-gray-200" />
             </div>
           </div>
@@ -164,11 +164,11 @@ const UploadDocument = () => {
         return (
           <div onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-slide-up mt-6">
             <div>
-              <label onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 min-h-[2.5rem] flex items-end">{t('upload.chunking.params.chunkSize')}</label>
+              <label onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 min-h-[2.5rem] flex items-end">{t('admin.documents.upload.chunking.params.chunkSize')}</label>
               <input type="number" value={chunkSize} onChange={e => setChunkSize(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-none rounded-xl outline-none focus:ring-2 focus:ring-primary-500/20 transition-all text-gray-700 dark:text-gray-200" />
             </div>
             <div>
-              <label onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 min-h-[2.5rem] flex items-end">{t('upload.chunking.params.chunkOverlap')}</label>
+              <label onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 min-h-[2.5rem] flex items-end">{t('admin.documents.upload.chunking.params.chunkOverlap')}</label>
               <input type="number" value={chunkOverlap} onChange={e => setChunkOverlap(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-none rounded-xl outline-none focus:ring-2 focus:ring-primary-500/20 transition-all text-gray-700 dark:text-gray-200" />
             </div>
           </div>
@@ -177,15 +177,15 @@ const UploadDocument = () => {
         return (
           <div onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-slide-up mt-6">
             <div>
-              <label onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 min-h-[2.5rem] flex items-end">{t('upload.chunking.params.chunkSize')}</label>
+              <label onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 min-h-[2.5rem] flex items-end">{t('admin.documents.upload.chunking.params.chunkSize')}</label>
               <input type="number" value={chunkSize} onChange={e => setChunkSize(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-none rounded-xl outline-none focus:ring-2 focus:ring-primary-500/20 transition-all text-gray-700 dark:text-gray-200" />
             </div>
             <div>
-              <label onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 min-h-[2.5rem] flex items-end">{t('upload.chunking.params.chunkOverlap')}</label>
+              <label onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 min-h-[2.5rem] flex items-end">{t('admin.documents.upload.chunking.params.chunkOverlap')}</label>
               <input type="number" value={chunkOverlap} onChange={e => setChunkOverlap(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-none rounded-xl outline-none focus:ring-2 focus:ring-primary-500/20 transition-all text-gray-700 dark:text-gray-200" />
             </div>
             <div>
-              <label onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 min-h-[2.5rem] flex items-end">{t('upload.chunking.params.separator')}</label>
+              <label onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 min-h-[2.5rem] flex items-end">{t('admin.documents.upload.chunking.params.separator')}</label>
               <input type="text" value={separator} onChange={e => setSeparator(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-none rounded-xl outline-none focus:ring-2 focus:ring-primary-500/20 transition-all text-gray-700 dark:text-gray-200" />
             </div>
           </div>
@@ -193,7 +193,7 @@ const UploadDocument = () => {
       case 'sliding':
         return (
           <div onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} className="animate-slide-up mt-6">
-            <label onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('upload.chunking.params.windowSize')}</label>
+            <label onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('admin.documents.upload.chunking.params.windowSize')}</label>
             <input type="number" value={windowSize} onChange={e => setWindowSize(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-none rounded-xl outline-none focus:ring-2 focus:ring-primary-500/20 transition-all text-gray-700 dark:text-gray-200" />
           </div>
         );
@@ -201,11 +201,11 @@ const UploadDocument = () => {
         return (
           <div onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-slide-up mt-6">
             <div>
-              <label onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('upload.chunking.params.bufferSize')}</label>
+              <label onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('admin.documents.upload.chunking.params.bufferSize')}</label>
               <input type="number" value={bufferSize} onChange={e => setBufferSize(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-none rounded-xl outline-none focus:ring-2 focus:ring-primary-500/20 transition-all text-gray-700 dark:text-gray-200" />
             </div>
             <div>
-              <label onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('upload.chunking.params.threshold')}</label>
+              <label onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('admin.documents.upload.chunking.params.threshold')}</label>
               <input type="number" value={thresholdPercentage} onChange={e => setThresholdPercentage(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-none rounded-xl outline-none focus:ring-2 focus:ring-primary-500/20 transition-all text-gray-700 dark:text-gray-200" />
             </div>
           </div>
@@ -213,7 +213,7 @@ const UploadDocument = () => {
       case 'hierarchical':
         return (
           <div onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} className="animate-slide-up mt-6">
-            <label onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('upload.chunking.params.chunkSizes')}</label>
+            <label onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('admin.documents.upload.chunking.params.chunkSizes')}</label>
             <input type="text" value={chunkSizes} onChange={e => setChunkSizes(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-none rounded-xl outline-none focus:ring-2 focus:ring-primary-500/20 transition-all text-gray-700 dark:text-gray-200" />
           </div>
         );
@@ -255,7 +255,7 @@ const UploadDocument = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (selectedFiles.length === 0) {
-      setMsg({ text: t('upload.alert.selectAtLeastOne'), type: "error" });
+      setMsg({ text: t('admin.documents.upload.alert.selectAtLeastOne'), type: "error" });
       return;
     }
 
@@ -266,39 +266,39 @@ const UploadDocument = () => {
 
     if (['sentence', 'token', 'word', 'character', 'recursive'].includes(chunkingMethod)) {
       if (isNaN(cSize) || cSize <= 0) {
-        setMsg({ text: t('upload.validation.invalidChunkSize'), type: "error" });
+        setMsg({ text: t('admin.documents.upload.validation.invalidChunkSize'), type: "error" });
         return;
       }
       if (isNaN(cOverlap) || cOverlap < 0) {
-        setMsg({ text: t('upload.validation.negativeOverlap'), type: "error" });
+        setMsg({ text: t('admin.documents.upload.validation.negativeOverlap'), type: "error" });
         return;
       }
       if (cOverlap >= cSize) {
-        setMsg({ text: t('upload.validation.overlapTooLarge'), type: "error" });
+        setMsg({ text: t('admin.documents.upload.validation.overlapTooLarge'), type: "error" });
         return;
       }
     }
 
     if (chunkingMethod === 'character' && !separator) {
-      setMsg({ text: t('upload.validation.emptySeparator'), type: "error" });
+      setMsg({ text: t('admin.documents.upload.validation.emptySeparator'), type: "error" });
       return;
     }
 
     if (chunkingMethod === 'sliding') {
       if (isNaN(parseInt(windowSize)) || parseInt(windowSize) < 1) {
-        setMsg({ text: t('upload.validation.invalidWindowSize'), type: "error" });
+        setMsg({ text: t('admin.documents.upload.validation.invalidWindowSize'), type: "error" });
         return;
       }
     }
 
     if (chunkingMethod === 'semantic') {
       if (isNaN(parseInt(bufferSize)) || parseInt(bufferSize) < 1) {
-        setMsg({ text: t('upload.validation.invalidBufferSize'), type: "error" });
+        setMsg({ text: t('admin.documents.upload.validation.invalidBufferSize'), type: "error" });
         return;
       }
       const threshold = parseInt(thresholdPercentage);
       if (isNaN(threshold) || threshold < 0 || threshold > 100) {
-        setMsg({ text: t('upload.validation.invalidThreshold'), type: "error" });
+        setMsg({ text: t('admin.documents.upload.validation.invalidThreshold'), type: "error" });
         return;
       }
     }
@@ -320,11 +320,11 @@ const UploadDocument = () => {
         // Check for descending order
         const sorted = [...sizes].sort((a, b) => b - a);
         if (JSON.stringify(sizes) !== JSON.stringify(sorted)) {
-          setMsg({ text: t('upload.validation.hierarchicalOrder'), type: "error" });
+          setMsg({ text: t('admin.documents.upload.validation.hierarchicalOrder'), type: "error" });
           return;
         }
       } catch (e) {
-        setMsg({ text: t('upload.validation.invalidHierarchical'), type: "error" });
+        setMsg({ text: t('admin.documents.upload.validation.invalidHierarchical'), type: "error" });
         return;
       }
     }
@@ -358,7 +358,7 @@ const UploadDocument = () => {
         // Progress handling if needed
       });
 
-      setMsg({ text: t('upload.alert.uploadSuccess'), type: "success" });
+      setMsg({ text: t('admin.documents.upload.alert.uploadSuccess'), type: "success" });
       setTimeout(() => navigate('/admin/documents'), 1500);
 
     } catch (error) {
@@ -388,10 +388,10 @@ const UploadDocument = () => {
                   </button>
                   <div>
                     <div className="flex items-center gap-3">
-                      <h1 id="upload-header" className="text-xl font-bold text-gray-900 dark:text-white leading-tight">{t('upload.title', 'Upload Documents')}</h1>
+                      <h1 id="upload-header" className="text-xl font-bold text-gray-900 dark:text-white leading-tight">{t('admin.documents.upload.title')}</h1>
                       <TourButton startTour={startTour} />
                     </div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">{t('upload.subtitle', 'Add new knowledge to your chatbots')}</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{t('admin.documents.upload.subtitle')}</p>
                   </div>
                 </div>
               </header>          </div>
@@ -400,7 +400,7 @@ const UploadDocument = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:col-span-12">
               <div id="kb-select">
                 <label className="block text-sm font-bold text-primary-600 uppercase tracking-widest mb-4">
-                  {t('upload.kbLabel')}
+                  {t('admin.documents.upload.kbLabel')}
                 </label>
                 {kbsError && (
                   <div className="mb-2 text-sm text-red-500 flex items-center gap-1">
@@ -415,7 +415,7 @@ const UploadDocument = () => {
                     className="w-full pl-12 pr-10 py-3.5 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-none rounded-2xl outline-none text-gray-700 dark:text-gray-200 appearance-none cursor-pointer focus:ring-2 focus:ring-primary-500/20"
                   >
                     {kbs.length === 0 ? (
-                      <option value="default" disabled>{kbsLoading ? t('common.loading') : t('upload.noKbFound', 'No knowledge bases found')}</option>
+                      <option value="default" disabled>{kbsLoading ? t('common.loading') : t('admin.documents.upload.noKbFound')}</option>
                     ) : (
                       kbs.map(kb => (
                         <option key={kb.id} value={kb.id}>{kb.name}</option>
@@ -428,7 +428,7 @@ const UploadDocument = () => {
                 {kbs.find(kb => kb.id === selectedKb)?.embedding_model && (
                   <div className="mt-2 text-xs text-gray-500 font-medium px-4 flex items-center gap-2 animate-fade-in">
                     <LightbulbIcon size={12} weight="fill" className="text-primary-500" />
-                    {t('upload.usingModel', {
+                    {t('admin.documents.upload.usingModel', {
                       model: kbs.find(kb => kb.id === selectedKb).embedding_model
                     })}
                   </div>
@@ -451,11 +451,11 @@ const UploadDocument = () => {
                         "block font-bold text-sm mb-1 transition-colors",
                         enableSparse ? "text-indigo-900 dark:text-indigo-100" : "text-gray-600 dark:text-gray-300"
                       )}>
-                        {t('upload.sparseEmbedding.label', 'Generate Sparse Embeddings')}
+                        {t('admin.documents.upload.sparseEmbedding.label')}
                       </span>
                       <p className="text-xs text-amber-600 dark:text-amber-400 flex items-start gap-1.5 animate-slide-up">
                         <InfoIcon size={14} className="mt-0.5 shrink-0" weight="fill" />
-                        {t('upload.sparseEmbedding.warning', 'Warning: Increases processing time.')}
+                        {t('admin.documents.upload.sparseEmbedding.warning')}
                       </p>
                     </div>
                   </div>
@@ -464,7 +464,7 @@ const UploadDocument = () => {
 
               <div id="chunk-settings">
                 <label className="block text-sm font-bold text-primary-600 uppercase tracking-widest mb-4">
-                  {t('upload.chunkingLabel')}
+                  {t('admin.documents.upload.chunkingLabel')}
                 </label>
                 <div className="relative">
                   <ScissorsIcon size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -473,14 +473,14 @@ const UploadDocument = () => {
                     onChange={(e) => setChunkingMethod(e.target.value)}
                     className="w-full pl-12 pr-10 py-3.5 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-none rounded-2xl outline-none text-gray-700 dark:text-gray-200 appearance-none cursor-pointer focus:ring-2 focus:ring-primary-500/20"
                   >
-                    <option value="sentence">{t('upload.chunking.sentence')}</option>
-                    <option value="semantic">{t('upload.chunking.semantic')}</option>
-                    <option value="token">{t('upload.chunking.token')}</option>
-                    <option value="character">{t('upload.chunking.character')}</option>
-                    <option value="word">{t('upload.chunking.word')}</option>
-                    <option value="recursive">{t('upload.chunking.recursive')}</option>
-                    <option value="hierarchical">{t('upload.chunking.hierarchical')}</option>
-                    <option value="sliding">{t('upload.chunking.sliding')}</option>
+                    <option value="sentence">{t('admin.documents.upload.chunking.sentence')}</option>
+                    <option value="semantic">{t('admin.documents.upload.chunking.semantic')}</option>
+                    <option value="token">{t('admin.documents.upload.chunking.token')}</option>
+                    <option value="character">{t('admin.documents.upload.chunking.character')}</option>
+                    <option value="word">{t('admin.documents.upload.chunking.word')}</option>
+                    <option value="recursive">{t('admin.documents.upload.chunking.recursive')}</option>
+                    <option value="hierarchical">{t('admin.documents.upload.chunking.hierarchical')}</option>
+                    <option value="sliding">{t('admin.documents.upload.chunking.sliding')}</option>
                   </select>
                   <CaretDownIcon size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                 </div>
@@ -498,14 +498,14 @@ const UploadDocument = () => {
                 </div>
                 <div>
                   <h4 className="text-base font-bold text-gray-800 dark:text-gray-100 mb-1">
-                    {t(`upload.chunking.info.${chunkingMethod}.title`)}
+                    {t(`admin.documents.upload.chunking.info.${chunkingMethod}.title`)}
                   </h4>
                   <p className="text-sm text-gray-600 dark:text-gray-300 mb-3 leading-relaxed">
-                    {t(`upload.chunking.info.${chunkingMethod}.desc`)}
+                    {t(`admin.documents.upload.chunking.info.${chunkingMethod}.desc`)}
                   </p>
                   <div className="flex items-center gap-2 text-xs font-semibold text-blue-700 dark:text-blue-400 bg-blue-100/50 dark:bg-blue-900/30 px-3 py-1.5 rounded-lg w-fit">
                     <LightbulbIcon size={16} weight="fill" />
-                    <span>Best Use Case: {t(`upload.chunking.info.${chunkingMethod}.usage`)}</span>
+                    <span>Best Use Case: {t(`admin.documents.upload.chunking.info.${chunkingMethod}.usage`)}</span>
                   </div>
                 </div>
               </div>
@@ -518,34 +518,34 @@ const UploadDocument = () => {
                   <EyeIcon size={20} weight="bold" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-gray-800 dark:text-white">{t('upload.preview.title')}</h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">{t('upload.preview.subtitle')}</p>
+                  <h3 className="text-lg font-bold text-gray-800 dark:text-white">{t('admin.documents.upload.preview.title')}</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">{t('admin.documents.upload.preview.subtitle')}</p>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">{t('upload.preview.sampleText')}</label>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">{t('admin.documents.upload.preview.sampleText')}</label>
                   <textarea
                     value={previewText}
                     onChange={(e) => setPreviewText(e.target.value)}
                     rows={5}
                     className="w-full h-96 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-900 transition resize-none text-gray-700 dark:text-gray-300"
-                    placeholder={t('upload.preview.samplePlaceholder')}
+                    placeholder={t('admin.documents.upload.preview.samplePlaceholder')}
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">{t('upload.preview.resultTitle')}</label>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">{t('admin.documents.upload.preview.resultTitle')}</label>
                   <div className="w-full h-96 overflow-auto space-y-2 pr-2">
-                    {chunks.length === 0 && <p className="text-xs text-gray-300 italic">{t('upload.preview.enterText')}</p>}
+                    {chunks.length === 0 && <p className="text-xs text-gray-300 italic">{t('admin.documents.upload.preview.enterText')}</p>}
                     {chunks.map((chunk, idx) => {
                       if (chunk.type === 'hierarchical') {
                         return (
                           <div key={idx} className="p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm shadow-sm animate-slide-up">
-                            <span className="font-bold text-indigo-800 dark:text-indigo-400">[{t('upload.preview.parentNode')} - ID: {chunk.parentIdx}]</span>
+                            <span className="font-bold text-indigo-800 dark:text-indigo-400">[{t('admin.documents.upload.preview.parentNode')} - ID: {chunk.parentIdx}]</span>
                             <span className="italic text-gray-500 dark:text-gray-400">"{chunk.text}"</span>
                             <div className="mt-2 pl-4 border-l-2 border-indigo-200 dark:border-indigo-700 text-xs text-gray-600 dark:text-gray-400">
-                              ↳ {t('upload.preview.childChunks', { count: chunk.childrenCount })}
+                              ↳ {t('admin.documents.upload.preview.childChunks', { count: chunk.childrenCount })}
                             </div>
                           </div>
                         )
@@ -567,7 +567,7 @@ const UploadDocument = () => {
 
             {/* Upload Zone */}
             <div className="lg:col-span-12">
-              <label className="block text-sm font-bold text-primary-600 uppercase tracking-widest mb-4">{t('upload.filesLabel')}</label>
+              <label className="block text-sm font-bold text-primary-600 uppercase tracking-widest mb-4">{t('admin.documents.upload.filesLabel')}</label>
               <div
                 id="drop-zone"
                 onDrop={handleDrop}
@@ -584,7 +584,7 @@ const UploadDocument = () => {
                   ref={fileInputRef}
                   multiple
                   className="hidden"
-                  accept=".pdf,.docx,.txt,.md,.json"
+                  accept=".pdf,.docx,.pptx,.txt,.md,.html,.xlsx,.jpg,.jpeg,.png,.bmp,.tiff"
                   onChange={handleFileChange}
                 />
 
@@ -594,13 +594,13 @@ const UploadDocument = () => {
                     <div className="w-20 h-20 bg-indigo-50 dark:bg-indigo-900/30 rounded-full flex items-center justify-center text-primary-600 dark:text-primary-400 text-4xl mb-6 group-hover:scale-110 transition-transform duration-300">
                       <CloudArrowUpIcon size={40} weight="fill" />
                     </div>
-                    <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">{t('upload.dragDrop')}</h3>
-                    <p className="text-gray-400 mb-6">{t('upload.supportedFormats')}</p>
+                    <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">{t('admin.documents.upload.dragDrop')}</h3>
+                    <p className="text-gray-400 mb-6">{t('admin.documents.upload.supportedFormats')}</p>
                     <button
                       type="button"
                       className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 px-6 py-2.5 rounded-xl font-bold text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition shadow-sm"
                     >
-                      {t('upload.selectFromComputer')}
+                      {t('admin.documents.upload.selectFromComputer')}
                     </button>
                   </div>
                 ) : (
@@ -612,8 +612,8 @@ const UploadDocument = () => {
                           <CloudArrowUpIcon size={24} weight="fill" />
                         </div>
                         <div>
-                          <h3 className="font-bold text-gray-800 dark:text-white">{t('upload.selectedFiles')} ({selectedFiles.length})</h3>
-                          <p className="text-xs text-gray-400">{t('upload.dropMore')}</p>
+                          <h3 className="font-bold text-gray-800 dark:text-white">{t('admin.documents.upload.selectedFiles')} ({selectedFiles.length})</h3>
+                          <p className="text-xs text-gray-400">{t('admin.documents.upload.dropMore')}</p>
                         </div>
                       </div>
                       <button
@@ -621,7 +621,7 @@ const UploadDocument = () => {
                         onClick={() => fileInputRef.current?.click()}
                         className="text-sm font-bold text-primary-600 hover:text-primary-700 dark:hover:text-primary-400 transition"
                       >
-                        + {t('upload.addMore')}
+                        + {t('admin.documents.upload.addMore')}
                       </button>
                     </div>
 
@@ -681,7 +681,7 @@ const UploadDocument = () => {
                     </>
                   ) : (
                     <>
-                      <span>{t('upload.startProcess')}</span>
+                      <span>{t('admin.documents.upload.startProcess')}</span>
                       <PaperPlaneTiltIcon size={20} weight="bold" />
                     </>
                   )}

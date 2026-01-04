@@ -72,6 +72,7 @@ class BotUpdateConfigRequest(BaseModel):
 class BotAskRequest(BaseModel):
   message: str
   streaming: bool = False
+  quiz_mode: bool = False
 
 
 class BotAskResponse(BaseModel):

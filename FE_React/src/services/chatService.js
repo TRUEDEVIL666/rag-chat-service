@@ -19,15 +19,43 @@ export const streamChatResponse = async ({
   signal,
   onChunk,
   onSessionId,
+  quizMode = false,
 }) => {
   const endpoint = sessionId
     ? `/bots/${botId}/ask/${sessionId}`
     : `/bots/${botId}/ask`;
 
-  // Use Axios with fetch adapter to leverage interceptors while supporting streaming
+  // 1. NON-STREAMING (Quiz Mode)
+  if (quizMode) {
+    try {
+      const response = await api.post(endpoint, {
+        message,
+        streaming: false,
+        quiz_mode: true
+      }, { 
+        signal,
+        timeout: 600000 // 10 minutes for long quiz generation
+      });
+
+      const data = response.data;
+      if (data.session_id && onSessionId) {
+        onSessionId(data.session_id);
+      }
+      if (data.response && onChunk) {
+        onChunk(data.response);
+      }
+    } catch (error) {
+      console.error("Non-streaming chat error:", error);
+      throw error;
+    }
+    return;
+  }
+
+  // 2. STREAMING (Normal Chat)
   const response = await api.post(endpoint, {
     message,
-    streaming: true
+    streaming: true,
+    quiz_mode: false
   }, {
     signal,
     adapter: 'fetch', // Available in Axios v1.7.0+
@@ -70,4 +98,51 @@ export const streamChatResponse = async ({
       }
     }
   }
+};
+
+/**
+ * Fetches the list of chat sessions.
+ * @param {Object} params - Query params (limit, cursor_timestamp, bot_id)
+ */
+export const getSessions = async (params = {}) => {
+  const response = await api.get('/sessions', { params });
+  return response.data;
+};
+
+/**
+ * Fetches messages for a specific session.
+ * @param {string} sessionId
+ * @param {Object} params - Query params (limit, cursor_timestamp, sort_desc)
+ */
+export const getSessionMessages = async (sessionId, params = {}) => {
+  const response = await api.get(`/sessions/${sessionId}/messages`, { params });
+  return response.data;
+};
+
+/**
+ * Fetches details of a specific session.
+ * @param {string} sessionId
+ */
+export const getSession = async (sessionId) => {
+  const response = await api.get(`/sessions/${sessionId}`);
+  return response.data;
+};
+
+/**
+ * Deletes a session.
+ * @param {string} sessionId 
+ */
+export const deleteSession = async (sessionId) => {
+  const response = await api.delete(`/sessions/${sessionId}`);
+  return response.data;
+};
+
+/**
+ * Updates a session.
+ * @param {string} sessionId
+ * @param {Object} data - Fields to update (e.g. summary_text)
+ */
+export const updateSession = async (sessionId, data) => {
+  const response = await api.patch(`/sessions/${sessionId}`, data);
+  return response.data;
 };

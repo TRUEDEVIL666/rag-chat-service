@@ -57,7 +57,6 @@ class AiModelCreate(BaseModel):
   name: str
   model_type: str = "chat"  # chat, reranker, embedding
   is_active: bool = True
-  config: Optional[dict] = {}
 
 
 class AiModelUpdate(BaseModel):
@@ -65,4 +64,3 @@ class AiModelUpdate(BaseModel):
   name: Optional[str] = None
   model_type: Optional[str] = None
   is_active: Optional[bool] = None
-  config: Optional[dict] = None

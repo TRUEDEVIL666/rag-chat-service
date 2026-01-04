@@ -19,17 +19,17 @@ import { usePageTour } from '../../../hooks/usePageTour';
 import TourButton from '../../../components/common/TourButton';
 
 const BotForm = ({ initialData, isEdit = false }) => {
-  const { t } = useTranslation(['bots', 'translation']);
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { createBot, updateBot, loading: processing } = useBots();
   const { providers, models, rerankers, loading: loadingOptions, fetchProviders, fetchModels, fetchRerankers } = useBotOptions();
 
   const tourSteps = [
-    { element: '#bot-name-input', popover: { title: t('tour.botForm.name'), description: t('tour.botForm.nameDesc', 'Give your bot a unique name.') } },
-    { element: '#provider-select', popover: { title: t('tour.botForm.provider'), description: t('tour.botForm.providerDesc', 'Select the AI provider (e.g., OpenAI, Ollama).') } },
-    { element: '#model-select', popover: { title: t('tour.botForm.model'), description: t('tour.botForm.modelDesc', 'Choose the specific model to use.') } },
-    { element: '#system-prompt-input', popover: { title: t('tour.botForm.prompt'), description: t('tour.botForm.promptDesc', 'Define the personality and rules for your bot.') } },
-    { element: '#save-bot-btn', popover: { title: t('tour.botForm.save'), description: t('tour.botForm.saveDesc', 'Save your changes.') } }
+    { element: '#bot-name-input', popover: { title: t('tour.bots.form.name'), description: t('tour.bots.form.nameDesc') } },
+    { element: '#provider-select', popover: { title: t('tour.bots.form.provider'), description: t('tour.bots.form.providerDesc') } },
+    { element: '#model-select', popover: { title: t('tour.bots.form.model'), description: t('tour.bots.form.modelDesc') } },
+    { element: '#system-prompt-input', popover: { title: t('tour.bots.form.prompt'), description: t('tour.bots.form.promptDesc') } },
+    { element: '#save-bot-btn', popover: { title: t('tour.bots.form.save'), description: t('tour.bots.form.saveDesc') } }
   ];
 
   const { startTour } = usePageTour('bot-form', tourSteps);
@@ -113,11 +113,11 @@ const BotForm = ({ initialData, isEdit = false }) => {
 
       if (isEdit) {
         await updateBot(initialData.id, payload);
-        alert(t('form.updateSuccess'));
+        alert(t('admin.bots.form.updateSuccess'));
         navigate('/admin/bots');
       } else {
         const newBot = await createBot(payload);
-        alert(t('form.createSuccess'));
+        alert(t('admin.bots.form.createSuccess'));
         // Redirect to configurable KB page for the new bot
         navigate(`/admin/bots/${newBot.id}/kbs`);
       }
@@ -153,12 +153,12 @@ const BotForm = ({ initialData, isEdit = false }) => {
                 <div>
                   <div className="flex items-center gap-3">
                     <h1 className="text-xl font-bold text-gray-800 dark:text-white">
-                      {isEdit ? t('form.editTitle') : t('form.createTitle')}
+                      {isEdit ? t('admin.bots.form.editTitle') : t('admin.bots.form.createTitle')}
                     </h1>
                     <TourButton startTour={startTour} />
                   </div>
                   <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                    {isEdit ? t('form.editSubtitle') : t('form.createSubtitle')}
+                    {isEdit ? t('admin.bots.form.editSubtitle') : t('admin.bots.form.createSubtitle')}
                   </p>
                 </div>
               </div>
@@ -172,11 +172,11 @@ const BotForm = ({ initialData, isEdit = false }) => {
                   <div>
                     <TextField
                       id="bot-name-input"
-                      label={t('form.nameLabel')}
+                      label={t('admin.bots.form.nameLabel')}
                       name="bot_name"
                       value={formData.bot_name}
                       onChange={handleChange}
-                      placeholder={t('form.namePlaceholder')}
+                      placeholder={t('admin.bots.form.namePlaceholder')}
                       required
                       icon={RobotIcon}
                     />
@@ -184,11 +184,11 @@ const BotForm = ({ initialData, isEdit = false }) => {
 
                   <div>
                     <TextField
-                      label={t('form.descLabel')}
+                      label={t('admin.bots.form.descLabel')}
                       name="description"
                       value={formData.description}
                       onChange={handleChange}
-                      placeholder={t('form.descPlaceholder')}
+                      placeholder={t('admin.bots.form.descPlaceholder')}
                       icon={NotebookIcon}
                     />
                   </div>
@@ -197,12 +197,12 @@ const BotForm = ({ initialData, isEdit = false }) => {
                     <div>
                       <Select
                         id="provider-select"
-                        label={t('form.providerLabel')}
+                        label={t('admin.bots.form.providerLabel')}
                         name="provider_id"
                         value={formData.provider_id}
                         onChange={handleChange}
                         options={providers.map(p => ({ value: p.id, label: p.display_name }))}
-                        placeholder={t('form.selectProvider')}
+                        placeholder={t('admin.bots.form.selectProvider')}
                         icon={CpuIcon}
                         required
                       />
@@ -211,14 +211,14 @@ const BotForm = ({ initialData, isEdit = false }) => {
                     <div>
                       <Select
                         id="model-select"
-                        label={t('form.modelLabel')}
+                        label={t('admin.bots.form.modelLabel')}
                         name="model_id"
                         value={formData.model_id}
                         onChange={handleChange}
                         required
                         disabled={!formData.provider_id || loadingOptions}
                         options={models.map(m => ({ value: m.id, label: m.name }))}
-                        placeholder={t('form.selectModel')}
+                        placeholder={t('admin.bots.form.selectModel')}
                         icon={CpuIcon}
                         loading={loadingOptions}
                       />
@@ -228,14 +228,14 @@ const BotForm = ({ initialData, isEdit = false }) => {
                   <div id="system-prompt-input" className="relative group space-y-3">
                     <label className="block text-sm font-bold text-primary-600 uppercase tracking-widest flex items-center gap-2">
                       <MagicWandIcon size={18} className="text-primary-500" />
-                      {t('form.promptLabel')}
+                      {t('admin.bots.form.promptLabel')}
                     </label>
 
                     <div className="bg-primary-50/50 dark:bg-gray-800/50 rounded-xl p-4 border border-primary-100/50 dark:border-gray-700 flex gap-3">
                       <LightningIcon className="text-primary-500 shrink-0" size={20} />
                       <div>
-                        <h5 className="font-bold text-primary-900 dark:text-primary-400 text-xs mb-0.5">{t('form.preview.tipTitle')}</h5>
-                        <p className="text-xs text-primary-700 dark:text-gray-400 leading-relaxed">{t('form.preview.tipText')}</p>
+                        <h5 className="font-bold text-primary-900 dark:text-primary-400 text-xs mb-0.5">{t('admin.bots.form.preview.tipTitle')}</h5>
+                        <p className="text-xs text-primary-700 dark:text-gray-400 leading-relaxed">{t('admin.bots.form.preview.tipText')}</p>
                       </div>
                     </div>
                     <textarea
@@ -244,7 +244,7 @@ const BotForm = ({ initialData, isEdit = false }) => {
                       onChange={handleChange}
                       rows="8"
                       required
-                      placeholder={t('form.promptPlaceholder')}
+                      placeholder={t('admin.bots.form.promptPlaceholder')}
                       className="input-field p-4"
                     ></textarea>
                   </div>
@@ -260,7 +260,7 @@ const BotForm = ({ initialData, isEdit = false }) => {
                       icon={isEdit ? FloppyDiskIcon : ArrowRightIcon}
                       className="shadow-lg"
                     >
-                      {isEdit ? t('common.saveChanges') : t('form.createContinue')}
+                      {isEdit ? t('common.saveChanges') : t('admin.bots.form.createContinue')}
                     </Button>
                   </div>
                 </div>
@@ -276,15 +276,15 @@ const BotForm = ({ initialData, isEdit = false }) => {
                         <CpuIcon size={24} className="text-primary-600 dark:text-primary-400" />
                       </div>
                       <div>
-                        <h3 className="font-bold text-gray-800 dark:text-white">{t('bots:form.configuration.title')}</h3>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">{t('bots:form.configuration.subtitle')}</p>
+                        <h3 className="font-bold text-gray-800 dark:text-white">{t('admin.bots.form.configuration.title')}</h3>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{t('admin.bots.form.configuration.subtitle')}</p>
                       </div>
                     </div>
 
                     {/* Temperature */}
                     <div className="space-y-3">
                       <div className="flex justify-between items-center">
-                        <label className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('bots:form.configuration.temperature')}</label>
+                        <label className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('admin.bots.form.configuration.temperature')}</label>
                         <span className="text-xs font-mono bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded text-gray-600 dark:text-gray-300">{formData.config_model.temperature}</span>
                       </div>
                       <input
@@ -300,13 +300,13 @@ const BotForm = ({ initialData, isEdit = false }) => {
                         }))}
                         className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-primary-600"
                       />
-                      <p className="text-xs text-gray-500 dark:text-gray-400">{t('bots:form.configuration.temperatureDesc')}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{t('admin.bots.form.configuration.temperatureDesc')}</p>
                     </div>
 
                     {/* Top K */}
                     <div className="space-y-3">
                       <div className="flex justify-between items-center">
-                        <label className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('bots:form.configuration.topK')}</label>
+                        <label className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('admin.bots.form.configuration.topK')}</label>
                         <span className="text-xs font-mono bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded text-gray-600 dark:text-gray-300">{formData.config_model.top_k}</span>
                       </div>
                       <input
@@ -322,14 +322,14 @@ const BotForm = ({ initialData, isEdit = false }) => {
                         }))}
                         className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-primary-600"
                       />
-                      <p className="text-xs text-gray-500 dark:text-gray-400">{t('bots:form.configuration.topKDesc')}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{t('admin.bots.form.configuration.topKDesc')}</p>
                     </div>
 
                     {/* Reranking Toggle */}
                     <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
                       <div>
-                        <label className="text-sm font-bold text-gray-800 dark:text-gray-200 block">{t('bots:form.configuration.reranking')}</label>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">{t('bots:form.configuration.rerankingDesc')}</p>
+                        <label className="text-sm font-bold text-gray-800 dark:text-gray-200 block">{t('admin.bots.form.configuration.reranking')}</label>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{t('admin.bots.form.configuration.rerankingDesc')}</p>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
                         <input
@@ -350,7 +350,7 @@ const BotForm = ({ initialData, isEdit = false }) => {
                       <div className="space-y-4 pt-2 animate-fadeIn">
                         <div>
                           <Select
-                            label={t('bots:form.configuration.rerankingModel')}
+                            label={t('admin.bots.form.configuration.rerankingModel')}
                             name="reranking_model"
                             value={formData.config_model.reranking_model || ''}
                             onChange={(e) => setFormData(prev => ({
@@ -358,7 +358,7 @@ const BotForm = ({ initialData, isEdit = false }) => {
                               config_model: { ...prev.config_model, reranking_model: e.target.value }
                             }))}
                             options={rerankers.map(m => ({ value: m.model_id, label: m.name }))}
-                            placeholder={t('bots:form.configuration.rerankingPlaceholder')}
+                            placeholder={t('admin.bots.form.configuration.rerankingPlaceholder')}
                           />
                         </div>
 
@@ -374,7 +374,7 @@ const BotForm = ({ initialData, isEdit = false }) => {
                                 }))}
                                 className="rounded text-primary-600 focus:ring-primary-500"
                               />
-                              <label className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('bots:form.configuration.scoreThreshold')}</label>
+                              <label className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('admin.bots.form.configuration.scoreThreshold')}</label>
 
                             </div>
                             <span className="text-xs font-mono bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded text-gray-600 dark:text-gray-300">{formData.config_model.score_threshold}</span>

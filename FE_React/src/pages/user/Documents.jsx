@@ -1,0 +1,518 @@
+import React, { useState, useEffect } from 'react';
+import PreviewModal from '../../components/documents/PreviewModal';
+import { documentService } from '../../services/documentService';
+import { useTranslation } from 'react-i18next';
+import { usePageTour } from '../../hooks/usePageTour';
+import TourButton from '../../components/common/TourButton';
+import {
+  FolderIcon,
+  FilePdfIcon,
+  FileDocIcon,
+  FileTextIcon,
+  FileIcon,
+  MagnifyingGlassIcon,
+  CircleIcon,
+  CheckCircleIcon,
+  CaretDownIcon,
+  SpinnerIcon,
+  WarningIcon,
+  EyeIcon,
+  DownloadSimpleIcon
+} from '@phosphor-icons/react';
+import { clsx } from 'clsx';
+import { formatDate, getExtension } from '../../utils/formatters';
+import { useDocuments } from '../../hooks/useDocuments';
+import { useKnowledgeBases } from '../../hooks/useKnowledgeBases';
+
+const UserDocuments = () => {
+  const { t } = useTranslation(['admin/documents', 'translation']);
+
+  // Hooks
+  const {
+    documents,
+    loading: docsLoading,
+    error: docsError,
+    fetchDocuments,
+  } = useDocuments();
+
+  const {
+    kbs,
+    loading: kbsLoading,
+    error: kbsError,
+    fetchKBs
+  } = useKnowledgeBases();
+
+  const error = docsError || kbsError;
+
+  const [items, setItems] = useState([]);
+  const [currentPath, setCurrentPath] = useState([]); // Array of {id, name}
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
+
+  // Preview State
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [previewFileUrl, setPreviewFileUrl] = useState('');
+  const [previewFileName, setPreviewFileName] = useState('');
+  const [previewFileAppType, setPreviewFileAppType] = useState('');
+
+  const loading = docsLoading || kbsLoading;
+
+  const tourSteps = [
+    { element: '#doc-header', popover: { title: t('tour.docs.title', 'Documents'), description: t('tour.docs.desc', 'View your knowledge base documents here.') } },
+    { element: '#doc-search', popover: { title: t('tour.docs.search', 'Search'), description: t('tour.docs.searchDesc', 'Search for documents or folders.') } },
+    { element: '#doc-list', popover: { title: t('tour.docs.list', 'Document List'), description: t('tour.docs.listDesc', 'Navigate through your folders and files.') } }
+  ];
+
+  const { startTour } = usePageTour('user-doc-list', tourSteps);
+
+  // Load items on path change
+  useEffect(() => {
+    loadItems();
+  }, [currentPath]);
+
+  // Sync state when hooks update
+  useEffect(() => {
+    if (currentPath.length === 0) {
+      // Mapping Knowledge Bases
+      const mappedKBs = kbs.map(kb => ({
+        id: kb.id,
+        name: kb.name,
+        type: 'folder',
+        description: kb.description || '--',
+        document_count: kb.document_count || 0,
+        embedding_model: kb.embedding_model || '--',
+        date_added: formatDate(kb.created_at),
+        added_by: 'System', // User view might not need to know who created it, or 'System' is fine
+        date_modified: formatDate(kb.updated_at),
+      }));
+      setItems(mappedKBs);
+    } else {
+      // Mapping Documents
+      const mappedDocs = documents.map(doc => ({
+        id: doc.id,
+        name: doc.name,
+        type: getExtension(doc.name) === 'pdf' ? 'pdf' : 'file',
+        ext: getExtension(doc.name),
+        size: doc.size ? formatBytes(doc.size) : '--',
+        chunk_count: doc.chunk_count || 0,
+        date_added: formatDate(doc.created_at),
+        date_modified: formatDate(doc.updated_at),
+        added_by: doc.creator?.name || doc.created_by || 'System',
+        status: doc.status || 'unknown',
+      }));
+      setItems(mappedDocs);
+    }
+  }, [kbs, documents, currentPath]);
+
+  const loadItems = async () => {
+    setSearchQuery('');
+    try {
+      if (currentPath.length === 0) {
+        await fetchKBs();
+      } else {
+        const currentFolder = currentPath[currentPath.length - 1];
+        await fetchDocuments(currentFolder.id);
+      }
+    } catch (error) {
+      console.error("Load failed:", error);
+      setItems([]);
+    }
+  };
+
+  // Helper helper
+  const formatBytes = (bytes, decimals = 2) => {
+    if (!+bytes) return '0 Bytes';
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+  };
+
+  const handleNavigateUp = (index) => {
+    if (index === -1) {
+      setCurrentPath([]);
+    } else {
+      setCurrentPath(currentPath.slice(0, index + 1));
+    }
+  };
+
+  const handleNavigateTo = (item) => {
+    if (item.type === 'folder') {
+      setCurrentPath([...currentPath, { id: item.id, name: item.name }]);
+    } else {
+      console.log("Opening file:", item.name);
+      handlePreview(item);
+    }
+  };
+
+  const filteredItems = React.useMemo(() => {
+    let result = [...items];
+
+    // 1. Filter
+    if (searchQuery) {
+      result = result.filter(item =>
+        item.name.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+
+    // 2. Sort
+    if (sortConfig.key) {
+      result.sort((a, b) => {
+        if (a[sortConfig.key] < b[sortConfig.key]) {
+          return sortConfig.direction === 'asc' ? -1 : 1;
+        }
+        if (a[sortConfig.key] > b[sortConfig.key]) {
+          return sortConfig.direction === 'asc' ? 1 : -1;
+        }
+        return 0;
+      });
+    }
+
+    return result;
+  }, [items, searchQuery, sortConfig]);
+
+  const handleSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const SortIcon = ({ columnKey }) => {
+    if (sortConfig.key !== columnKey) return <CaretDownIcon size={12} className="opacity-0 group-hover:opacity-50" />;
+    return sortConfig.direction === 'asc'
+      ? <CaretDownIcon size={12} className="transform rotate-180 text-primary-600" />
+      : <CaretDownIcon size={12} className="text-primary-600" />;
+  };
+
+  const getFileIcon = (item) => {
+    if (item.type === 'folder') {
+      return (
+        <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6">
+          <path d="M2.5 11.5V6.5C2.5 5.39543 3.39543 4.5 4.5 4.5H9.5L11.5 6.5H19.5C20.6046 6.5 21.5 7.39543 21.5 8.5V11.5" stroke="#F59E0B" fill="#FCD34D" strokeWidth="0" />
+          <path d="M2 10.5C2 9.39543 2.89543 8.5 4 8.5H20C21.1046 8.5 22 9.39543 22 10.5V18.5C22 19.6046 21.1046 20.5 20 20.5H4C2.89543 20.5 2 19.6046 2 18.5V10.5Z" fill="#FCD34D" stroke="#D97706" strokeWidth="0.5" />
+        </svg>
+      );
+    }
+    switch (item.ext) {
+      case 'pdf': return <FilePdfIcon className="text-2xl text-red-500" weight="fill" />;
+      case 'docx': return <FileDocIcon className="text-2xl text-primary-600" weight="fill" />;
+      case 'txt': return <FileTextIcon className="text-2xl text-gray-500" weight="fill" />;
+      default: return <FileIcon className="text-2xl text-gray-400" weight="fill" />;
+    }
+  };
+
+  const handlePreview = async (item) => {
+    setPreviewFileName(item.name);
+    setPreviewFileAppType(item.ext);
+    setPreviewFileUrl('');
+    setPreviewModalOpen(true);
+
+    try {
+      const url = await documentService.getDocumentDownloadUrl(item.id);
+      setPreviewFileUrl(url);
+    } catch (error) {
+      console.error("Failed to get preview URL:", error);
+    }
+  };
+
+  const handleDownload = async (item, e) => {
+    e.stopPropagation();
+    try {
+      const url = await documentService.getDocumentDownloadUrl(item.id);
+      window.open(url, '_blank');
+    } catch (error) {
+      console.error("Failed to get download URL:", error);
+      // alert(t('common.errorOccurred'));
+    }
+  };
+
+  return (
+    <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative bg-white dark:bg-gray-900 transition-colors">
+
+      {/* Top Navigation Bar */}
+      <header className="px-6 py-2 border-b border-gray-100 dark:border-gray-700 flex flex-col gap-2 bg-white dark:bg-gray-800 transition-colors">
+        {/* Breadcrumbs & Search */}
+        <div className="flex items-center justify-between h-10">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleNavigateUp(-1)}
+              className="p-1.5 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-primary-600 rounded-md transition"
+              title="Back to Root"
+            >
+              <FolderIcon size={18} weight={currentPath.length === 0 ? "fill" : "regular"} />
+            </button>
+            <div className="h-4 w-px bg-gray-300 dark:bg-gray-600 mx-1"></div>
+            <div className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 gap-2">
+              <span
+                className={clsx(
+                  "hover:underline cursor-pointer transition-colors",
+                  currentPath.length === 0 ? "font-bold text-gray-800 dark:text-white" : ""
+                )}
+                onClick={() => handleNavigateUp(-1)}
+              >
+                {t('list.title')}
+              </span>
+              {currentPath.map((item, index) => (
+                <React.Fragment key={item.id}>
+                  <span className="text-gray-300 dark:text-gray-600">/</span>
+                  <span
+                    className={clsx(
+                      "hover:underline cursor-pointer transition-colors",
+                      index === currentPath.length - 1 ? "font-bold text-gray-800 dark:text-white" : ""
+                    )}
+                    onClick={() => handleNavigateUp(index)}
+                  >
+                    {item.name}
+                  </span>
+                </React.Fragment>
+              ))}
+            </div>
+          </div>
+        </div>
+      </header>
+      <header className="h-16 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-6 flex-shrink-0 z-20">
+        <div className="flex items-center gap-3">
+          <h1 id="doc-header" className="text-xl font-semibold text-gray-900 dark:text-white">
+            {currentPath.length > 0 ? currentPath[currentPath.length - 1].name : t('list.title')}
+          </h1>
+          <TourButton startTour={startTour} />
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <MagnifyingGlassIcon size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              id="doc-search"
+              type="text"
+              placeholder={t('list.searchPlaceholder')}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 pr-4 py-2 bg-gray-100 dark:bg-gray-700 border-none rounded-lg text-sm w-64 focus:ring-2 focus:ring-primary-500 text-gray-900 dark:text-white"
+            />
+          </div>
+        </div>
+      </header>
+
+      {/* File List */}
+      <div id="doc-list" className="flex-1 overflow-auto">
+        <table className="w-full text-left text-sm border-collapse">
+          <thead className="sticky top-0 bg-white dark:bg-gray-800 z-10 border-b border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 font-medium cursor-default">
+            <tr>
+              <th className="pl-4 pr-2 py-3 w-10 text-center"><div className="w-5"></div></th>
+              <th className="px-2 py-3 w-8">{t('list.table.type')}</th>
+              <th
+                className="px-2 py-3 w-40 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer group"
+                onClick={() => handleSort('name')}
+              >
+                <div className="flex items-center gap-1 select-none">
+                  {t('list.table.name', 'Name')} <SortIcon columnKey="name" />
+                </div>
+              </th>
+              {currentPath.length > 0 && (
+                <th
+                  className="px-2 py-3 w-24 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer group"
+                  onClick={() => handleSort('status')}
+                >
+                  <div className="flex items-center gap-1 select-none">
+                    {t('list.table.status')} <SortIcon columnKey="status" />
+                  </div>
+                </th>
+              )}
+              {currentPath.length === 0 && (
+                <th
+                  className="px-2 py-3 w-48 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer group"
+                  onClick={() => handleSort('description')}
+                >
+                  <div className="flex items-center gap-1 select-none">
+                    {t('list.table.description')} <SortIcon columnKey="description" />
+                  </div>
+                </th>
+              )}
+              {currentPath.length === 0 && (
+                <>
+                  <th
+                    className="px-2 py-3 w-32 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer group"
+                    onClick={() => handleSort('document_count')}
+                  >
+                    <div className="flex items-center gap-1 select-none">
+                      {t('list.table.documentCount')} <SortIcon columnKey="document_count" />
+                    </div>
+                  </th>
+                  <th
+                    className="px-2 py-3 w-40 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer group"
+                    onClick={() => handleSort('embedding_model')}
+                  >
+                    <div className="flex items-center gap-1 select-none">
+                      {t('list.table.embeddingModel')} <SortIcon columnKey="embedding_model" />
+                    </div>
+                  </th>
+                </>
+              )}
+              <th
+                className="px-2 py-3 w-24 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer group"
+                onClick={() => handleSort('date_added')}
+              >
+                <div className="flex items-center gap-1 select-none">
+                  {t('list.table.dateAdded')} <SortIcon columnKey="date_added" />
+                </div>
+              </th>
+              <th
+                className="px-2 py-3 w-28 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer group"
+                onClick={() => handleSort('date_modified')}
+              >
+                <div className="flex items-center gap-1 select-none">
+                  {t('list.table.dateModified')} <SortIcon columnKey="date_modified" />
+                </div>
+              </th>
+              {currentPath.length > 0 && (
+                <th
+                  className="px-2 py-3 w-32 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer group"
+                  onClick={() => handleSort('added_by')}
+                >
+                  <div className="flex items-center gap-1 select-none">
+                    {t('list.table.addedBy')} <SortIcon columnKey="added_by" />
+                  </div>
+                </th>
+              )}
+              {currentPath.length > 0 && (
+                <th className="px-2 py-3 w-40 text-center">{t('list.table.actions', 'Actions')}</th>
+              )}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+            {loading ? (
+              <tr>
+                <td colSpan="8" className="px-6 py-12 text-center text-gray-500">
+                  <div className="flex flex-col items-center justify-center">
+                    <SpinnerIcon size={24} className="animate-spin text-primary-600 mb-2" />
+                    <span className="text-xs">{t('common.processing')}</span>
+                  </div>
+                </td>
+              </tr>
+            ) : error ? (
+              <tr>
+                <td colSpan="8" className="px-6 py-12 text-center text-red-500 bg-red-50 dark:bg-red-900/10">
+                  <div className="flex flex-col items-center gap-2">
+                    <WarningIcon size={32} />
+                    <p className="font-medium">{t('common.errorOccurred')}</p>
+                    <p className="text-sm text-red-600 dark:text-red-400">{error?.message || String(error)}</p>
+                  </div>
+                </td>
+              </tr>
+            ) : filteredItems.length === 0 ? (
+              <tr><td colSpan="8" className="text-center py-10 text-gray-500">{t('list.empty')}</td></tr>
+            ) : (
+              filteredItems.map(item => (
+                <tr
+                  key={item.id}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleNavigateTo(item);
+                  }}
+                  className="group border-b border-transparent hover:border-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white transition cursor-default text-gray-700 dark:text-gray-300"
+                >
+                  <td className="pl-4 pr-2 py-2 text-center">
+                    {/* No Selection for Read Only */}
+                    <div className="w-5"></div>
+                  </td>
+                  <td className="px-2 py-2">
+                    <div className="flex items-center justify-center">
+                      {getFileIcon(item)}
+                    </div>
+                  </td>
+                  <td className="px-2 py-2 font-medium text-gray-900 dark:text-gray-200 group-hover:text-primary-700 dark:group-hover:text-primary-400 truncate max-w-[200px]" title={item.name}>
+                    {item.name}
+                  </td>
+                  {currentPath.length === 0 && (
+                    <td className="px-2 py-2 text-gray-500 dark:text-gray-400 text-xs sm:text-sm truncate max-w-[350px]" title={item.description}>
+                      {item.description}
+                    </td>
+                  )}
+
+                  {currentPath.length > 0 && (
+                    <td className="px-2 py-2 text-gray-500 dark:text-gray-400 text-xs sm:text-sm capitalize">
+                      <div className="flex items-center gap-2">
+                        <span className={clsx(
+                          item.status === 'error' || item.status === 'failed' || item.status === 'Error' ? "text-red-600 dark:text-red-400 font-medium" : ""
+                        )}>
+                          {item.status}
+                        </span>
+                      </div>
+                    </td>
+                  )}
+                  {currentPath.length === 0 && (
+                    <>
+                      <td className="px-2 py-2 text-gray-500 dark:text-gray-400 text-xs sm:text-sm">
+                        {item.document_count}
+                      </td>
+                      <td className="px-2 py-2 text-gray-500 dark:text-gray-400 text-xs sm:text-sm truncate max-w-[150px]" title={item.embedding_model}>
+                        {item.embedding_model}
+                      </td>
+                    </>
+                  )}
+                  <td className="px-2 py-2 text-gray-500 dark:text-gray-400 text-xs sm:text-sm whitespace-nowrap">
+                    {item.date_added}
+                  </td>
+                  <td className="px-2 py-2 text-gray-500 dark:text-gray-400 text-xs sm:text-sm whitespace-nowrap">
+                    {item.date_modified}
+                  </td>
+                  {currentPath.length > 0 && (
+                    <td className="px-2 py-2 text-gray-500 dark:text-gray-400 text-xs sm:text-sm max-w-[150px] truncate" title={item.added_by}>
+                      {item.added_by}
+                    </td>
+                  )}
+                  {currentPath.length > 0 && (
+                    <td className="px-2 py-2 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        {item.type !== 'folder' && (
+                          <>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handlePreview(item); }}
+                              className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors"
+                              title={t('common.preview', 'Preview')}
+                            >
+                              <EyeIcon size={18} />
+                            </button>
+                            <button
+                              onClick={(e) => handleDownload(item, e)}
+                              className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors"
+                              title={t('common.download', 'Download')}
+                            >
+                              <DownloadSimpleIcon size={18} />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  )}
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+
+        {/* Bottom Buffer */}
+        <div className="h-20"></div>
+      </div>
+
+      {/* Footer Status Bar */}
+      <div className="bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-4 py-1 text-xs text-gray-500 dark:text-gray-400 flex justify-between items-center">
+        <span>{t('list.footer.itemsCount', { count: filteredItems.length })}</span>
+        <span>{t('list.footer.lastSynced')}: {t('common.justNow')}</span>
+      </div>
+      {/* Modals */}
+      <PreviewModal
+        isOpen={previewModalOpen}
+        onClose={() => setPreviewModalOpen(false)}
+        fileUrl={previewFileUrl}
+        fileName={previewFileName}
+        fileAppType={previewFileAppType}
+      />
+    </div >
+
+  );
+};
+
+export default UserDocuments;

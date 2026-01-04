@@ -49,3 +49,12 @@ class TenantRepository:
     except Exception as e:
       logger.exception(f"Failed to create tenant {name}")
       raise RuntimeError(f"Failed to create tenant {name}")
+
+  def get_all_tenants(self, access_token: str = None) -> list[dict]:
+    try:
+      client = get_supabase_client(access_token)
+      response = client.table(self.table_name).select("*").execute()
+      return response.data if response.data else []
+    except Exception as e:
+      logger.exception("Failed to get all tenants")
+      return []

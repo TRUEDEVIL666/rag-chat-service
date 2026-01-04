@@ -10,8 +10,22 @@ class SessionService:
   def create_session(self, user_id: str, bot_id: str, tenant_id: str = None, access_token: str = None):
     return self.session_repo.create_session(user_id, bot_id, tenant_id, access_token=access_token)
 
-  def list_sessions(self, user_id: str, tenant_id: str, limit: int = 20, cursor_timestamp: int = None, access_token: str = None, bot_id: str = None) -> list[dict]:
-    return self.session_repo.list_sessions(user_id, tenant_id, limit, cursor_timestamp, access_token, bot_id)
+  def list_sessions(
+      self,
+      user_id: str,
+      tenant_id: str,
+      limit: int = 20,
+      cursor_timestamp: int = None,
+      access_token: str = None,
+      bot_id: str = None,
+      search: str = None,
+      start_date=None,
+      end_date=None
+  ) -> list[dict]:
+    return self.session_repo.list_sessions(user_id, tenant_id, limit, cursor_timestamp, access_token, bot_id, search, start_date, end_date)
+
+  def get_session(self, session_id: str, access_token: str = None) -> dict | None:
+    return self.session_repo.get_session(session_id, access_token)
 
   def delete_session(self, session_id: str, user_id: str, access_token: str = None) -> bool:
     return self.session_repo.delete_session(session_id, user_id, access_token=access_token)

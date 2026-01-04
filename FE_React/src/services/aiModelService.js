@@ -42,6 +42,15 @@ export const aiModelService = {
     return response.data;
   },
 
+  getProviderExternalModels: async (providerId, modelType) => {
+    let url = `/ai-models/providers/${providerId}/external-models`;
+    if (modelType) {
+      url += `?model_type=${modelType}`;
+    }
+    const response = await api.get(url);
+    return response.data;
+  },
+
   createModel: async (data) => {
     const response = await api.post('/ai-models/models', data);
     return response.data;

@@ -35,7 +35,7 @@ class SessionRepository:
       client = get_supabase_client(access_token)
       response = (
           client.table(self.table_name)
-          .select("*")
+          .select("*, bots(name)")
           .eq("id", session_id)
           .single()
           .execute()
@@ -47,21 +47,21 @@ class SessionRepository:
       logger.exception(f"Failed to get session {session_id}: {e}")
       return None
 
-  def list_sessions(self, user_id: str, tenant_id: str, limit: int = 20, cursor_timestamp: int = None, access_token: str = None, bot_id: str = None) -> list[dict]:
+  def list_sessions(self, user_id: str, tenant_id: str, limit: int = 20, cursor_timestamp: int = None, access_token: str = None, bot_id: str = None, search: str = None, start_date=None, end_date=None) -> list[dict]:
     try:
       client = get_supabase_client(access_token)
       query = (
           client.table(self.table_name)
-          .select("*")
+          .select("*, bots(name)")
           .eq("user_id", user_id)
           .order("updated_at", desc=True)
           .limit(limit)
       )
+
+      from datetime import datetime
+
       if cursor_timestamp:
-        # Convert timestamp to datetime string if needed, or if DB stores as timestamp
-        # Ideally client passes a timestamp (int/float) or ISO string. Supabase expects ISO string for timestamp columns.
         # Assuming cursor_timestamp is unix timestamp (int).
-        from datetime import datetime
         dt_cursor = datetime.fromtimestamp(cursor_timestamp).isoformat()
         query = query.lt("updated_at", dt_cursor)
 
@@ -69,6 +69,21 @@ class SessionRepository:
         query = query.eq("tenant_id", tenant_id)
       if bot_id:
         query = query.eq("bot_id", bot_id)
+
+      if search:
+        # Search in summary_text and title
+        # Note: We can't easily search foreign table 'bots.name' with OR in the same query via JS client syntax effortlessly without raw SQL or embedded resource filtering.
+        # Sticking to session fields for now.
+        search_filter = f"summary_text.ilike.%{search}%,title.ilike.%{search}%"
+        query = query.or_(search_filter)
+
+      if start_date:
+        query = query.gte("updated_at", start_date.isoformat()
+                          if isinstance(start_date, datetime) else start_date)
+
+      if end_date:
+        query = query.lte("updated_at", end_date.isoformat()
+                          if isinstance(end_date, datetime) else end_date)
 
       response = query.execute()
       return response.data or []

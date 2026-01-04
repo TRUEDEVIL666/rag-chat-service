@@ -3,27 +3,50 @@ import { dashboardService } from '../services/dashboardService';
 
 export const useDashboard = () => {
   const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [chartData, setChartData] = useState(null);
+  const [loadingStats, setLoadingStats] = useState(false);
+  const [loadingChart, setLoadingChart] = useState(false);
   const [error, setError] = useState(null);
 
-  const fetchStats = useCallback(async (timeRange) => {
-    setLoading(true);
+  const fetchSummary = useCallback(async () => {
+    setLoadingStats(true);
     try {
-      const data = await dashboardService.getStats(timeRange);
+      const data = await dashboardService.getStatsSummary();
       setStats(data);
       setError(null);
     } catch (err) {
       setError(err);
-      console.error("Failed to fetch dashboard stats", err);
+      console.error("Failed to fetch dashboard summary", err);
     } finally {
-      setLoading(false);
+      setLoadingStats(false);
     }
   }, []);
 
+  const fetchChart = useCallback(async (timeRange) => {
+    setLoadingChart(true);
+    try {
+      const data = await dashboardService.getChartData(timeRange);
+      setChartData(data);
+    } catch (err) {
+      console.error("Failed to fetch chart data", err);
+    } finally {
+      setLoadingChart(false);
+    }
+  }, []);
+
+  const fetchAll = useCallback(async (timeRange) => {
+    fetchSummary();
+    fetchChart(timeRange);
+  }, [fetchSummary, fetchChart]);
+
   return {
     stats,
-    loading,
+    chartData,
+    loadingStats,
+    loadingChart,
     error,
-    fetchStats
+    fetchSummary,
+    fetchChart,
+    fetchAll
   };
 };

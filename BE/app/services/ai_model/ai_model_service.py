@@ -1,6 +1,12 @@
-import logging
-from typing import List, Optional, Dict, Any
+from typing import List, Dict, Any, Optional
+from app.schemas.ai_model import AiModelCreate, AiModelUpdate
+from app.config.config import settings
 from app.services.supabase.ai_model_repository import AiModelRepository
+import logging
+import httpx
+import json
+import openai
+from google import genai
 
 logger = logging.getLogger(__name__)
 
@@ -147,5 +153,89 @@ class AiModelService:
       return self.repo.get_decrypted_key(provider_id, access_token=access_token)
     except Exception as e:
       logger.error(
-        f"Error fetching decrypted key for provider {provider_id}: {e}")
+          f"Error fetching decrypted key for provider {provider_id}: {e}")
       return None
+
+  def fetch_external_models(self, provider_id: str, model_type: str = None, access_token: str = None) -> List[str]:
+    """
+    Fetches available models from the external provider's API using official SDKs.
+    """
+    try:
+      # 1. Get provider details
+      provider = self.repo.get_provider_by_id(
+        provider_id, access_token=access_token)
+      if not provider:
+        raise ValueError(f"Provider with ID {provider_id} not found")
+
+      base_url = provider.get("base_url")
+      provider_name = provider.get("name", "").lower()
+
+      # Decrypt API key if it exists
+      api_key = self.repo.get_decrypted_key(
+        provider_id, access_token=access_token)
+
+      models = []
+
+      # --- Logic: OpenAI & Compatible (also handles Ollama with /v1) ---
+      # If provider is OpenAI OR (Ollama AND base_url ends with /v1)
+      is_ollama_v1 = "ollama" in provider_name and base_url and base_url.rstrip(
+        "/").endswith("/v1")
+
+      if "openai" in provider_name or is_ollama_v1:
+        # Use OpenAI SDK
+        target_url = base_url.rstrip(
+          "/") if base_url else "https://api.openai.com/v1"
+        client = openai.Client(api_key=api_key or "dummy", base_url=target_url)
+
+        try:
+          response = client.models.list()
+          models = [model.id for model in response.data]
+        except openai.APIError as e:
+          raise ValueError(f"OpenAI API Error: {e}")
+
+      # --- Logic: Google Gemini ---
+      elif "google" in provider_name:
+        if not api_key:
+          raise ValueError("Google API Key is required for fetching models.")
+
+        try:
+          client = genai.Client(api_key=api_key)
+          # List models using the new GenAI SDK
+          response = client.models.list()
+
+          models = []
+          for m in response:
+            name = getattr(m, "name", "")
+            if name:
+              models.append(name.replace("models/", ""))
+        except Exception as e:
+          raise ValueError(f"Google GenAI Error: {e}")
+
+      # --- Logic: Ollama (Native) ---
+      elif "ollama" in provider_name:
+        # User requested "correct library". Ollama has a python library, but it connects
+        # to localhost by default. If base_url is custom, we need to configure it.
+        # Fallback to simple request if library not preferred for native, OR use ollama lib.
+        # Since 'ollama' package is installed (based on llm_service imports), let's use it.
+        # But ollama python client uses OLLAMA_HOST env var usually.
+        # It accepts 'host' in Client.
+        import ollama
+        target_url = base_url.rstrip(
+          "/") if base_url else "http://localhost:11434"
+
+        try:
+          client = ollama.Client(host=target_url)
+          response = client.list()
+          # response is {'models': [...]}
+          models = [m['name'] for m in response['models']]
+        except Exception as e:
+          raise ValueError(f"Ollama Error: {e}")
+
+      return sorted(models)
+
+    except ValueError as e:
+      raise e  # Re-raise known value errors
+    except Exception as e:
+      logger.error(
+        f"Unexpected error in fetch_external_models: {e}", exc_info=True)
+      raise ValueError(f"Internal service error: {str(e)}")

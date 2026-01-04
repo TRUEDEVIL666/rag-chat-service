@@ -15,7 +15,7 @@ import api from '../../../services/api'; // Corrected default import
 const BotKBConfigPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { t } = useTranslation(['bots', 'translation']);
+  const { t } = useTranslation();
 
   const [bot, setBot] = useState(null);
   const [kbs, setKbs] = useState([]);
@@ -162,10 +162,10 @@ const BotKBConfigPage = () => {
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              {t('kbConfig.pageTitle', 'Knowledge Bases for')} <span className="text-primary-600 dark:text-primary-400">{bot?.name}</span>
+              {t('admin.bots.kbConfig.pageTitle')} <span className="text-primary-600 dark:text-primary-400">{bot?.name}</span>
             </h1>
             <p className="text-gray-500 dark:text-gray-400 mt-1">
-              {t('kbConfig.pageSubtitle', 'Select the knowledge bases this bot can access.')}
+              {t('admin.bots.kbConfig.pageSubtitle')}
             </p>
           </div>
 
@@ -188,7 +188,7 @@ const BotKBConfigPage = () => {
           <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
           <input
             type="text"
-            placeholder={t('kbConfig.searchPlaceholder', 'Search by name, description, model...')}
+            placeholder={t('admin.bots.kbConfig.searchPlaceholder')}
             className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all outline-none"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -202,9 +202,9 @@ const BotKBConfigPage = () => {
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
           >
-            <option value="name">{t('kbConfig.sortName', 'Name')}</option>
-            <option value="created_at">{t('table.dateCreated')}</option>
-            <option value="updated_at">{t('table.lastUpdated')}</option>
+            <option value="name">{t('admin.bots.kbConfig.sortName')}</option>
+            <option value="created_at">{t('admin.bots.table.dateCreated')}</option>
+            <option value="updated_at">{t('admin.bots.table.lastUpdated')}</option>
           </select>
           <button
             className="p-2 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
@@ -220,7 +220,7 @@ const BotKBConfigPage = () => {
       {filteredAndSortedKbs.length === 0 ? (
         <div className="text-center py-20 bg-white dark:bg-gray-800 rounded-2xl border border-dashed border-gray-300 dark:border-gray-700">
           <p className="text-gray-500 dark:text-gray-400 text-lg">
-            {searchQuery ? t('kbConfig.noSearchResults', 'No matching knowledge bases found.') : t('kbConfig.noKbsAvailable', 'No knowledge bases available.')}
+            {searchQuery ? t('admin.bots.kbConfig.noSearchResults') : t('admin.bots.kbConfig.noKbsAvailable')}
           </p>
         </div>
       ) : (

@@ -33,5 +33,10 @@ export const documentService = {
   retryDocument: async (docId) => {
     const response = await api.post(`/documents/${docId}/retry`);
     return response.data;
+  },
+
+  getDocumentDownloadUrl: async (docId) => {
+    const response = await api.get(`/documents/${docId}/download`);
+    return response.data.url;
   }
 };

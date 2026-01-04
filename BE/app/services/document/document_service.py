@@ -134,6 +134,7 @@ class DocumentService:
       if existing_doc:
         # --- EXISTING FILE UPDATE FLOW ---
         # 1. Upload to MinIO
+        custom_path = f"{tenant_id}/{kb_id}/{file.filename}"
         file_path = await loop.run_in_executor(
             None,
             partial(
@@ -141,11 +142,14 @@ class DocumentService:
                 file.file,
                 file_size,
                 file.filename,
-                file.content_type or "application/octet-stream"
+                file.content_type or "application/octet-stream",
+                custom_path
             )
         )
 
-        # 2. Trigger Task
+        # 2. Trigger Task (Immediate Status Update)
+        self.doc_repo.update_document_status(
+          existing_doc["id"], "learning", access_token)
         task = process_update_file_celery.delay(
             document_id=existing_doc["id"],
             file_path=file_path,
@@ -193,6 +197,7 @@ class DocumentService:
 
         try:
           # 2. Upload to MinIO
+          custom_path = f"{tenant_id}/{kb_id}/{file.filename}"
           file_path = await loop.run_in_executor(
               None,
               partial(
@@ -200,7 +205,8 @@ class DocumentService:
                   file.file,
                   file_size,
                   file.filename,
-                  file.content_type or "application/octet-stream"
+                  file.content_type or "application/octet-stream",
+                  custom_path
               )
           )
 
@@ -282,6 +288,7 @@ class DocumentService:
         file.file.seek(0)
 
       loop = asyncio.get_running_loop()
+      custom_path = f"{tenant_id}/{doc['knowledgebase_id']}/{file.filename}"
       file_path = await loop.run_in_executor(
           None,
           partial(
@@ -289,9 +296,15 @@ class DocumentService:
               file.file,
               file_size,
               file.filename,
-              file.content_type or "application/octet-stream"
+              file.content_type or "application/octet-stream",
+              custom_path
           )
       )
+
+      # IMMEDIATE STATUS UPDATE:
+      # Set status to 'learning' immediately so UI reflects the change right away.
+      self.doc_repo.update_document_status(
+        document_id, "learning", access_token)
 
       task = process_update_file_celery.delay(
           document_id=document_id,
@@ -462,3 +475,22 @@ class DocumentService:
         "task_id": task.id,
         "status": "retrying"
     }
+
+  def get_document_file_url(self, document_id: str, tenant_id: str, access_token: str = None) -> str:
+    """
+    Get a presigned URL for the document file from MinIO.
+    """
+    doc = self.doc_repo.get_document_by_id(document_id, access_token)
+    if not doc:
+      raise HTTPException(status_code=404, detail="Document not found")
+
+    if doc["tenant_id"] != tenant_id:
+      raise HTTPException(
+          status_code=403, detail="Not authorized to access this document")
+
+    file_path = doc.get("path")
+    if not file_path:
+      raise HTTPException(
+          status_code=404, detail="File path not found for this document")
+
+    return self.minio_storage.get_presigned_url(file_path)

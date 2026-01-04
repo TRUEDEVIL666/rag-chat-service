@@ -2,7 +2,9 @@
 from uuid import UUID
 from app.services.supabase.supabase_client import get_supabase_client
 from app.core.logger import get_logger
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, TYPE_CHECKING
+if TYPE_CHECKING:
+  from app.schemas.common_params import UserSearchParams
 
 logger = get_logger("user_repository")
 
@@ -24,11 +26,41 @@ class UserRepository:
       logger.exception(f"Failed to update user {user_id} {param_name}")
       raise RuntimeError(f"Failed to update user {user_id} {param_name}")
 
-  def get_all_users_not_admin(self) -> list[dict] | None:
+  def get_users(self, limit: int = 20, cursor_timestamp: int = None, search_params: Optional["UserSearchParams"] = None, access_token: str = None) -> list[dict] | None:
     try:
-      client = get_supabase_client()
-      response = client.table(self.table_name).select(
-        "*").neq("role", "admin").execute()
+      client = get_supabase_client(access_token)
+      # Fetch users + tenant name
+      query = client.table(self.table_name).select("*, tenants(name)")
+
+      # Apply Search Filters
+      if search_params:
+        if search_params.query:
+          # Search by email or Name (if name exists in metadata or column)
+          # Assuming 'email' column check for now as 'exact' or 'ilike'
+          query = query.ilike("email", f"%{search_params.query}%")
+
+        if search_params.role:
+          query = query.eq("role", search_params.role)
+
+        if search_params.tenant_id:
+          query = query.eq("tenant_id", search_params.tenant_id)
+
+        if search_params.date_from:
+          query = query.gte("created_at", search_params.date_from.isoformat())
+
+        if search_params.date_to:
+          query = query.lte("created_at", search_params.date_to.isoformat())
+
+      if cursor_timestamp:
+        # Cursor logic: created_at < cursor
+        from datetime import datetime
+        dt_cursor = datetime.fromtimestamp(cursor_timestamp)
+        query = query.lt("created_at", dt_cursor.isoformat())
+
+      # Apply sorting and limit
+      query = query.order("created_at", desc=True).limit(limit)
+
+      response = query.execute()
       if response.data:
         return response.data
       return []

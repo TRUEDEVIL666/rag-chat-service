@@ -1,9 +1,13 @@
 import os
+import pymupdf4llm
 from typing import Any, Dict, List, Optional, Generator
 
 from llama_index.core import Document
 from llama_index.core.schema import BaseNode, NodeRelationship
-from llama_index.readers.file import CSVReader, DocxReader, PDFReader, PptxReader
+from llama_index.readers.file import (
+    CSVReader, DocxReader, PDFReader, PptxReader,
+    MarkdownReader, HTMLTagReader, ImageReader
+)
 from llama_index.readers.json import JSONReader
 
 from app.core.enums.file import FileExtension
@@ -18,6 +22,18 @@ from app.services.supabase.knowledge_base_repository import KnowledgeBaseReposit
 from app.services.supabase.metadata_repository import MetadataRepository
 
 logger = get_logger("File Processor Log")
+
+
+class PyMuPDFReader:
+  """
+  Custom reader using pymupdf4llm for high-quality Markdown extraction.
+  Mimics the interface of LlamaIndex readers.
+  """
+
+  def load_data(self, file, extra_info=None):
+    # file is a Path object or string passed from extract_documents
+    md_text = pymupdf4llm.to_markdown(str(file))
+    return [Document(text=md_text, metadata=extra_info or {})]
 
 
 class FileProcessor:
@@ -41,6 +57,13 @@ class FileProcessor:
         FileExtension.DOCX: "file",
         FileExtension.PPTX: "file",
         FileExtension.PDF: "file",
+        FileExtension.MD: "file",
+        FileExtension.HTML: "file",
+        FileExtension.JPG: "file",
+        FileExtension.JPEG: "file",
+        FileExtension.PNG: "file",
+        FileExtension.BMP: "file",
+        FileExtension.TIFF: "file",
     }
 
   def _get_reader(self, ext: FileExtension):
@@ -55,22 +78,20 @@ class FileProcessor:
     elif ext == FileExtension.JSON:
       reader = JSONReader()
     elif ext == FileExtension.PDF:
-      reader = PDFReader()
+      reader = PyMuPDFReader()
     elif ext == FileExtension.PPTX:
-      # Heavy model load, only do if needed
       reader = PptxReader()
+    elif ext == FileExtension.MD:
+      reader = MarkdownReader()
+    elif ext == FileExtension.HTML:
+      reader = HTMLTagReader()
+    elif ext in [FileExtension.JPG, FileExtension.JPEG, FileExtension.PNG, FileExtension.BMP, FileExtension.TIFF]:
+      reader = ImageReader()
 
     if reader:
       self._readers[ext] = reader
 
     return reader
-
-    # Initialize argument map for LlamaIndex readers
-    self.arg_map = {
-        FileExtension.DOCX: "file",
-        FileExtension.PPTX: "file",
-        FileExtension.PDF: "file",
-    }
 
   def _get_embedding_model(self, kb_id: str, tenant_id: str, access_token: Optional[str]) -> Optional[CustomEmbedding]:
     """Resolves the correct embedding model for the Knowledge Base."""
@@ -112,7 +133,7 @@ class FileProcessor:
       document_id: str,
       access_token: str = None,
       chunking_method: str = "sentence",
-      use_sparse: bool = True,
+      use_sparse: bool = False,
       **kwargs
   ) -> Dict[str, Any]:
     # Create initial document record
@@ -213,7 +234,7 @@ class FileProcessor:
       created_by: str,
       access_token: str = None,
       chunking_method: str = "sentence",
-      use_sparse: bool = True,
+      use_sparse: bool = False,
       **kwargs
   ) -> Dict[str, Any]:
     """Bulk update: process full stream, then calc diff logic."""
@@ -221,7 +242,7 @@ class FileProcessor:
         document_id, "learning", access_token)
 
     from datetime import datetime
-    sync_start_time = datetime.utcnow().isoformat()
+    # sync_start_time = datetime.utcnow().isoformat() # REMOVED: using ID-based sync
     stream_response = None
 
     try:
@@ -234,14 +255,12 @@ class FileProcessor:
       # 1. Read stream to bytes
       file_bytes = stream_response.read()
 
-      existing_chunks = self.meta_data_store.get_chunks_by_doc_id(
+      # OPTIMIZATION: Do NOT delete all existing chunks upfront.
+      # We will perform a differential update using hashes.
+      existing_hashes_data = self.meta_data_store.get_hashes_by_document(
         document_id, access_token)
-      if existing_chunks:
-        ids_to_delete = [c['chunk_id'] for c in existing_chunks]
-        model_name_for_del = embed_model.model_name if embed_model else None
-
-        from app.core.factory import get_vector_store
-        get_vector_store().delete_points_by_ids(ids_to_delete, model_name_for_del)
+      existing_hash_map = {item['chunk_hash']: item['node_id']
+                           for item in existing_hashes_data if item.get('chunk_hash')}
 
       # 2. Extract ALL
       import os
@@ -257,7 +276,7 @@ class FileProcessor:
       )
       documents = list(doc_iterator)
 
-      # 2. Chunk ALL
+      # 3. Chunk ALL
       chunks = process_chunks(
           documents=documents,
           chunking_method=chunking_method,
@@ -267,41 +286,76 @@ class FileProcessor:
       )
 
       wrapped_chunks = []
+      chunks_to_vectorize = []
+
       if chunks:
-          # 3. Wrap
+        # 4. Wrap & Diff
+        # Identify which chunks are new vs existing
+        for chunk in chunks:
+          c_hash = chunk.metadata.get("chunk_hash")
+          if c_hash and c_hash in existing_hash_map:
+            # REUSE existing ID
+            chunk.node_id = existing_hash_map[c_hash]
+            # We do NOT add to chunks_to_vectorize (Skip Embedding)
+          else:
+            # New Chunk (Keep random ID)
+            chunks_to_vectorize.append(chunk)
+
+        # Wrap all chunks (to update metadata timestamp in Supabase)
         wrapped_chunks = self._wrap_chunks(
             chunks, document_id, file_path, kb_id, tenant_id)
 
-        # 4. Upsert (Bulk)
-        self.meta_data_store.store(wrapped_chunks, access_token)
-        self._insert_to_qdrant(wrapped_chunks, embed_model, use_sparse)
+        # Filter the wrapped chunks for vectorization to match chunks_to_vectorize IDs
+        # (Since _wrap_chunks creates new Document objects, checking by ID is safest)
+        vectorize_ids = set(c.node_id for c in chunks_to_vectorize)
+        wrapped_chunks_to_vectorize = [
+          wc for wc in wrapped_chunks if wc.node_id in vectorize_ids]
 
-      # 5. Sweep (Cleanup Stale)
-      deleted_ids = self.meta_data_store.delete_stale_chunks(
+        # 5. Upsert Metadata (ALL - guarantees timestamps are updated)
+        self.meta_data_store.store(wrapped_chunks, access_token)
+
+        # 6. Upsert Vectors (ONLY NEW)
+        if wrapped_chunks_to_vectorize:
+          logger.info(
+            f"Vectorizing {len(wrapped_chunks_to_vectorize)} new/changed chunks.")
+          self._insert_to_qdrant(
+            wrapped_chunks_to_vectorize, embed_model, use_sparse)
+        else:
+          logger.info("No new chunks to vectorize.")
+
+      # 7. Sweep (Cleanup Stale)
+      # This deletes anything in Supabase that wasn't included in 'wrapped_chunks' ( upserted above)
+      # Robust fix using ID set difference
+      active_node_ids = [c.node_id for c in wrapped_chunks]
+      deleted_node_ids = self.meta_data_store.delete_stale_nodes(
           document_id=document_id,
-          sync_start_time=sync_start_time,
+          active_node_ids=active_node_ids,
           access_token=access_token
       )
 
-      # 6. Sync Vector Deletion
-      if deleted_ids:
-        logger.info(f"Syncing deletion of {len(deleted_ids)} stale vectors.")
+      # 8. Sync Vector Deletion
+      logger.info(f"Deleted IDs returned from Supabase: {deleted_node_ids}")
+      if deleted_node_ids:
+        logger.info(
+          f"Syncing deletion of {len(deleted_node_ids)} stale vectors.")
         # Get model name for vector deletion
         kb_data = self.kb_repository.get_one(kb_id, tenant_id, access_token)
-        model_name = kb_data.get("embedding_model") if kb_data else None
+        model_data = kb_data.get("embedding_model") if kb_data else None
+        model_name = model_data.get("model_id") if isinstance(
+            model_data, dict) else model_data
 
-        # NOTE: Fixed previous bug where model_name was undefined if deleted_ids was falsy but block entered?
-        # Actually in new logic, we are inside if deleted_ids, so model_name is defined.
         from app.core.factory import get_vector_store
-        get_vector_store().delete_points_by_ids(deleted_ids, model_name)
+        # Use FAST O(1) delete_points_by_ids since IDs now match
+        get_vector_store().delete_points_by_ids(deleted_node_ids, model_name)
 
       self.document_repository.update_document_status(
           document_id, "learned", access_token)
 
       return {
           "status": "success",
-          "chunks_deleted": len(deleted_ids),
-          "chunks_added": len(wrapped_chunks),
+          "chunks_deleted": len(deleted_node_ids),
+          "chunks_added": len(wrapped_chunks),  # Total active chunks
+          "chunks_vectorized": len(chunks_to_vectorize),
           "document_id": document_id
       }
     except Exception as e:
@@ -326,7 +380,7 @@ class FileProcessor:
     wrapped_chunks = []
     for _, chunk in enumerate(chunks):
       chunk_text = chunk.text
-      chunk_id = chunk.node_id
+      node_id = chunk.node_id
 
       parent_id = None
       if chunk.relationships and NodeRelationship.PARENT in chunk.relationships:
@@ -340,16 +394,17 @@ class FileProcessor:
           "file_path": file_path,
           "kb_id": kb_id,
           "tenant_id": tenant_id,
-          "chunk_id": chunk_id,
+          "node_id": node_id,
       }
 
       if parent_id:
         metadata["parent_id"] = parent_id
 
       doc = Document(
-          text=chunk_text,
+         text=chunk_text,
           metadata=metadata,
       )
+      doc.id_ = node_id  # CRITICAL: Preserve the Node ID (Reused or New)
       wrapped_chunks.append(doc)
 
     return wrapped_chunks
@@ -358,7 +413,7 @@ class FileProcessor:
     """Insert documents (chunks) into Qdrant vector store."""
     from app.core.factory import get_vector_store
     get_vector_store().upsert_documents(
-        documents, embed_model, use_sparse)
+      documents, embed_model, use_sparse)
 
   def _upload_original_file(self, file_bytes: bytes, filename: str) -> str:
     """Upload the original document to MinIO and return its storage path."""

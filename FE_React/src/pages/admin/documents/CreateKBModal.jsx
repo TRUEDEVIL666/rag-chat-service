@@ -7,7 +7,7 @@ import TextField from '../../../components/common/TextField/TextField';
 import Select from '../../../components/common/Select/Select';
 
 const CreateKBModal = ({ isOpen, onClose, onSuccess }) => {
-  const { t } = useTranslation(['documents', 'bots', 'translation']);
+  const { t } = useTranslation(['admin/documents', 'admin/bots', 'translation']);
   const { createKB } = useKnowledgeBases();
   const {
     providers,
@@ -109,24 +109,24 @@ const CreateKBModal = ({ isOpen, onClose, onSuccess }) => {
 
           <div className="grid grid-cols-2 gap-4">
             <Select
-              label={t('bots:form.configuration.provider')}
+              label={t('admin/bots:form.configuration.provider')}
               name="embedding_provider_id"
               required
               value={formData.embedding_provider_id}
               onChange={handleProviderChange}
               options={providers.map(p => ({ value: p.id, label: p.display_name }))}
-              placeholder={t('bots:form.configuration.providerPlaceholder')}
+              placeholder={t('admin/bots:form.configuration.providerPlaceholder')}
               loading={optionsLoading}
             />
 
             <Select
-              label={t('bots:form.configuration.model')}
+              label={t('admin/bots:form.configuration.model')}
               name="embedding_model_id"
               required
               value={formData.embedding_model_id}
               onChange={(e) => setFormData(prev => ({ ...prev, embedding_model_id: e.target.value }))}
               options={models.map(m => ({ value: m.id, label: m.name }))}
-              placeholder={t('bots:form.configuration.modelPlaceholder')}
+              placeholder={t('admin/bots:form.configuration.modelPlaceholder')}
               disabled={!formData.embedding_provider_id}
               loading={optionsLoading}
             />

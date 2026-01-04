@@ -5,7 +5,7 @@ import json
 
 from llama_index.core import Document, Settings, StorageContext, VectorStoreIndex
 from llama_index.core.base.embeddings.base import BaseEmbedding
-from llama_index.core.schema import TextNode
+from llama_index.core.schema import TextNode, BaseNode
 from llama_index.core.vector_stores import FilterOperator, MetadataFilter, MetadataFilters
 from llama_index.vector_stores.qdrant import QdrantVectorStore
 from qdrant_client import QdrantClient, models
@@ -39,7 +39,7 @@ def sanitize_collection_name(name: str) -> str:
   if "/" in name:
     name = name.split("/")[-1]
   # Replace slashes, colons, dots, spaces with underscores
-  sanitized = re.sub(r'[^a-zA-Z0-9]', '_', name)
+  sanitized = re.sub(r'[^a-zA-Z0-9]', '_', name).lower()
   # Ensure it doesn't start with numbers or special chars if Qdrant requires (optional but safer)
   if sanitized and sanitized[0].isdigit():
     sanitized = "vec_" + sanitized
@@ -131,12 +131,18 @@ class VectorRepository:
           collection_name=target_collection,
           vectors_config=VectorParams(
               size=self.vector_size,
-              distance=Distance.COSINE
+              distance=Distance.COSINE,
+              quantization_config=models.ScalarQuantization(
+                  scalar=models.ScalarQuantizationConfig(
+                      type=models.ScalarType.INT8,
+                      always_ram=True
+                  )
+              )
           ),
           sparse_vectors_config={
               "bm25": SparseVectorParams(
                   index=SparseIndexParams(
-                      on_disk=True,
+                      on_disk=False,
                   )
               )
           }
@@ -166,7 +172,7 @@ class VectorRepository:
           logger.error(
             f"[VectorRepo] Failed to create payload index for '{field}' in {collection_name}: {e}")
 
-  def upsert_documents(self, documents: List[Document], embed_model: Optional[BaseEmbedding] = None, use_sparse: bool = True):
+  def upsert_documents(self, documents: List[Document], embed_model: Optional[BaseEmbedding] = None, use_sparse: bool = False):
     if embed_model:
       # CRITICAL: Isolate keys by Collection/Model
       # 1. Determine collection name from model
@@ -181,9 +187,15 @@ class VectorRepository:
       self.create_collection(target_collection)
 
       # 3. Upsert using MANUAL creation to Optimize Storage
-      # Goal: Strip metadata from _node_content to avoid duplication
-      nodes = [TextNode(text=doc.text, metadata=doc.metadata)
-               for doc in documents]
+      # PRESERVE IDs: Use doc.id_ (which FileProcessor sets to node_id)
+      nodes = []
+      for doc in documents:
+        # If the input is already a Node, use it. If it's a Document, convert to TextNode keeping the ID.
+        if isinstance(doc, (TextNode, BaseNode)):
+          nodes.append(doc)
+        else:
+          nodes.append(
+            TextNode(text=doc.text, metadata=doc.metadata, id_=doc.doc_id))
 
       # Generate Dense Embeddings
       embeddings = embed_model.get_text_embedding_batch(
@@ -201,7 +213,7 @@ class VectorRepository:
         # 3. Construct Payload
         # Filter metadata to remove redundant/internal keys
         excluded_keys = {
-            "chunk_hash", "chunk_size", "source", "source_file"
+            "chunk_size", "source", "source_file", "node_id"
         }
         filtered_metadata = {
           k: v for k, v in node.metadata.items() if k not in excluded_keys}
@@ -541,16 +553,24 @@ class VectorRepository:
       target_collection = self.qdrant_collection
       if model_name:
         safe_name = sanitize_collection_name(model_name)
-        possible_collection = f"vec_{safe_name}"
-        if self.qdrant_client.collection_exists(possible_collection):
-          target_collection = possible_collection
+        # FORCE usage of derived name. Do not fallback.
+        target_collection = f"vec_{safe_name}"
 
-      self.qdrant_client.delete(
-          collection_name=target_collection,
-          points_selector=models.PointIdsList(
-              points=point_ids,
-          )
-      )
+      # Batch delete to avoid payload limits
+      batch_size = 500
+      total_deleted = 0
+      for i in range(0, len(point_ids), batch_size):
+        batch = point_ids[i:i + batch_size]
+        self.qdrant_client.delete(
+            collection_name=target_collection,
+            points_selector=models.PointIdsList(
+                points=batch,
+            )
+        )
+        total_deleted += len(batch)
+
+      logger.info(
+        f"[VectorRepo] Deleted {total_deleted} points from {target_collection}")
       return True
     except Exception as e:
       logger.exception(f"[VectorRepo] Failed to delete points: {e}")
@@ -573,9 +593,7 @@ class VectorRepository:
       target_collection = self.qdrant_collection
       if model_name:
         safe_name = sanitize_collection_name(model_name)
-        possible_collection = f"vec_{safe_name}"
-        if self.qdrant_client.collection_exists(possible_collection):
-          target_collection = possible_collection
+        target_collection = f"vec_{safe_name}"
 
       # Use qdrant_client specific delete method with Qdrant Filter
       self.qdrant_client.delete(
@@ -613,9 +631,7 @@ class VectorRepository:
       target_collection = self.qdrant_collection
       if model_name:
         safe_name = sanitize_collection_name(model_name)
-        possible_collection = f"vec_{safe_name}"
-        if self.qdrant_client.collection_exists(possible_collection):
-          target_collection = possible_collection
+        target_collection = f"vec_{safe_name}"
 
       self.qdrant_client.delete(
           collection_name=target_collection,

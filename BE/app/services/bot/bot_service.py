@@ -1,6 +1,7 @@
 
 import asyncio
 import logging
+from datetime import datetime
 from typing import AsyncGenerator, Dict, List, Optional, Tuple, Any, Union
 from enum import Enum
 from pydantic import BaseModel
@@ -66,6 +67,21 @@ class BotService:
     self.message_repo = message_repo
     self.kb_repo = kb_repo
     self.ai_model_service = ai_model_service
+
+  # ----------------------------------------------------------------------
+  # INTERNAL HELPERS
+  # ----------------------------------------------------------------------
+  async def _update_session_summary(self, session_id: str, text: str, access_token: str = None):
+    summary = text[:150] + "..." if len(text) > 150 else text
+    try:
+      # Update summary AND updated_at to ensure it bubbles to top
+      payload = {
+        "summary_text": summary,
+        "updated_at": datetime.utcnow().isoformat()
+      }
+      await asyncio.to_thread(self.session_repo.update_session, session_id, payload, access_token)
+    except Exception as e:
+      logger.warning(f"Failed to update session summary for {session_id}: {e}")
 
   # ----------------------------------------------------------------------
   # BOT MANAGEMENT (CRUD) - Now Async to avoid blocking
@@ -400,7 +416,7 @@ class BotService:
     return "\n".join(history_lines)
 
   async def _prepare_chat_execution(
-      self, bot_id: str, query: str, tenant_id: str, user_id: str, session_id: str, access_token: str = None
+      self, bot_id: str, query: str, tenant_id: str, user_id: str, session_id: str, access_token: str = None, quiz_mode: bool = False
   ) -> Tuple[Optional[str], Optional[str], Optional[LLMConfig], Optional[str], Optional[str]]:
     """
     Orchestrate the context retrieval and prompt setup.
@@ -415,6 +431,9 @@ class BotService:
         sender_id=user_id,
         access_token=access_token
     )
+
+    # 1a. Update Session Summary with User Query
+    await self._update_session_summary(session_id, query, access_token)
 
     # 1b. Fetch History (memory)
     history = await self._get_history(
@@ -440,8 +459,35 @@ class BotService:
     # 4. Resolve Model
     llm_config = self._resolve_model_config(bot)
 
+    # Append to System Prompt if Quiz Mode is enabled
+    if quiz_mode:
+      quiz_prompt = (
+          "\n\nIMPORTANT: You are currently in Quiz Mode. "
+          "Based on the provided context, generate a multiple-choice quiz. "
+          f"If the user specified a number of questions, output that many (maximum {settings.MAX_QUIZ_QUESTIONS}). Otherwise, default to 5 questions. "
+          "Output ONLY a raw JSON array. Do not use Markdown code blocks (like ```json). "
+          "Use this exact schema: "
+          '[{"question": "Question text", "options": ["Option A", "Option B", "Option C", "Option D"], "correct_answer": "Option A"}]'
+      )
+      if llm_config.system_prompt:
+        llm_config.system_prompt += quiz_prompt
+      else:
+        llm_config.system_prompt = quiz_prompt
+    else:
+        # Standard Markdown Instruction for normal mode
+      mk_instruction = "\nProvide your response in clear Markdown format. Use headers, bold text, lists, and code blocks where appropriate to make the information easy to read."
+      if llm_config.system_prompt:
+        llm_config.system_prompt += mk_instruction
+      else:
+        # Fallback will be handled in _call_llm if None, but we can set it here too
+        llm_config.system_prompt = "You are a helpful AI assistant." + mk_instruction
+
     # 5. Resolve Retrieval Config (Global)
     retrieval_config = self._parse_bot_retrieval_config(bot)
+
+    # Override for Quiz Mode: Force top_k to configured value (default 20) to gather more context
+    if quiz_mode:
+      retrieval_config.top_k = settings.QUIZ_MODE_TOP_K
 
     # 6. Search
     results = await self._search_knowledge_bases(
@@ -483,12 +529,12 @@ class BotService:
   # CHAT INTERFACE
   # ----------------------------------------------------------------------
   async def ask_bot(
-      self, bot_id: str, query: str, tenant_id: str, user_id: str, session_id: str = None, access_token: str = None
+      self, bot_id: str, query: str, tenant_id: str, user_id: str, session_id: str = None, access_token: str = None, quiz_mode: bool = False
   ) -> Tuple[str, str]:
     session_id = await self._ensure_session(session_id, tenant_id, user_id, bot_id, access_token)
 
     history, context, llm_config, bot_name, error_msg = await self._prepare_chat_execution(
-        bot_id, query, tenant_id, user_id, session_id, access_token
+        bot_id, query, tenant_id, user_id, session_id, access_token, quiz_mode
     )
 
     if error_msg:
@@ -511,6 +557,9 @@ class BotService:
           self.message_repo.create_message, session_id, response, role=bot_name, sender_id=bot_id, access_token=access_token
       )
 
+      # Update Session Summary with Bot Response
+      await self._update_session_summary(session_id, response, access_token)
+
       return response, session_id
 
     except Exception as e:
@@ -526,12 +575,12 @@ class BotService:
       raise e
 
   async def ask_bot_stream(
-      self, bot_id: str, query: str, tenant_id: str, user_id: str, session_id: str = None, access_token: str = None
+      self, bot_id: str, query: str, tenant_id: str, user_id: str, session_id: str = None, access_token: str = None, quiz_mode: bool = False
   ):
     session_id = await self._ensure_session(session_id, tenant_id, user_id, bot_id, access_token)
 
     history, context, llm_config, bot_name, error_msg = await self._prepare_chat_execution(
-        bot_id, query, tenant_id, user_id, session_id, access_token
+        bot_id, query, tenant_id, user_id, session_id, access_token, quiz_mode
     )
 
     if error_msg:
@@ -590,6 +639,9 @@ class BotService:
           session_id, full_response, role=bot_name, sender_id=bot_id, access_token=access_token
       )
 
+      # Update Session Summary with Bot Response (Streaming)
+      await self._update_session_summary(session_id, full_response, access_token)
+
     except Exception as e:
       logger.error(f"Error during streaming: {e}", exc_info=True)
       msg = f"Error during streaming: {str(e)}"
@@ -612,12 +664,8 @@ class BotService:
       config: LLMConfig,
       streaming: bool = False
   ):
-    # Use configured system prompt or fallback to default
-    instruction = config.system_prompt \
-      if config.system_prompt \
-        else "You are a helpful AI assistant."
-
-    instruction += "\nProvide your response in clear Markdown format. Use headers, bold text, lists, and code blocks where appropriate to make the information easy to read."
+    # Use configured system prompt
+    instruction = config.system_prompt
 
     # Construct clean prompt without leading whitespace
     prompt_user_content = (

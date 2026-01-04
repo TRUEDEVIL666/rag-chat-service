@@ -65,6 +65,7 @@ class AuthService:
           "aud": "authenticated",
           "role": jwt_role,
           "exp": datetime.utcnow() + timedelta(days=1),  # 1 day expiration
+          "username": user_details.get("name"),
           "app_metadata": {
             "provider": "email",
             "tenant_id": tenant_id,

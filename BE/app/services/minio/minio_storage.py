@@ -24,9 +24,12 @@ class MinioStorage:
     else:
       logger.debug(f"MinIO bucket already exists: {self.bucket_name}")
 
-  def upload_file(self, file_bytes: bytes, filename: str) -> str:
+  def upload_file(self, file_bytes: bytes, filename: str, custom_path: str = None) -> str:
     file_ext = Path(filename).suffix
-    unique_key = f"{datetime.utcnow().strftime('%Y%m%d')}/{uuid4().hex}{file_ext}"
+    if custom_path:
+      unique_key = custom_path
+    else:
+      unique_key = f"{datetime.utcnow().strftime('%Y%m%d')}/{uuid4().hex}{file_ext}"
 
     minio_client.put_object(
         bucket_name=self.bucket_name,
@@ -40,10 +43,13 @@ class MinioStorage:
       f"Uploaded file '{filename}' to MinIO at: {self.bucket_name}/{unique_key}")
     return f"{self.bucket_name}/{unique_key}"
 
-  def upload_stream(self, file_stream, length: int, filename: str, content_type: str = "application/octet-stream") -> str:
+  def upload_stream(self, file_stream, length: int, filename: str, content_type: str = "application/octet-stream", custom_path: str = None) -> str:
     """Upload a file stream to MinIO."""
     file_ext = Path(filename).suffix
-    unique_key = f"{datetime.utcnow().strftime('%Y%m%d')}/{uuid4().hex}{file_ext}"
+    if custom_path:
+      unique_key = custom_path
+    else:
+      unique_key = f"{datetime.utcnow().strftime('%Y%m%d')}/{uuid4().hex}{file_ext}"
 
     minio_client.put_object(
         bucket_name=self.bucket_name,

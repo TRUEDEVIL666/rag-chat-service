@@ -29,7 +29,7 @@ class DocumentListResponse(BaseModel):
 class DocumentUpdateRequest:
   file: UploadFile = File(...)
   chunking_method: str = Form("sentence")
-  use_sparse: bool = Form(True)
+  use_sparse: bool = Form(False)
   chunking_params: Optional[str] = Form(None)
 
 
@@ -38,7 +38,7 @@ class FileUploadRequest:
   knowledge_base_id: str = Form(...)
   files: List[UploadFile] = File(...)
   chunking_method: str = Form("sentence")
-  use_sparse: bool = Form(True)
+  use_sparse: bool = Form(False)
   chunking_params: Optional[str] = Form(None)
 
 

@@ -35,29 +35,30 @@ class MetadataRepository:
     except Exception as e:
       logger.exception(f"[Supabase] Failed to upsert metadata: {e}")
 
-  def delete_stale_chunks(self, document_id: str, sync_start_time: str, access_token: str = None) -> List[str]:
+  def delete_stale_nodes(self, document_id: str, active_node_ids: List[str], access_token: str = None) -> List[str]:
     """
-    Delete chunks that were not updated during the sync process (stale).
-    Returns a list of deleted chunk_ids.
+    Delete nodes that are no longer active (not present in the current update).
     """
     try:
       client = get_supabase_client(access_token)
-      # Delete rows where valid_until < sync_start_time ("last_seen_at")
-      # We assume 'created_at' is updated during upsert to act as 'last_seen_at'
-      response = (
-          client.table(self.table_name)
-          .delete()
-          .eq("document_id", document_id)
-          .lt("created_at", sync_start_time)  # Delete older timestamps
-          .execute()
-      )
 
-      if response.data:
-        deleted_ids = [item['chunk_id'] for item in response.data]
+      query = client.table(self.table_name).delete().eq(
+        "document_id", document_id)
+
+      if active_node_ids:
+        # Format IDs for PostgREST: (id1,id2,id3)
+        ids_param = f"({','.join(str(cid) for cid in active_node_ids)})"
+        query = query.filter("node_id", "not.in", ids_param)
+
+      response = query.execute()
+      deleted_ids = [item['node_id'] for item in (response.data or [])]
+
+      if deleted_ids:
         logger.info(
-            f"[Supabase] Deleted {len(deleted_ids)} stale chunks for doc {document_id}")
-        return deleted_ids
-      return []
+            f"[Supabase] Deleted {len(deleted_ids)} stale nodes for doc {document_id}")
+
+      return deleted_ids
+
     except Exception as e:
       logger.exception(
           f"Failed to delete stale chunks for doc {document_id}: {e}")
@@ -82,15 +83,32 @@ class MetadataRepository:
           f"[Supabase] Failed to query by filename '{file_name}': {e}")
       return None
 
-  def get_hashes_by_document(self, document_id: str, access_token: str = None) -> List[Dict[str, str]]:
+  def get_chunks_by_doc_id(self, document_id: str, access_token: str = None) -> List[Dict]:
     """
-    Get all chunk_ids and chunk_hashes for a given document.
+    Get all chunks for a document.
     """
     try:
       client = get_supabase_client(access_token)
       result = (
           client.table(self.table_name)
-          .select("chunk_id, chunk_hash")
+          .select("*")
+          .eq("document_id", document_id)
+          .execute()
+      )
+      return result.data or []
+    except Exception as e:
+      logger.exception(f"Failed to get chunks for doc {document_id}: {e}")
+      return []
+
+  def get_hashes_by_document(self, document_id: str, access_token: str = None) -> List[Dict[str, str]]:
+    """
+    Get all node_ids and chunk_hashes for a given document.
+    """
+    try:
+      client = get_supabase_client(access_token)
+      result = (
+          client.table(self.table_name)
+          .select("node_id, chunk_hash")
           .eq("document_id", document_id)
           .execute()
       )
@@ -113,16 +131,16 @@ class MetadataRepository:
       logger.exception(f"Failed to delete metadata for doc {document_id}: {e}")
       return False
 
-  def delete_chunks_by_ids(self, chunk_ids: List[str], access_token: str = None) -> bool:
+  def delete_nodes_by_ids(self, node_ids: List[str], access_token: str = None) -> bool:
     """
-    Delete specific chunks by their IDs.
+    Delete specific nodes by their IDs.
     """
-    if not chunk_ids:
+    if not node_ids:
       return True
     try:
       client = get_supabase_client(access_token)
       client.table(self.table_name).delete().in_(
-          "chunk_id", chunk_ids).execute()
+          "node_id", node_ids).execute()
       return True
     except Exception as e:
       logger.exception(f"Failed to delete chunks: {e}")
@@ -135,11 +153,11 @@ class MetadataRepository:
     meta = doc.metadata or {}
     backlash = '\n'
     kb_id = meta.get("kb_id")
-    logger.info(
-        f"DEBUG: chunk_text trước khi gửi Supabase: {doc.text[:100].replace(backlash, ' ')} (kiểm tra 100 ký tự đầu)")
+    # logger.info(
+    #     f"DEBUG: chunk_text trước khi gửi Supabase: {doc.text[:100].replace(backlash, ' ')} (kiểm tra 100 ký tự đầu)")
     # Remove redundant fields that are already stored in dedicated columns
     redundant_keys = {
-        "document_id", "file_path", "kb_id", "tenant_id", "chunk_id",
+        "document_id", "file_path", "kb_id", "tenant_id", "node_id",
         "chunk_hash", "chunk_size", "source_file", "file_name", "source"
     }
     clean_meta = {k: v for k, v in meta.items() if k not in redundant_keys}
@@ -154,7 +172,7 @@ class MetadataRepository:
         "created_at": datetime.utcnow().isoformat(),
         "kb_id": kb_id if kb_id is not None else None,
         "tenant_id": meta.get("tenant_id"),
-        "chunk_id": meta.get("chunk_id"),
+        "node_id": meta.get("node_id"),
         "chunk_hash": meta.get("chunk_hash"),
         "metadata": clean_meta,
     }

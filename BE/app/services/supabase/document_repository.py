@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from uuid import UUID
 from app.services.supabase.supabase_client import get_supabase_client
 from app.core.logger import get_logger

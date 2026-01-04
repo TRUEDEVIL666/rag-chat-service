@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import CreateKBModal from './CreateKBModal';
+import CreateKBModal from '../../../components/documents/CreateKBModal';
+import PreviewModal from '../../../components/documents/PreviewModal';
+import { documentService } from '../../../services/documentService';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { usePageTour } from '../../../hooks/usePageTour';
@@ -18,7 +20,9 @@ import {
   SpinnerIcon,
   TrashIcon,
   WarningIcon,
-  ArrowCounterClockwiseIcon
+  ArrowCounterClockwiseIcon,
+  EyeIcon,
+  DownloadSimpleIcon
 } from '@phosphor-icons/react';
 import { clsx } from 'clsx';
 import { formatDate, getExtension } from '../../../utils/formatters';
@@ -26,7 +30,7 @@ import { useDocuments } from '../../../hooks/useDocuments';
 import { useKnowledgeBases } from '../../../hooks/useKnowledgeBases';
 
 const DocumentList = () => {
-  const { t } = useTranslation(['documents', 'translation']);
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   // Hooks
@@ -58,13 +62,19 @@ const DocumentList = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isCreateKBModalOpen, setIsCreateKBModalOpen] = useState(false);
 
+  // Preview State
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [previewFileUrl, setPreviewFileUrl] = useState('');
+  const [previewFileName, setPreviewFileName] = useState('');
+  const [previewFileAppType, setPreviewFileAppType] = useState('');
+
   const loading = docsLoading || kbsLoading || isDeleting;
 
   const tourSteps = [
-    { element: '#doc-header', popover: { title: t('tour.docs.title', 'Documents'), description: t('tour.docs.desc', 'Manage your knowledge base documents here.') } },
-    { element: '#doc-search', popover: { title: t('tour.docs.search', 'Search'), description: t('tour.docs.searchDesc', 'Search for documents or folders.') } },
-    { element: '#upload-btn', popover: { title: t('tour.docs.upload', 'Upload'), description: t('tour.docs.uploadDesc', 'Upload new files to your knowledge base.') } },
-    { element: '#doc-list', popover: { title: t('tour.docs.list', 'Document List'), description: t('tour.docs.listDesc', 'Navigate through your folders and files.') } }
+    { element: '#doc-header', popover: { title: t('tour.docs.title'), description: t('tour.docs.desc') } },
+    { element: '#doc-search', popover: { title: t('tour.docs.search'), description: t('tour.docs.searchDesc') } },
+    { element: '#upload-btn', popover: { title: t('tour.docs.upload'), description: t('tour.docs.uploadDesc') } },
+    { element: '#doc-list', popover: { title: t('tour.docs.list'), description: t('tour.docs.listDesc') } }
   ];
 
   const { startTour } = usePageTour('doc-list', tourSteps);
@@ -100,6 +110,7 @@ const DocumentList = () => {
         size: doc.size ? formatBytes(doc.size) : '--',
         chunk_count: doc.chunk_count || 0,
         date_added: formatDate(doc.created_at),
+        date_modified: formatDate(doc.updated_at),
         added_by: doc.creator?.name || doc.created_by || 'System', // Use actual creator if available
         status: doc.status || 'unknown', // Use actual status if available
       }));
@@ -147,7 +158,7 @@ const DocumentList = () => {
       setCurrentPath([...currentPath, { id: item.id, name: item.name }]);
     } else {
       console.log("Opening file:", item.name);
-      // Optional: Logic to preview file
+      handlePreview(item);
     }
   };
 
@@ -164,7 +175,7 @@ const DocumentList = () => {
   const handleDelete = async () => {
     if (selectedItems.size === 0) return;
 
-    if (!window.confirm(t('list.deleteConfirm', { count: selectedItems.size }))) {
+    if (!window.confirm(t('admin.documents.list.deleteConfirm', { count: selectedItems.size }))) {
       return;
     }
 
@@ -176,7 +187,7 @@ const DocumentList = () => {
       await loadItems();
     } catch (error) {
       console.error("Delete failed:", error);
-      alert(t('list.deleteError'));
+      alert(t('admin.documents.list.deleteError'));
     } finally {
       setIsDeleting(false);
     }
@@ -270,6 +281,32 @@ const DocumentList = () => {
     }
   };
 
+  const handlePreview = async (item) => {
+    setPreviewFileName(item.name);
+    setPreviewFileAppType(item.ext); // Pass extension or mime type if known
+    setPreviewFileUrl(''); // Reset URL while loading
+    setPreviewModalOpen(true);
+
+    try {
+      const url = await documentService.getDocumentDownloadUrl(item.id);
+      setPreviewFileUrl(url);
+    } catch (error) {
+      console.error("Failed to get preview URL:", error);
+      // Ideally show error in modal or toast
+    }
+  };
+
+  const handleDownload = async (item, e) => {
+    e.stopPropagation();
+    try {
+      const url = await documentService.getDocumentDownloadUrl(item.id);
+      window.open(url, '_blank');
+    } catch (error) {
+      console.error("Failed to get download URL:", error);
+      alert(t('common.errorOccurred'));
+    }
+  };
+
 
   return (
     <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative bg-white dark:bg-gray-900 transition-colors">
@@ -295,7 +332,7 @@ const DocumentList = () => {
                 )}
                 onClick={() => handleNavigateUp(-1)}
               >
-                {t('list.title')}
+                {t('admin.documents.list.title')}
               </span>
               {currentPath.map((item, index) => (
                 <React.Fragment key={item.id}>
@@ -318,7 +355,7 @@ const DocumentList = () => {
       <header className="h-16 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-6 flex-shrink-0 z-20">
         <div className="flex items-center gap-3">
           <h1 id="doc-header" className="text-xl font-semibold text-gray-900 dark:text-white">
-            {currentPath.length > 0 ? currentPath[currentPath.length - 1].name : t('list.title')}
+            {currentPath.length > 0 ? currentPath[currentPath.length - 1].name : t('admin.documents.list.title')}
           </h1>
           <TourButton startTour={startTour} />
         </div>
@@ -338,7 +375,7 @@ const DocumentList = () => {
             <input
               id="doc-search"
               type="text"
-              placeholder={t('list.searchPlaceholder')} // Changed from docs.searchPlaceholder to docs.list.searchPlaceholder based on original code
+              placeholder={t('admin.documents.list.searchPlaceholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9 pr-4 py-2 bg-gray-100 dark:bg-gray-700 border-none rounded-lg text-sm w-64 focus:ring-2 focus:ring-primary-500 text-gray-900 dark:text-white"
@@ -358,7 +395,7 @@ const DocumentList = () => {
             className="btn-primary flex items-center gap-2"
           >
             <UploadSimpleIcon size={20} />
-            <span className="hidden sm:inline">{t('list.new')}</span> {/* Changed from docs.uploadBtn to docs.list.new based on original code */}
+            <span className="hidden sm:inline">{t('admin.documents.list.new')}</span>
           </button>
         </div>
       </header>
@@ -376,13 +413,13 @@ const DocumentList = () => {
           <thead className="sticky top-0 bg-white dark:bg-gray-800 z-10 border-b border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 font-medium cursor-default">
             <tr>
               <th className="pl-4 pr-2 py-3 w-10 text-center"><CircleIcon size={18} className="opacity-0" /></th>
-              <th className="px-2 py-3 w-8">{t('list.table.type')}</th>
+              <th className="px-2 py-3 w-8">{t('admin.documents.list.table.type')}</th>
               <th
                 className="px-2 py-3 w-48 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer group"
                 onClick={() => handleSort('name')}
               >
                 <div className="flex items-center gap-1 select-none">
-                  {t('list.table.name', 'Name')} <SortIcon columnKey="name" />
+                  {t('admin.documents.list.table.name')} <SortIcon columnKey="name" />
                 </div>
               </th>
               {currentPath.length > 0 && (
@@ -391,7 +428,7 @@ const DocumentList = () => {
                   onClick={() => handleSort('status')}
                 >
                   <div className="flex items-center gap-1 select-none">
-                    {t('list.table.status')} <SortIcon columnKey="status" />
+                    {t('admin.documents.list.table.status')} <SortIcon columnKey="status" />
                   </div>
                 </th>
               )}
@@ -401,7 +438,7 @@ const DocumentList = () => {
                   onClick={() => handleSort('description')}
                 >
                   <div className="flex items-center gap-1 select-none">
-                    {t('list.table.description')} <SortIcon columnKey="description" />
+                    {t('admin.documents.list.table.description')} <SortIcon columnKey="description" />
                   </div>
                 </th>
               )}
@@ -412,7 +449,7 @@ const DocumentList = () => {
                     onClick={() => handleSort('document_count')}
                   >
                     <div className="flex items-center gap-1 select-none">
-                      {t('list.table.documentCount')} <SortIcon columnKey="document_count" />
+                      {t('admin.documents.list.table.documentCount')} <SortIcon columnKey="document_count" />
                     </div>
                   </th>
                   <th
@@ -420,7 +457,7 @@ const DocumentList = () => {
                     onClick={() => handleSort('embedding_model')}
                   >
                     <div className="flex items-center gap-1 select-none">
-                      {t('list.table.embeddingModel')} <SortIcon columnKey="embedding_model" />
+                      {t('admin.documents.list.table.embeddingModel')} <SortIcon columnKey="embedding_model" />
                     </div>
                   </th>
                 </>
@@ -430,11 +467,11 @@ const DocumentList = () => {
                 onClick={() => handleSort('date_added')}
               >
                 <div className="flex items-center gap-1 select-none">
-                  {t('list.table.dateAdded')} <SortIcon columnKey="date_added" />
+                  {t('admin.documents.list.table.dateAdded')} <SortIcon columnKey="date_added" />
                 </div>
               </th>
               <th
-                className="px-2 py-3 w-40 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer group"
+                className="px-2 py-3 w-28 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer group"
                 onClick={() => handleSort('date_modified')}
               >
                 <div className="flex items-center gap-1 select-none">
@@ -447,9 +484,12 @@ const DocumentList = () => {
                   onClick={() => handleSort('added_by')}
                 >
                   <div className="flex items-center gap-1 select-none">
-                    {t('list.table.addedBy')} <SortIcon columnKey="added_by" />
+                    {t('admin.documents.list.table.addedBy')} <SortIcon columnKey="added_by" />
                   </div>
                 </th>
+              )}
+              {currentPath.length > 0 && (
+                <th className="px-2 py-3 w-40 text-center">{t('admin.documents.list.table.actions')}</th>
               )}
             </tr>
           </thead>
@@ -475,7 +515,7 @@ const DocumentList = () => {
                 </td>
               </tr>
             ) : filteredItems.length === 0 ? (
-              <tr><td colSpan="7" className="text-center py-10 text-gray-500">{t('list.empty')}</td></tr>
+              <tr><td colSpan="7" className="text-center py-10 text-gray-500">{t('admin.documents.list.empty')}</td></tr>
             ) : (
               filteredItems.map(item => (
                 <tr
@@ -563,6 +603,43 @@ const DocumentList = () => {
                       {item.added_by}
                     </td>
                   )}
+                  {currentPath.length > 0 && (
+                    <td className="px-2 py-2 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        {item.type !== 'folder' && (
+                          <>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handlePreview(item); }}
+                              className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors"
+                              title={t('common.preview', 'Preview')}
+                            >
+                              <EyeIcon size={18} />
+                            </button>
+                            <button
+                              onClick={(e) => handleDownload(item, e)}
+                              className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors"
+                              title={t('common.download', 'Download')}
+                            >
+                              <DownloadSimpleIcon size={18} />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (window.confirm(t('admin.documents.list.deleteConfirmSingle'))) {
+                                  batchDeleteDocuments([item.id]);
+                                  loadItems();
+                                }
+                              }}
+                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                              title={t('common.delete', 'Delete')}
+                            >
+                              <TrashIcon size={18} />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))
             )}
@@ -575,8 +652,8 @@ const DocumentList = () => {
 
       {/* Footer Status Bar */}
       <div className="bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-4 py-1 text-xs text-gray-500 dark:text-gray-400 flex justify-between items-center">
-        <span>{t('list.footer.itemsCount', { count: filteredItems.length })}</span>
-        <span>{t('list.footer.lastSynced')}: {t('common.justNow')}</span>
+        <span>{t('admin.documents.list.footer.itemsCount', { count: filteredItems.length })}</span>
+        <span>{t('admin.documents.list.footer.lastSynced')}: {t('common.justNow')}</span>
       </div>
       {/* Modals */}
       <CreateKBModal
@@ -586,7 +663,14 @@ const DocumentList = () => {
           loadItems(); // Refresh the list
         }}
       />
-    </div>
+      <PreviewModal
+        isOpen={previewModalOpen}
+        onClose={() => setPreviewModalOpen(false)}
+        fileUrl={previewFileUrl}
+        fileName={previewFileName}
+        fileAppType={previewFileAppType}
+      />
+    </div >
 
   );
 };

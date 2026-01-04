@@ -32,7 +32,7 @@ const CodeBlock = ({ node, inline, className, children, ...props }) => {
   }
 
   return (
-    <div className="relative my-4 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 bg-[#1e1e1e] shadow-sm w-fit max-w-full">
+    <div className="relative my-4 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 bg-[#1e1e1e] shadow-sm max-w-full">
       {/* Header Bar */}
       <div className="flex items-center justify-between px-4 py-2 bg-[#2d2d2d] border-b border-gray-700">
         <div className="flex items-center gap-2 text-xs text-gray-400 uppercase font-bold tracking-wider">
@@ -64,16 +64,19 @@ const CodeBlock = ({ node, inline, className, children, ...props }) => {
           style={vscDarkPlus}
           language={language}
           PreTag="div"
+          wrapLongLines={true}
           customStyle={{
             margin: 0,
             padding: '1rem',
             background: 'transparent',
             fontSize: '0.875rem',
             lineHeight: '1.5',
+            wordBreak: 'break-word', // Ensure it breaks even without spaces
           }}
           codeTagProps={{
             style: {
-              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace'
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+              whiteSpace: 'pre-wrap'
             }
           }}
           {...props}

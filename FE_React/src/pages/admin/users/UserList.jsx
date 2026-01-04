@@ -5,6 +5,7 @@ import {
   UserPlusIcon,
   TrashIcon,
   SpinnerIcon,
+  MagnifyingGlassIcon,
 } from '@phosphor-icons/react';
 import { clsx } from 'clsx';
 import { useTranslation } from 'react-i18next';
@@ -13,24 +14,45 @@ import { usePageTour } from '../../../hooks/usePageTour';
 import TourButton from '../../../components/common/TourButton';
 
 const UserList = () => {
-  const { t } = useTranslation(['users', 'translation']);
+  const { t } = useTranslation();
   const navigate = useNavigate();
-  const { users, loading, error, fetchUsers, deleteUser } = useUsers();
+  const { users, loading, error, hasMore, fetchUsers, deleteUser } = useUsers();
 
   const tourSteps = [
-    { element: '#user-header', popover: { title: t('tour.users.title', 'Users'), description: t('tour.users.desc', 'Manage system users and admins.') } },
-    { element: '#create-user-btn', popover: { title: t('tour.users.create', 'Create User'), description: t('tour.users.createDesc', 'Add a new user to the system.') } },
-    { element: '#user-list-content', popover: { title: t('tour.users.list', 'User List'), description: t('tour.users.listDesc', 'View and manage existing users.') } }
+    { element: '#user-header', popover: { title: t('tour.users.title'), description: t('tour.users.desc') } },
+    { element: '#create-user-btn', popover: { title: t('tour.users.create'), description: t('tour.users.createDesc') } },
+    { element: '#user-list-content', popover: { title: t('tour.users.list'), description: t('tour.users.listDesc') } }
   ];
 
   const { startTour } = usePageTour('user-list', tourSteps);
 
   useEffect(() => {
     fetchUsers();
-  }, [fetchUsers]);
+  }, []); // Initial load only
+
+  // Local state for debouncing
+  const [filterValues, setFilterValues] = useState({});
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      // Only fetch if filters actually changed (handled by hook usually, but good to be explicit or just call it)
+      // We pass 'filterValues' to fetchUsers, which treats it as 'newFilters'
+      // But we need to avoid the initial double-fetch if possible.
+      // Actually, initial load is empty filters.
+      if (Object.keys(filterValues).length > 0 || filterValues.query === '') {
+        fetchUsers(false, filterValues);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [filterValues, fetchUsers]);
+
+  const handleFilterChange = (key, value) => {
+    setFilterValues(prev => ({ ...prev, [key]: value || undefined }));
+  };
 
   const handleDeleteUser = async (id) => {
-    if (!window.confirm(t('deleteConfirm'))) return;
+    if (!window.confirm(t('admin.users.deleteConfirm'))) return;
 
     try {
       await deleteUser(id);
@@ -44,16 +66,62 @@ const UserList = () => {
       {/* Header */}
       <header className="h-16 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-8">
         <div className="flex items-center gap-3">
-          <h1 id="user-header" className="text-xl font-semibold text-gray-800 dark:text-white">{t('title')}</h1>
+          <h1 id="user-header" className="text-xl font-semibold text-gray-800 dark:text-white">{t('admin.users.title')}</h1>
           <TourButton startTour={startTour} />
         </div>
         <button id="create-user-btn"
           onClick={() => navigate('/admin/users/create')}
           className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 flex items-center gap-2 shadow-sm transition"
         >
-          <UserPlusIcon size={20} /> {t('createNew')}
+          <UserPlusIcon size={20} /> {t('admin.users.createNew')}
         </button>
       </header>
+
+      {/* Filters */}
+      <div className="px-8 py-4 grid grid-cols-1 md:grid-cols-4 gap-4 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
+         {/* Search */}
+         <div className="relative">
+            <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <input
+               type="text"
+               placeholder={t('admin.users.searchPlaceholder', 'Search by name or email...')}
+               className="w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 transition-colors"
+               onChange={(e) => handleFilterChange('query', e.target.value)}
+            />
+         </div>
+         
+         {/* Role Filter */}
+         <div>
+            <select
+               className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 transition-colors appearance-none"
+               onChange={(e) => handleFilterChange('role', e.target.value)}
+            >
+               <option value="">{t('admin.users.filter.allRoles', 'All Roles')}</option>
+               <option value="user">{t('admin.users.role.user')}</option>
+               <option value="admin">{t('admin.users.role.admin')}</option>
+            </select>
+         </div>
+
+         {/* Date From */}
+         <div>
+             <input
+               type="date"
+               className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 transition-colors"
+               onChange={(e) => handleFilterChange('date_from', e.target.value)}
+               placeholder="From Date"
+             />
+         </div>
+         
+          {/* Date To */}
+         <div>
+             <input
+               type="date"
+               className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 transition-colors"
+               onChange={(e) => handleFilterChange('date_to', e.target.value)}
+               placeholder="To Date"
+             />
+         </div>
+      </div>
 
       {/* Table Content */}
       <div id="user-list-content" className="flex-1 overflow-auto p-8">
@@ -61,18 +129,27 @@ const UserList = () => {
           <table className="w-full text-left border-collapse">
             <thead className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-700 text-xs uppercase text-gray-500 dark:text-gray-400 font-semibold">
               <tr>
-                <th className="px-6 py-4">{t('table.id')}</th>
-                <th className="px-6 py-4">{t('table.tenant')}</th>
-                <th className="px-6 py-4">{t('table.email')}</th>
-                <th className="px-6 py-4">{t('table.role')}</th>
-                <th className="px-6 py-4">{t('table.createdAt')}</th>
-                <th className="px-6 py-4 text-right">{t('table.actions')}</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 hover:text-gray-700 dark:text-gray-400 uppercase tracking-wider">
+                  {t('users.list.tenant', 'Tenant')}
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 hover:text-gray-700 dark:text-gray-400 uppercase tracking-wider">
+                  {t('users.list.email', 'Email')}
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 hover:text-gray-700 dark:text-gray-400 uppercase tracking-wider">
+                  {t('users.list.role', 'Role')}
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 hover:text-gray-700 dark:text-gray-400 uppercase tracking-wider">
+                  {t('users.list.created_at', 'Created At')}
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 hover:text-gray-700 dark:text-gray-400 uppercase tracking-wider">
+                  {t('users.list.action', 'Action')}
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700 text-sm">
-              {loading ? (
+              {loading && users.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
+                  <td colSpan="5" className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
                     <div className="flex flex-col items-center justify-center">
                       <SpinnerIcon size={24} className="animate-spin mb-2" />
                       <span>{t('common.processing')}</span>
@@ -80,17 +157,17 @@ const UserList = () => {
                   </td>
                 </tr>
               ) : error ? (
-                <tr><td colSpan="6" className="px-6 py-8 text-center text-red-500">{t('common.errorOccurred')}: {error?.message || String(error)}</td></tr>
+                <tr><td colSpan="5" className="px-6 py-8 text-center text-red-500">{t('common.errorOccurred')}: {error?.message || String(error)}</td></tr>
               ) : users.length === 0 ? (
-                <tr><td colSpan="6" className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">{t('empty')}</td></tr>
+                <tr><td colSpan="5" className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">{t('admin.users.empty')}</td></tr>
               ) : (
                 users.map(user => (
                   <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-                    <td className="px-6 py-4 font-mono text-xs text-gray-500 dark:text-gray-400 truncate max-w-[100px]" title={user.id}>
-                      {user.id}
-                    </td>
-                    <td className="px-6 py-4 font-mono text-xs text-gray-500 dark:text-gray-400 truncate max-w-[100px]" title={user.tenant_id || ''}>
-                      {user.tenant_id || '-'}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      <span className="flex items-center gap-2">
+                        {/* Using Building Icon if imported, else just text */}
+                        {user.tenants?.name || 'N/A'}
+                      </span>
                     </td>
                     <td className="px-6 py-4 font-medium text-gray-900 dark:text-gray-200">
                       {user.email}
@@ -102,7 +179,7 @@ const UserList = () => {
                           ? "bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800"
                           : "bg-primary-100 text-primary-700 border-primary-200 dark:bg-primary-900/30 dark:text-primary-300 dark:border-primary-800"
                       )}>
-                        {user.role === 'admin' ? t('role.admin') : t('role.user')}
+                        {user.role === 'admin' ? t('admin.users.role.admin') : t('admin.users.role.user')}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-gray-500 dark:text-gray-400 text-xs">
@@ -112,7 +189,7 @@ const UserList = () => {
                       <button
                         onClick={() => handleDeleteUser(user.id)}
                         className="text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition"
-                        title={t('tooltip.delete')}
+                        title={t('admin.users.tooltip.delete')}
                       >
                         <TrashIcon size={18} />
                       </button>
@@ -124,6 +201,18 @@ const UserList = () => {
           </table>
         </div>
       </div>
+      {/* Load More Button */}
+      {hasMore && (
+        <div className="mt-4 flex justify-center">
+          <button
+            onClick={() => fetchUsers(true)}
+            disabled={loading}
+            className="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+          >
+            {loading ? "Loading..." : "Load More"}
+          </button>
+        </div>
+      )}
     </div>
   );
 };

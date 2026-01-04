@@ -1,8 +1,17 @@
+from app.schemas.common_params import PaginationParams
 from datetime import datetime
 from typing import Annotated, Optional, List
 from uuid import UUID
 from fastapi import Path, Query
 from pydantic import BaseModel, Field
+from pydantic.fields import Field
+
+
+class BotSimpleResponse(BaseModel):
+  name: str
+
+  class Config:
+    from_attributes = True
 
 
 class SessionCreateRequest(BaseModel):
@@ -16,27 +25,31 @@ class SessionResponse(BaseModel):
   created_at: datetime
   updated_at: datetime
   started_at: Optional[datetime] = None
-  is_closed: Optional[bool] = False
   is_transfer_agent: Optional[bool] = False
   summary_text: Optional[str] = None
   tenant_id: Optional[UUID] = None
+  bots: Optional[BotSimpleResponse] = None
 
   class Config:
     from_attributes = True
 
 
-class SessionListRequest(BaseModel):
-  limit: Annotated[
-    Optional[int],
-    Field(100, ge=1, le=100, description="Page size")
-  ] = 100
-  cursor_timestamp: Annotated[
-    Optional[int],
-    Field(description="Cursor timestamp for pagination")
-  ] = None
+class SessionListRequest(PaginationParams):
   bot_id: Annotated[
     Optional[UUID],
     Query(description="Filter by Bot ID")
+  ] = None
+  search: Annotated[
+    Optional[str],
+    Query(description="Search by summary or title")
+  ] = None
+  start_date: Annotated[
+    Optional[datetime],
+    Query(description="Filter by start date")
+  ] = None
+  end_date: Annotated[
+    Optional[datetime],
+    Query(description="Filter by end date")
   ] = None
 
 

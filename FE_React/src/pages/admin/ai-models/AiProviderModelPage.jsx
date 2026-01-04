@@ -7,12 +7,12 @@ import clsx from 'clsx';
 
 
 const AiProviderModelPage = () => {
-  const { t } = useTranslation('ai-models');
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState('providers');
 
   const tabs = [
-    { id: 'providers', label: t('providers.title'), icon: SquaresFour },
-    { id: 'models', label: t('models.title'), icon: Cube },
+    { id: 'providers', label: t('admin.aiModels.providers.title'), icon: SquaresFour },
+    { id: 'models', label: t('admin.aiModels.models.title'), icon: Cube },
   ];
 
   return (
@@ -20,7 +20,7 @@ const AiProviderModelPage = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-800 dark:text-white capitalize">
-            {t('title')}
+            {t('admin.aiModels.title')}
           </h1>
           <p className="text-gray-500 dark:text-gray-400 mt-1">
             Manage your AI providers and available models.
