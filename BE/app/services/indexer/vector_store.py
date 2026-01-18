@@ -122,7 +122,7 @@ class VectorRepository:
       self._rerankers[target_model] = CrossEncoder(target_model, device=device)
     return self._rerankers[target_model]
 
-  def create_collection(self, collection_name: Optional[str] = None):
+  def create_collection(self, collection_name: Optional[str] = None, vector_size: Optional[int] = None):
     target_collection = collection_name or "test_documents"
     if not self.qdrant_client.collection_exists(target_collection):
       logger.info(
@@ -130,7 +130,7 @@ class VectorRepository:
       self.qdrant_client.create_collection(
           collection_name=target_collection,
           vectors_config=VectorParams(
-              size=self.vector_size,
+              size=vector_size or self.vector_size,
               distance=Distance.COSINE,
               quantization_config=models.ScalarQuantization(
                   scalar=models.ScalarQuantizationConfig(
@@ -183,11 +183,7 @@ class VectorRepository:
       logger.info(
         f"[VectorRepo] Upserting into dynamic collection: {target_collection}")
 
-      # 2. Ensure collection exists
-      self.create_collection(target_collection)
-
-      # 3. Upsert using MANUAL creation to Optimize Storage
-      # PRESERVE IDs: Use doc.id_ (which FileProcessor sets to node_id)
+      # 1. Prepare Nodes (Convert Documents if needed)
       nodes = []
       for doc in documents:
         # If the input is already a Node, use it. If it's a Document, convert to TextNode keeping the ID.
@@ -197,9 +193,18 @@ class VectorRepository:
           nodes.append(
             TextNode(text=doc.text, metadata=doc.metadata, id_=doc.doc_id))
 
-      # Generate Dense Embeddings
+      # 2. Generate Dense Embeddings
       embeddings = embed_model.get_text_embedding_batch(
         [n.text for n in nodes])
+
+      if not embeddings:
+        logger.warning(
+          "[VectorRepo] No embeddings generated. Skipping upsert.")
+        return
+
+      # 3. Create Collection with CORRECT Dimension
+      current_dim = len(embeddings[0])
+      self.create_collection(target_collection, vector_size=current_dim)
 
       points = []
       for node, emb in zip(nodes, embeddings):
@@ -230,10 +235,19 @@ class VectorRepository:
           id=node.node_id, vector=emb, payload=payload))
 
       # 5. Upsert Dense Points
-      self.qdrant_client.upsert(
-          collection_name=target_collection,
-          points=points
-      )
+      try:
+        self.qdrant_client.upsert(
+            collection_name=target_collection,
+            points=points
+        )
+      except Exception as e:
+        logger.error(
+          f"[VectorRepo] Qdrant upsert failed. Collection: {target_collection}")
+        if hasattr(e, "body"):
+          logger.error(f"[VectorRepo] Qdrant Error Body: {e.body}")
+        if hasattr(e, "reason"):
+          logger.error(f"[VectorRepo] Qdrant Error Reason: {e.reason}")
+        raise e
 
       # 5. Manual Sparse Vector Update for Custom Collection (CONDITIONAL)
       if use_sparse:

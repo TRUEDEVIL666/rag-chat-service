@@ -37,7 +37,38 @@ class AuthService:
         raise RuntimeError("Failed to register user with Supabase")
     except Exception as e:
       logger.exception("Register user failed")
-      raise RuntimeError("Failed to register user")
+      raise RuntimeError(f"Failed to register user: {str(e)}")
+
+  @staticmethod
+  def sign_up_batch(users: list[dict]) -> dict:
+    created_count = 0
+    skipped_count = 0
+    errors = []
+
+    for user in users:
+      try:
+        AuthService.sign_up(
+          email=user.get("email"),
+          password=user.get("password"),
+          name=user.get("name"),
+          tenant_id=user.get("tenant_id"),
+          role=user.get("role")
+        )
+        created_count += 1
+      except Exception as e:
+        err_msg = str(e)
+        if "User already registered" in err_msg or "already exists" in err_msg:
+          skipped_count += 1
+          errors.append({"email": user.get("email"),
+                        "error": "User already registered (Skipped)"})
+        else:
+          errors.append({"email": user.get("email"), "error": err_msg})
+
+    return {
+      "created_count": created_count,
+      "skipped_count": skipped_count,
+      "errors": errors
+    }
 
   @staticmethod
   def sign_in_with_password(email: str, password: str) -> dict:
@@ -79,13 +110,6 @@ class AuthService:
         return {
           "token": custom_token,
           "refresh_token": response.session.refresh_token,
-          # "user": {
-          #   "id": user_id,
-          #   "email": email,
-          #   "name": user_details.get("name"),
-          #   "tenant_id": tenant_id,
-          #   "role": role
-          # }
         }
       else:
         raise PermissionError("Invalid login credentials")

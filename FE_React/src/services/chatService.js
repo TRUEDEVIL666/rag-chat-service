@@ -41,11 +41,18 @@ export const streamChatResponse = async ({
       if (data.session_id && onSessionId) {
         onSessionId(data.session_id);
       }
-      if (data.response && onChunk) {
-        onChunk(data.response);
+      
+      // Backend (BotAskResponse) uses 'answer', but some streaming paths uses 'response'
+      const text = data.answer || data.response;
+      if (text && onChunk) {
+        onChunk(text);
       }
     } catch (error) {
-      console.error("Non-streaming chat error:", error);
+      console.error("Non-streaming chat error details:", error.toJSON ? error.toJSON() : error);
+      if (error.response) {
+          console.error("Error Response Data:", error.response.data);
+          console.error("Error Response Status:", error.response.status);
+      }
       throw error;
     }
     return;

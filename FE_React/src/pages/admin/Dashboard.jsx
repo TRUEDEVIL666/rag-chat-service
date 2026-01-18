@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { CurrencyDollarIcon, ChatCircleTextIcon, UserPlusIcon, QuestionIcon, FileTextIcon, WarningIcon } from '@phosphor-icons/react';
 import { useDashboard } from '../../hooks/useDashboard';
 import { useTranslation } from 'react-i18next';
@@ -32,16 +33,92 @@ ChartJS.register(
 const Dashboard = () => {
   const { t } = useTranslation();
   const { theme } = useTheme();
+  const navigate = useNavigate();
 
   // Data Hooks
-  const { stats, chartData: rawChartData, loadingStats, loadingChart, error: statsError, fetchAll } = useDashboard();
+  const { stats, loadingStats, error: statsError, fetchSummary } = useDashboard();
 
   const [recentDocs, setRecentDocs] = useState([]);
   const [timeRange, setTimeRange] = useState('30days'); // '7days', '30days', 'all'
 
+  const [realTimeChartData, setRealTimeChartData] = useState([]);
+  const [loadingStream, setLoadingStream] = useState(false);
+
   useEffect(() => {
-    fetchAll(timeRange);
-  }, [fetchAll, timeRange]);
+    fetchSummary();
+  }, [fetchSummary]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const controller = new AbortController();
+
+    const streamChartData = async () => {
+      setLoadingStream(true);
+      setRealTimeChartData([]); // Reset on new range
+
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+
+        const response = await fetch(`${import.meta.env.VITE_API_BASE}/analytics/chart?time_range=${timeRange}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          },
+          signal: controller.signal
+        });
+
+        if (!response.ok) throw new Error('Network response was not ok');
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (isMounted) {
+          const { value, done } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value, { stream: true });
+          buffer += chunk;
+
+          const lines = buffer.split('\n\n');
+          // Keep the last partial line in the buffer
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const jsonStr = line.substring(6);
+              try {
+                const newData = JSON.parse(jsonStr);
+                // Merge data: chunks are arrays of daily stats
+                setRealTimeChartData(prev => {
+                  // Merge and sort
+                  const merged = [...prev, ...newData];
+                  // Basic dedication not strictly needed if backend is ordered, but good safety
+                  // Sort by date strings
+                  return merged.sort((a, b) => a.period_date.localeCompare(b.period_date));
+                });
+              } catch (e) {
+                console.error("Failed to parse chunk", e);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          console.error("Stream failed", err);
+        }
+      } finally {
+        if (isMounted) setLoadingStream(false);
+      }
+    };
+
+    streamChartData();
+
+    return () => {
+      isMounted = false;
+      controller.abort();
+    };
+  }, [timeRange]);
 
 
 
@@ -53,14 +130,14 @@ const Dashboard = () => {
 
   // Process real chart data or fallback to empty
   const chartLabels = React.useMemo(() => {
-    if (!rawChartData) return [];
-    return rawChartData.map(item => item.period_date);
-  }, [rawChartData]);
+    if (!realTimeChartData) return [];
+    return realTimeChartData.map(item => item.period_date);
+  }, [realTimeChartData]);
 
   const chartValues = React.useMemo(() => {
-    if (!rawChartData) return [];
-    return rawChartData.map(item => item.count);
-  }, [rawChartData]);
+    if (!realTimeChartData) return [];
+    return realTimeChartData.map(item => item.count);
+  }, [realTimeChartData]);
 
   const chartData = {
     labels: chartLabels.length > 0 ? chartLabels : ['No Data'],
@@ -161,53 +238,7 @@ const Dashboard = () => {
   };
 
 
-  if (loadingStats && !stats) {
-    return (
-      <div className="flex-1 overflow-auto p-6" id="dashboard-content">
-        <div className="mb-8">
-          <div className="h-8 w-48 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-        </div>
 
-        {/* Stats Grid Skeleton */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-5">
-              <div className="w-14 h-14 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse flex-shrink-0"></div>
-              <div className="flex-1">
-                <div className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-2"></div>
-                <div className="h-8 w-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Content Skeleton */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Chart Skeleton */}
-          <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-            <div className="flex justify-between mb-6">
-              <div className="h-6 w-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-              <div className="h-6 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-            </div>
-            <div className="h-80 w-full bg-gray-100 dark:bg-gray-700/50 rounded animate-pulse"></div>
-          </div>
-
-          {/* List Skeleton */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-            <div className="h-6 w-40 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-6"></div>
-            <div className="space-y-4">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="flex justify-between items-center pb-4 border-b border-gray-50 dark:border-gray-700 last:border-0">
-                  <div className="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-                  <div className="h-6 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="flex-1 overflow-auto p-6" id="dashboard-content">
@@ -239,7 +270,11 @@ const Dashboard = () => {
           </div>
           <div>
             <p className="text-gray-500 dark:text-gray-400 text-sm font-medium mb-1">{t('admin.dashboard.total_users')}</p>
-            <h3 className="text-2xl font-bold text-gray-800 dark:text-white">{stats ? stats.total_users : 0}</h3>
+            {loadingStats ? (
+              <div className="h-8 w-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+            ) : (
+              <h3 className="text-2xl font-bold text-gray-800 dark:text-white">{stats ? stats.total_users : 0}</h3>
+            )}
           </div>
         </div>
 
@@ -250,7 +285,11 @@ const Dashboard = () => {
           </div>
           <div>
             <p className="text-gray-500 dark:text-gray-400 text-sm font-medium mb-1">{t('admin.dashboard.total_chats')}</p>
-            <h3 className="text-2xl font-bold text-gray-800 dark:text-white">{stats ? stats.total_chats : 0}</h3>
+            {loadingStats ? (
+              <div className="h-8 w-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+            ) : (
+              <h3 className="text-2xl font-bold text-gray-800 dark:text-white">{stats ? stats.total_chats : 0}</h3>
+            )}
           </div>
         </div>
 
@@ -261,7 +300,11 @@ const Dashboard = () => {
           </div>
           <div>
             <p className="text-gray-500 dark:text-gray-400 text-sm font-medium mb-1">{t('admin.dashboard.total_kbs')}</p>
-            <h3 className="text-2xl font-bold text-gray-800 dark:text-white">{stats ? stats.total_kbs : 0}</h3>
+            {loadingStats ? (
+              <div className="h-8 w-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+            ) : (
+              <h3 className="text-2xl font-bold text-gray-800 dark:text-white">{stats ? stats.total_kbs : 0}</h3>
+            )}
           </div>
         </div>
 
@@ -272,7 +315,11 @@ const Dashboard = () => {
           </div>
           <div>
             <p className="text-gray-500 dark:text-gray-400 text-sm font-medium mb-1">{t('admin.dashboard.total_documents')}</p>
-            <h3 className="text-2xl font-bold text-gray-800 dark:text-white">{stats ? stats.total_documents : 0}</h3>
+            {loadingStats ? (
+              <div className="h-8 w-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+            ) : (
+              <h3 className="text-2xl font-bold text-gray-800 dark:text-white">{stats ? stats.total_documents : 0}</h3>
+            )}
           </div>
         </div>
       </div>
@@ -281,7 +328,7 @@ const Dashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Chart Area (Left - 2/3 width) */}
         <div id="activity-chart" className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 relative">
-          {loadingChart && (
+          {loadingStream && realTimeChartData.length === 0 && (
             <div className="absolute inset-0 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm flex items-center justify-center z-10 rounded-xl">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
             </div>
@@ -329,25 +376,44 @@ const Dashboard = () => {
                 </tr>
               </thead>
               <tbody className="text-sm">
-                {recentDocs.map((doc) => (
-                  <tr key={doc.id} className="border-b border-gray-50 dark:border-gray-700 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-                    <td className="py-3 text-gray-500 dark:text-gray-400 font-mono" title={doc.name}>
-                      {doc.name.length > 20 ? doc.name.substring(0, 20) + '...' : doc.name}
-                    </td>
-                    <td className="py-3 text-right">
-                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${doc.status === 'completed' ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400' :
-                        doc.status === 'processing' ? 'bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400' :
-                          'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
-                        }`}>
-                        {t(`common.status.${doc.status}`, doc.status || 'Unknown')}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-                {recentDocs.length === 0 && (
-                  <tr>
-                    <td colSpan="2" className="py-4 text-center text-gray-500">{t('admin.dashboard.no_recent_docs')}</td>
-                  </tr>
+                {loadingStats ? (
+                  [1, 2, 3, 4, 5].map((i) => (
+                    <tr key={i} className="border-b border-gray-50 dark:border-gray-700 last:border-0">
+                      <td className="py-3">
+                        <div className="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                      </td>
+                      <td className="py-3 text-right">
+                        <div className="h-6 w-16 ml-auto bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <>
+                    {recentDocs.map((doc) => (
+                      <tr
+                        key={doc.id}
+                        onClick={() => navigate('/admin/documents', { state: { kbId: doc.knowledgebase_id, kbName: doc.knowledgebases?.name, docId: doc.id } })}
+                        className="border-b border-gray-50 dark:border-gray-700 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700 transition cursor-pointer"
+                      >
+                        <td className="py-3 text-gray-500 dark:text-gray-400 font-mono" title={doc.name}>
+                          {doc.name.length > 20 ? doc.name.substring(0, 20) + '...' : doc.name}
+                        </td>
+                        <td className="py-3 text-right">
+                          <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${doc.status === 'completed' ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400' :
+                            doc.status === 'processing' ? 'bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                              'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+                            }`}>
+                            {t(`common.status.${doc.status}`, doc.status || 'Unknown')}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                    {!loadingStats && recentDocs.length === 0 && (
+                      <tr>
+                        <td colSpan="2" className="py-4 text-center text-gray-500">{t('admin.dashboard.no_recent_docs')}</td>
+                      </tr>
+                    )}
+                  </>
                 )}
               </tbody>
             </table>

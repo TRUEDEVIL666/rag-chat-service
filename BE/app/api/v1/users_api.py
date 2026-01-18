@@ -2,10 +2,10 @@
 from datetime import datetime
 from app.schemas.common_params import PaginationParams, UserSearchParams
 from app.schemas.common import MessageResponse
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Body
 from fastapi_cache.decorator import cache
 from app.core.factory import get_auth_service, get_user_service
-from app.schemas.auth import RegisterRequest, User, UserIdRequest
+from app.schemas.auth import RegisterRequest, User, UserIdRequest, BatchRegisterRequest, BatchRegisterResponse
 from typing import List
 from app.utils.auth import get_current_user
 
@@ -42,6 +42,23 @@ async def create_user(
     raise HTTPException(status_code=500, detail="Internal server error")
 
 
+@router.post("/users/batch", response_model=BatchRegisterResponse)
+async def create_users_batch(
+    data: BatchRegisterRequest,
+    auth_service=Depends(get_auth_service),
+    current_user: dict = Depends(get_current_user),
+):
+  if current_user.get("role") != "admin":
+    raise HTTPException(status_code=403, detail="Not authorized")
+
+  try:
+    users_list = [user.dict() for user in data.users]
+    result = auth_service.sign_up_batch(users_list)
+    return result
+  except Exception as e:
+    raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.delete("/users/{user_id}", status_code=204)
 async def delete_user(
     req: UserIdRequest = Depends(),
@@ -58,7 +75,7 @@ async def delete_user(
 
 @router.delete("/users", status_code=204)
 async def delete_users(
-    user_ids: List[str],
+    user_ids: List[str] = Body(...),
     user_service=Depends(get_user_service),
     current_user: dict = Depends(get_current_user),
 ):

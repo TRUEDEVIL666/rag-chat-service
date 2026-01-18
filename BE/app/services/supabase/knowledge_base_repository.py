@@ -193,7 +193,8 @@ class KnowledgeBaseRepository:
            .update(fields)
            .eq("id", kb_id).eq("tenant_id", tenant_id)
            .execute())
-    return (res.data or [None])[0]
+    # Return get_one to ensure consistency with list/get views (e.g. joined fields)
+    return self.get_one(kb_id, tenant_id, access_token)
 
   def get_retrieval_configs_by_ids(self, kb_ids: List[str], tenant_id: str, access_token: str = None) -> Dict[str, dict]:
     """
@@ -207,7 +208,7 @@ class KnowledgeBaseRepository:
       client = get_supabase_client(access_token)
       res = (
           client.table(self.table_name)
-          .select("id, retrieval_model, embedding_model:embedding_model_id(name, model_id), embedding_provider:embedding_provider_id(name)")
+          .select("id, name, description, retrieval_model, embedding_model:embedding_model_id(name, model_id), embedding_provider:embedding_provider_id(name)")
           .in_("id", kb_ids)
           .eq("tenant_id", tenant_id)
           .execute()

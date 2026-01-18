@@ -66,7 +66,7 @@ class DocumentRepository:
     try:
       client = get_supabase_client(access_token)
       query = client.table(self.table_name).select(
-        "*, creator:users!created_by(name)")
+        "*, creator:users!created_by(name), knowledgebases(id, name)")
 
       if tenant_id:
         query = query.eq("tenant_id", tenant_id)

@@ -11,6 +11,11 @@ export const kbsService = {
     return response.data;
   },
 
+  updateKnowledgeBase: async (id, data) => {
+    const response = await api.patch(`/knowledge_bases/${id}`, data);
+    return response.data;
+  },
+
   deleteKnowledgeBase: async (id) => {
     const response = await api.delete(`/knowledge_bases/${id}`);
     return response.data;

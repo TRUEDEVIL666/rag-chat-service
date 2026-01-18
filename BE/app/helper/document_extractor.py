@@ -1,3 +1,4 @@
+import time
 import io
 import os
 import json
@@ -31,7 +32,8 @@ def get_docling_converter() -> DocumentConverter:
   if _docling_converter is None:
     try:
       import torch
-      device = AcceleratorDevice.CUDA if torch.cuda.is_available() else AcceleratorDevice.CPU
+      # device = AcceleratorDevice.CUDA if torch.cuda.is_available() else AcceleratorDevice.CPU
+      device = AcceleratorDevice.CPU
       logger.info(f"Initializing DocumentConverter with device: {device}...")
     except ImportError:
       logger.warning("Torch not found, defaulting to CPU for Docling.")
@@ -90,7 +92,7 @@ def extract_documents(file_bytes: bytes, filename: str, reader_map: dict, arg_ma
               "processing_method": "docling",
               "reader_type": "DocumentConverter(CUDA)"
           })]
-          os.remove(tmp_path)
+          _safe_remove(tmp_path)
           return docs
       except Exception as e:
         logger.warning(f"Docling failed for {filename}, falling back: {e}")
@@ -111,7 +113,7 @@ def extract_documents(file_bytes: bytes, filename: str, reader_map: dict, arg_ma
                 "processing_method": "llama_index_reader",
                 "reader_type": type(reader).__name__
             })
-          os.remove(tmp_path)
+          _safe_remove(tmp_path)
           return docs
       except Exception as e:
         logger.warning(f"LlamaIndex reader failed for {filename}: {e}")
@@ -119,12 +121,12 @@ def extract_documents(file_bytes: bytes, filename: str, reader_map: dict, arg_ma
     # Tier 3: Manual Fallback
     logger.info(f"Fallback to manual extraction for {filename}")
     text = _extract_text_manual(file_bytes, filename)
-    os.remove(tmp_path)
+    _safe_remove(tmp_path)
     return [Document(text=text, metadata={"file_name": filename, "processing_method": "manual"})]
 
   except Exception as e:
     if os.path.exists(tmp_path):
-      os.remove(tmp_path)
+      _safe_remove(tmp_path)
     logger.error(f"Total extraction failure for {filename}: {e}")
     raise e
 
@@ -294,7 +296,7 @@ def _extract_text_from_pdf(binary_pdf: bytes) -> str:
     raise e
   finally:
     if os.path.exists(tmp_path):
-      os.remove(tmp_path)
+      _safe_remove(tmp_path)
 
 
 def _extract_text_from_xlsx(binary_xlsx: bytes) -> str:
@@ -310,6 +312,28 @@ def _extract_text_from_xlsx(binary_xlsx: bytes) -> str:
       if row_text:
         text_parts.append(ParsingConstants.COLUMN_SEPARATOR.join(row_text))
   return '\n'.join(text_parts)
+
+
+def _safe_remove(path: str, retries: int = 3, delay: float = 0.5):
+  """
+  Safely remove a file with retries to handle Windows file locking issues.
+  """
+  for i in range(retries):
+    try:
+      if os.path.exists(path):
+        os.remove(path)
+      return
+    except PermissionError:
+      if i < retries - 1:
+        time.sleep(delay)
+      else:
+        logger.warning(
+          f"Could not remove temporary file {path} after {retries} attempts.")
+    except Exception as e:
+      logger.warning(f"Error removing temporary file {path}: {e}")
+      return
+
+# ... (End of file helper functions) ...
 
 
 def _extract_text_from_html(binary_html: bytes) -> str:

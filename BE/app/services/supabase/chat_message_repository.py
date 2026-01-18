@@ -47,8 +47,8 @@ class ChatMessageRepository:
       )
 
       if cursor_timestamp:
-        from datetime import datetime
-        dt_cursor = datetime.fromtimestamp(cursor_timestamp).isoformat()
+        from datetime import datetime, timezone
+        dt_cursor = datetime.fromtimestamp(cursor_timestamp, tz=timezone.utc).isoformat()
         if sort_desc:
           query = query.lt(sort_column, dt_cursor)
         else:

@@ -7,7 +7,7 @@ import {
 import MarkdownRenderer from '../common/MarkdownRenderer';
 import QuizRenderer from './QuizRenderer';
 
-const MessageBubble = ({ role, text, senderName }) => {
+const MessageBubble = ({ role, text, senderName, botId, sessionId }) => {
   const isUser = role === 'user';
 
   // Try to parse quiz data
@@ -15,16 +15,24 @@ const MessageBubble = ({ role, text, senderName }) => {
   if (!isUser) {
     try {
       let content = text.trim();
-      // Remove markdown code blocks if present
-      if (content.startsWith('```')) {
-        content = content.replace(/^```(json)?\s*/i, '').replace(/\s*```$/, '');
+
+      // 1. Try to extract from markdown code blocks first
+      const codeBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+      if (codeBlockMatch) {
+        content = codeBlockMatch[1].trim();
+      } else {
+        // 2. Fallback: Try to find the first JSON array pattern [...]
+        const arrayMatch = content.match(/\[\s*\{[\s\S]*\}\s*\]/);
+        if (arrayMatch) {
+          content = arrayMatch[0];
+        }
       }
 
       if (content.startsWith('[') && content.endsWith(']')) {
-         const parsed = JSON.parse(content);
-         if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].question && parsed[0].options) {
-            quizData = parsed;
-         }
+        const parsed = JSON.parse(content);
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].question && parsed[0].options) {
+          quizData = parsed;
+        }
       }
     } catch (e) {
       // Not JSON
@@ -49,7 +57,7 @@ const MessageBubble = ({ role, text, senderName }) => {
         <div className="flex items-start">
           <div className={`${isUser ? 'msg-user' : 'msg-bot'} p-4 text-sm md:text-base leading-relaxed`}>
             {isUser ? text : (
-              quizData ? <QuizRenderer data={quizData} /> : <MarkdownRenderer content={text} />
+              quizData ? <QuizRenderer data={quizData} botId={botId} sessionId={sessionId} /> : <MarkdownRenderer content={text} />
             )}
           </div>
         </div>

@@ -37,7 +37,7 @@ class SessionRepository:
           client.table(self.table_name)
           .select("*, bots(name)")
           .eq("id", session_id)
-          .single()
+          .maybe_single()
           .execute()
       )
       if response.data:
@@ -61,8 +61,10 @@ class SessionRepository:
       from datetime import datetime
 
       if cursor_timestamp:
+        from datetime import datetime, timezone
         # Assuming cursor_timestamp is unix timestamp (int).
-        dt_cursor = datetime.fromtimestamp(cursor_timestamp).isoformat()
+        dt_cursor = datetime.fromtimestamp(
+          cursor_timestamp, tz=timezone.utc).isoformat()
         query = query.lt("updated_at", dt_cursor)
 
       if tenant_id:

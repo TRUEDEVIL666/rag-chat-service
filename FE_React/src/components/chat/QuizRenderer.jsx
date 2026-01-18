@@ -9,11 +9,15 @@ import {
   ArrowLeftIcon
 } from '@phosphor-icons/react';
 
-const QuizRenderer = ({ data }) => {
+import { quizService } from '../../services/quizService';
+import { toast } from 'react-hot-toast';
+
+const QuizRenderer = ({ data, botId, sessionId }) => {
   const { t } = useTranslation();
   const [mode, setMode] = useState('start'); // 'start', 'play', 'table'
   const [answers, setAnswers] = useState({});
   const [showResults, setShowResults] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Validation: Ensure data is an array
   if (!Array.isArray(data) || data.length === 0) {
@@ -80,7 +84,50 @@ const QuizRenderer = ({ data }) => {
     setMode('start');
     setAnswers({});
     setShowResults(false);
+    setIsSubmitting(false);
   };
+
+  // Calculate Score Helper
+  const calculateScore = () => {
+    let correct = 0;
+    data.forEach((q, idx) => {
+      const selectedOption = answers[idx];
+      const selectedIndex = (q.options || []).indexOf(selectedOption);
+      if (selectedIndex !== -1 && isAnswerCorrect(q, selectedIndex, selectedOption)) {
+        correct++;
+      }
+    });
+    return correct;
+  };
+
+  const handleCheckAnswers = async () => {
+    if (showResults) return; // Already checked?
+
+    const score = calculateScore();
+    setShowResults(true);
+
+    // Submit to backend if context exists
+    if (botId && sessionId) {
+      setIsSubmitting(true);
+      try {
+        await quizService.submitAttempt({
+          bot_id: botId,
+          session_id: sessionId,
+          score: score,
+          total_questions: data.length,
+          quiz_data: data,
+          user_answers: answers
+        });
+        toast.success(t('quiz.saved', "Quiz result saved!"));
+      } catch (error) {
+        console.error(error);
+        toast.error(t('quiz.saveFailed', "Failed to save result"));
+      } finally {
+        setIsSubmitting(false);
+      }
+    }
+  };
+
 
   // --- Start Screen ---
   if (mode === 'start') {
@@ -181,18 +228,8 @@ const QuizRenderer = ({ data }) => {
     setAnswers(prev => ({ ...prev, [qIndex]: option }));
   };
 
-  const calculateScore = () => {
-    let correct = 0;
-    data.forEach((q, idx) => {
-      const selectedOption = answers[idx];
-      // Find the index of the selected option
-      const selectedIndex = (q.options || []).indexOf(selectedOption);
-      if (selectedIndex !== -1 && isAnswerCorrect(q, selectedIndex, selectedOption)) {
-        correct++;
-      }
-    });
-    return correct;
-  };
+  // Moved calculateScore to helper above for reuse or just keep as defined there if not needed elsewhere
+  // But wait, I used it inside handleCheckAnswers.
 
   const isSelected = (qIndex, option) => answers[qIndex] === option;
 
@@ -260,11 +297,11 @@ const QuizRenderer = ({ data }) => {
       <div className="pt-2 flex items-center justify-between">
         {!showResults ? (
           <button
-            onClick={() => setShowResults(true)}
-            disabled={Object.keys(answers).length !== data.length}
+            onClick={handleCheckAnswers}
+            disabled={Object.keys(answers).length !== data.length || isSubmitting}
             className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition font-medium text-sm shadow-sm"
           >
-            {t('quiz.checkAnswers')}
+            {isSubmitting ? t('common.saving', "Saving...") : t('quiz.checkAnswers')}
           </button>
         ) : (
           <div className="flex items-center gap-2 bg-slate-100 dark:bg-gray-700 px-4 py-2 rounded-lg">

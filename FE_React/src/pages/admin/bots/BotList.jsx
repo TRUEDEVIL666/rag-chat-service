@@ -158,7 +158,7 @@ const BotList = () => {
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-center gap-1 opacity-100 lg:opacity-60 lg:group-hover:opacity-100 transition-opacity">
                         <button
-                          onClick={() => navigate(`/admin/chat/${bot.id}`)}
+                          onClick={() => navigate(`/admin/chat/${bot.id}?new=true`)}
                           disabled={!bot.model_id}
                           className={clsx(
                             "tour-chat-btn transition p-2 rounded-lg",

@@ -1,3 +1,4 @@
+from app.services.supabase.quiz_repository import QuizRepository
 import logging
 from app.config.config import settings
 from app.services.auth.auth_service import AuthService
@@ -368,3 +369,27 @@ def get_analytics_service() -> "AnalyticsService":
         chat_repo=get_chat_message_repository()
     )
   return _analytics_service_instance
+
+
+_quiz_repo_instance: QuizRepository | None = None
+
+
+def get_quiz_repository() -> QuizRepository:
+  global _quiz_repo_instance
+  if _quiz_repo_instance is None:
+    try:
+      # Assuming we just need the supabase client which is usually handled inside the repo by creating a new client or reusing?
+      # Wait, other repos like BotRepository instantiate with (), they must use internal logic or standard client.
+      # Let's check BotRepository __init__ method to be sure.
+      # But based on my QuizRepository code: def __init__(self, supabase_client: Client):
+      # I need to pass the client.
+      # Where do I get the client?
+      # `app/core/database.py`? or settings?
+      # Ah, I should check how other repos are instantiated.
+      # BotRepository() has no args in factory.
+      _quiz_repo_instance = QuizRepository()
+      logger.info("Initialized QuizRepository")
+    except Exception as e:
+      logger.exception("Failed to initialize QuizRepository")
+      raise
+  return _quiz_repo_instance

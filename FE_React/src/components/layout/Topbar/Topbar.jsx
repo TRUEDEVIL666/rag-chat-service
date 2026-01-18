@@ -32,7 +32,7 @@ const Topbar = ({ toggleSidebar }) => {
     if (matchPath('/user/documents', location.pathname)) return t('nav.documents', 'Documents');
     if (matchPath('/user/history', location.pathname)) return t('nav.history', 'History');
     if (matchPath('/user/settings', location.pathname)) return t('nav.settings', 'Settings');
-    if (matchPath('/user/chat/*', location.pathname)) {
+    if (matchPath('/user/chat/*', location.pathname) || matchPath('/admin/chat/*', location.pathname)) {
       // User request: "As for the title, use the bot name instead of the summary text"
       const title = activeSession?.botName || activeSession?.title || t('chatbot.chat_title', 'Chat');
       return (

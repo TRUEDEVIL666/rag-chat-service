@@ -37,7 +37,7 @@ const UserSidebar = ({ isOpen, toggleSidebar }) => {
     e.stopPropagation();
     if (window.confirm(t('common.delete') + '?')) {
       await deleteSessionContext(sessionId);
-      if (activeSessionId === sessionId) {
+      if (String(activeSessionId) === String(sessionId)) {
         navigate('/user/home');
       }
     }

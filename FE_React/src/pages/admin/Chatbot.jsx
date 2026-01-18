@@ -20,6 +20,11 @@ const Chatbot = () => {
     }
 
     if (botId) {
+      if (searchParams.get('new') === 'true') {
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       api.get(`/sessions?limit=1&offset=0&bot_id=${botId}`)
         .then(res => {

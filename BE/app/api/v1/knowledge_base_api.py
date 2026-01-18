@@ -4,7 +4,7 @@ from fastapi_cache.decorator import cache
 from uuid import UUID
 from datetime import datetime
 from typing import Dict, Any, List, Optional
-from fastapi import APIRouter, HTTPException, Depends, Path, Query
+from fastapi import APIRouter, HTTPException, Depends, Path, Query, Body
 
 from app.core.logger import get_logger
 from app.core.factory import get_knowledge_base_service
@@ -157,7 +157,7 @@ def get_knowledge_base_details(
 )
 def update_knowledge_base(
     knowledge_base_id: UUID = Path(..., description="KB ID"),
-    body: UpdateKnowledgeBaseRequest = Depends(),
+    body: UpdateKnowledgeBaseRequest = Body(...),
     kb_service=Depends(get_knowledge_base_service),
     auth=Depends(get_current_user)
 ):

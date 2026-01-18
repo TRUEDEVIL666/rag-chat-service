@@ -148,12 +148,6 @@ class KnowledgeBaseService:
       if perm != "partial" and body.partial_member_list is None:
         upd["partial_member_list"] = []
 
-    if body.embedding_model_provider is not None:
-      upd["embedding_model_provider"] = body.embedding_model_provider
-
-    if body.embedding_model is not None:
-      upd["embedding_model"] = body.embedding_model
-
     if body.retrieval_model is not None:
       upd["retrieval_model"] = api_to_db_retrieval(
           body.retrieval_model.dict(exclude_unset=True))

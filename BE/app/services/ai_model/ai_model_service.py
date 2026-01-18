@@ -226,8 +226,10 @@ class AiModelService:
         try:
           client = ollama.Client(host=target_url)
           response = client.list()
-          # response is {'models': [...]}
-          models = [m['name'] for m in response['models']]
+          if hasattr(response, 'models'):
+            models = [m.model for m in response.models]
+          else:
+            models = [m['name'] for m in response.get('models', [])]
         except Exception as e:
           raise ValueError(f"Ollama Error: {e}")
 

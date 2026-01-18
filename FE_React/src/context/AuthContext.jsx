@@ -48,6 +48,23 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
+  useEffect(() => {
+    // Expose logout to window for api.js
+    window.logout = logout;
+
+    // Listen for storage events (e.g. from other tabs)
+    const handleStorageChange = (e) => {
+      if (e.key === 'token' && !e.newValue) {
+        logout();
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => {
+      delete window.logout;
+      window.removeEventListener('storage', handleStorageChange);
+    }
+  }, []);
+
   return (
     <AuthContext.Provider value={{ token, user, isAuthenticated: !!token, login, logout, loading }}>
       {!loading && children}

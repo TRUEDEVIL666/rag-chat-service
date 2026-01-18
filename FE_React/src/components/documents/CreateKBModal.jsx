@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { XIcon, SpinnerIcon, FloppyDiskIcon, InfoIcon } from '@phosphor-icons/react';
+import { XIcon, SpinnerIcon, FloppyDiskIcon, InfoIcon, PencilSimpleIcon } from '@phosphor-icons/react';
 import { useBotOptions } from '../../hooks/useBots';
 import { useKnowledgeBases } from '../../hooks/useKnowledgeBases';
 import TextField from '../common/TextField/TextField';
 import Select from '../common/Select/Select';
 
-const CreateKBModal = ({ isOpen, onClose, onSuccess }) => {
-  const { t } = useTranslation(['admin/documents', 'admin/bots', 'translation']);
-  const { createKB } = useKnowledgeBases();
+const CreateKBModal = ({ isOpen, onClose, onSuccess, initialData = null }) => {
+  const { t } = useTranslation();
+  const { createKB, updateKB } = useKnowledgeBases();
   const {
     providers,
     models,
@@ -16,6 +16,8 @@ const CreateKBModal = ({ isOpen, onClose, onSuccess }) => {
     fetchModels,
     loading: optionsLoading
   } = useBotOptions();
+
+  const isEditMode = !!initialData;
 
   const [formData, setFormData] = useState({
     name: '',
@@ -27,19 +29,40 @@ const CreateKBModal = ({ isOpen, onClose, onSuccess }) => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
+  // Effect to initialize Form Data
+  useEffect(() => {
+    if (isOpen) {
+      if (initialData) {
+        // Edit Mode
+        setFormData({
+          name: initialData.name || '',
+          description: initialData.description || '',
+          embedding_provider_id: initialData.embedding_provider_id || '',
+          embedding_model_id: initialData.embedding_model_id || '',
+        });
+      } else {
+        // Create Mode
+        setFormData({
+          name: '',
+          description: '',
+          embedding_provider_id: '',
+          embedding_model_id: '',
+        });
+      }
+      setError(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
+  // Effect to fetch options
   useEffect(() => {
     if (isOpen) {
       fetchProviders();
-      // Reset form
-      setFormData({
-        name: '',
-        description: '',
-        embedding_provider_id: '',
-        embedding_model_id: '',
-      });
-      setError(null);
+      if (initialData && initialData.embedding_provider_id) {
+        fetchModels(initialData.embedding_provider_id, 'embedding');
+      }
     }
-  }, [isOpen, fetchProviders]);
+  }, [isOpen, fetchProviders, fetchModels, initialData?.embedding_provider_id]);
 
   const handleProviderChange = (e) => {
     const providerId = e.target.value;
@@ -53,11 +76,20 @@ const CreateKBModal = ({ isOpen, onClose, onSuccess }) => {
     setError(null);
 
     try {
-      await createKB(formData);
+      if (isEditMode) {
+        await updateKB(initialData.id, {
+          name: formData.name,
+          description: formData.description
+          // We do NOT send embedding info on update as requested/constrained
+        });
+      } else {
+        await createKB(formData);
+      }
+
       onSuccess();
       onClose();
     } catch (err) {
-      setError(err?.response?.data?.detail || err.message || 'Failed to create knowledge base');
+      setError(err?.response?.data?.detail || err.message || `Failed to ${isEditMode ? 'update' : 'create'} knowledge base`);
     } finally {
       setSubmitting(false);
     }
@@ -70,8 +102,9 @@ const CreateKBModal = ({ isOpen, onClose, onSuccess }) => {
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-gray-100 dark:border-gray-700">
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between bg-gray-50/50 dark:bg-gray-700/50">
-          <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-            {t('list.createKbTitle', 'Create New Knowledge Base')}
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            {isEditMode ? <PencilSimpleIcon className="text-primary-600" /> : <FloppyDiskIcon className="text-primary-600" />}
+            {isEditMode ? t('list.editKbTitle', 'Edit Knowledge Base') : t('list.createKbTitle', 'Create New Knowledge Base')}
           </h3>
           <button
             onClick={onClose}
@@ -97,6 +130,7 @@ const CreateKBModal = ({ isOpen, onClose, onSuccess }) => {
             value={formData.name}
             onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
             placeholder={t('list.kbNamePlaceholder', 'Enter knowledge base name...')}
+            disabled={submitting}
           />
 
           <TextField
@@ -105,36 +139,50 @@ const CreateKBModal = ({ isOpen, onClose, onSuccess }) => {
             value={formData.description}
             onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
             placeholder={t('list.kbDescriptionPlaceholder', 'Briefly describe this knowledge base...')}
+            disabled={submitting}
           />
+          <div className="flex items-start gap-2 text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 p-2 rounded-lg">
+            <InfoIcon size={16} className="mt-0.5 flex-shrink-0" />
+            <p>{t('list.kbDescriptionHint', 'This description is used by the AI to intelligently route user queries to the most relevant Knowledge Base. Please be specific about the contents.')}</p>
+          </div>
 
           <div className="grid grid-cols-2 gap-4">
             <Select
-              label={t('admin/bots:form.configuration.provider')}
+              label={t('admin.bots.form.configuration.provider')}
               name="embedding_provider_id"
               required
               value={formData.embedding_provider_id}
               onChange={handleProviderChange}
               options={providers.map(p => ({ value: p.id, label: p.display_name }))}
-              placeholder={t('admin/bots:form.configuration.providerPlaceholder')}
+              placeholder={t('admin.bots.form.configuration.providerPlaceholder')}
               loading={optionsLoading}
+              disabled={isEditMode || submitting}
             />
 
             <Select
-              label={t('admin/bots:form.configuration.model')}
+              label={t('admin.bots.form.configuration.model')}
               name="embedding_model_id"
               required
               value={formData.embedding_model_id}
               onChange={(e) => setFormData(prev => ({ ...prev, embedding_model_id: e.target.value }))}
               options={models.map(m => ({ value: m.id, label: m.name }))}
-              placeholder={t('admin/bots:form.configuration.modelPlaceholder')}
-              disabled={!formData.embedding_provider_id}
+              placeholder={t('admin.bots.form.configuration.modelPlaceholder')}
+              disabled={!formData.embedding_provider_id || isEditMode || submitting}
               loading={optionsLoading}
             />
           </div>
 
-          <p className="text-xs text-secondary-500 bg-secondary-50 dark:bg-secondary-900/20 p-3 rounded-lg border border-secondary-100 dark:border-secondary-800 leading-relaxed">
-            {t('list.kbWarning', 'Note: The embedding model cannot be changed once the KB is created, as it determines the vector space of all documents within.')}
-          </p>
+          {!isEditMode && (
+            <p className="text-xs text-secondary-500 bg-secondary-50 dark:bg-secondary-900/20 p-3 rounded-lg border border-secondary-100 dark:border-secondary-800 leading-relaxed">
+              {t('list.kbWarning', 'Note: The embedding model cannot be changed once the KB is created, as it determines the vector space of all documents within.')}
+            </p>
+          )}
+
+          {isEditMode && (
+            <p className="text-xs text-gray-500 bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg border border-gray-100 dark:border-gray-700 leading-relaxed">
+              {t('list.kbEditWarning', 'Note: Embedding Provider and Model cannot be changed.')}
+            </p>
+          )}
 
           {/* Footer */}
           <div className="pt-4 flex items-center justify-end gap-3">
@@ -150,8 +198,8 @@ const CreateKBModal = ({ isOpen, onClose, onSuccess }) => {
               disabled={submitting}
               className="px-6 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-sm font-bold shadow-lg shadow-primary-500/20 transition-all flex items-center gap-2 disabled:opacity-70"
             >
-              {submitting ? <SpinnerIcon className="animate-spin" size={18} /> : <FloppyDiskIcon size={18} weight="bold" />}
-              {t('common.create', 'Create KB')}
+              {submitting ? <SpinnerIcon className="animate-spin" size={18} /> : (isEditMode ? <PencilSimpleIcon size={18} weight="bold" /> : <FloppyDiskIcon size={18} weight="bold" />)}
+              {isEditMode ? t('common.save', 'Save Changes') : t('common.create', 'Create KB')}
             </button>
           </div>
         </form>

@@ -44,9 +44,9 @@ dependencies = [
     "fastembed>=0.7.4",
     "tenacity>=8.5.0",
     "ijson>=3.4.0.post0",
-    "torch==2.5.1",
-    "torchvision==0.20.1",
-    "torchaudio==2.5.1",
+    "torch==2.6.0",
+    "torchvision==0.21.0",
+    "torchaudio==2.6.0",
     "huggingface-hub>=0.36.0",
     "ollama>=0.6.1",
     "hf-xet>=1.2.0",
@@ -54,6 +54,11 @@ dependencies = [
     "beautifulsoup4>=4.14.3",
     "pydantic>=2.12.5",
     "pymupdf4llm>=0.2.7",
+    "langchain>=1.2.6",
+    "langchain-openai>=1.1.7",
+    "langchain-google-genai>=4.2.0",
+    "langchain-ollama>=1.0.1",
+    "langchain-community>=0.4.1",
 ]
 
 [tool.setuptools]

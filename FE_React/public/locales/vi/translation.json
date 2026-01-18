@@ -384,6 +384,8 @@
       "createNew": "Thêm User mới",
       "empty": "Chưa có user nào.",
       "deleteConfirm": "Bạn có chắc chắn muốn xóa user này không? Hành động này không thể hoàn tác!",
+      "deleteSelected": "Xóa đánh dấu",
+      "batchDeleteConfirm": "Bạn có chắc chắn muốn xóa {{count}} người dùng?",
       "tooltip": {
         "delete": "Xóa"
       },
@@ -535,7 +537,9 @@
       "upload": "Tải lên",
       "uploadDesc": "Thêm tài liệu mới.",
       "list": "Danh sách tài liệu",
-      "listDesc": "Duyệt tất cả các tập tin đã tải lên."
+      "listDesc": "Duyệt tất cả các tập tin đã tải lên.",
+      "search": "Tìm kiếm",
+      "searchDesc": "Tìm kiếm tài liệu hoặc thư mục."
     },
     "upload": {
       "title": "Tải lên Tài liệu",

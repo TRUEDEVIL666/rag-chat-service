@@ -11,6 +11,8 @@ import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
 import MessageBubble from './MessageBubble';
 import { streamChatResponse, getSessionMessages, getSession } from '../../services/chatService';
+import QuizHistoryModal from './QuizHistoryModal';
+import { botService } from '../../services/botService';
 
 const ChatInterface = ({ basePath = '/user/chat', homePath = '/user/home', sessionIdProp = null, botIdProp = null }) => {
   const { t } = useTranslation();
@@ -26,7 +28,9 @@ const ChatInterface = ({ basePath = '/user/chat', homePath = '/user/home', sessi
   const [chatHistory, setChatHistory] = useState([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
+
   const [isQuizMode, setIsQuizMode] = useState(false);
+  const [showQuizHistory, setShowQuizHistory] = useState(false);
 
   const chatBottomRef = useRef(null);
   const scrollContainerRef = useRef(null);
@@ -39,53 +43,65 @@ const ChatInterface = ({ basePath = '/user/chat', homePath = '/user/home', sessi
 
   // Initial setup: Handle routing and state initialization
   useEffect(() => {
-    // If we have a sessionId (prop or param), we load that session
-    if (sessionId) {
-      if (activeSession?.id !== sessionId) {
-        // We need to fetch details or trust context?
-        // Ideally we fetch details if not in context. 
-        // For now, let's assume Sidebar/Home set activeSession, OR we load messages which implies validity.
-        // We can just load messages.
-      }
-      loadSessionAndMessages(sessionId);
-    } else {
-      // No sessionId (New Chat)
-      // Check if we have activeSession state passed from Home (bot selection)
-      // location.state is a good place to pass "bot" info if we navigated here.
-      // OR if botIdProp is passed (Shared/Admin usage)
-      const botState = location.state?.bot;
-      const targetBotId = botIdProp || botState?.id;
-      const targetBotName = botState?.name;
-
-      if (targetBotId) {
-        setChatHistory([{
-          role: 'bot',
-          text: targetBotName ? t('chatbot.welcome', { name: targetBotName }) : t('chatbot.welcome_generic', "Start a conversation..."),
-          timestamp: new Date(),
-          isIntro: true
-        }]);
-        setNextCursor(null);
-        setHasMore(false);
-        // Update context if not set
-        if (!activeSession || activeSession.botId !== targetBotId) {
-          setActiveSession({
-            botId: targetBotId,
-            botName: targetBotName,
-            title: 'New Chat',
-            isExisting: false
-          });
+    const initializeSession = async () => {
+      // If we have a sessionId (prop or param), we load that session
+      if (sessionId) {
+        if (activeSession?.id !== sessionId) {
+          // Context update handled inside loadSessionAndMessages or redundant
         }
-      } else if (activeSession && !activeSession.isExisting) {
-        // Fallback if context has new chat but no loc state
+        await loadSessionAndMessages(sessionId);
       } else {
-        // No bot selected, invalid new chat state -> Redirect home?
-        // Or show empty state? Let's redirect home to pick a bot.
-        // Only redirect if NOT using props (embedded mode might just wait)
-        if (!activeSession && !botIdProp) {
-          navigate(homePath);
+        // No sessionId (New Chat)
+        // Check if we have activeSession state passed from Home (bot selection)
+        const botState = location.state?.bot;
+        const targetBotId = botIdProp || botState?.id;
+        let targetBotName = botState?.name;
+
+        if (targetBotId) {
+          // If we have an ID but no name, fetch it
+          if (!targetBotName) {
+            try {
+              const botDetails = await botService.getBot(targetBotId);
+              targetBotName = botDetails.name;
+            } catch (err) {
+              console.error("Failed to fetch bot details for new chat", err);
+              // Avoid showing empty bot name if fetch fails
+              targetBotName = null;
+            }
+          }
+
+          setChatHistory([{
+            role: 'bot',
+            text: targetBotName ? t('chatbot.welcome', { name: targetBotName }) : t('chatbot.welcome_generic', "Start a conversation..."),
+            timestamp: new Date(),
+            isIntro: true,
+            senderName: targetBotName || 'Bot'
+          }]);
+          setNextCursor(null);
+          setHasMore(false);
+
+          // Update context if not set or different
+          // We check against targetBotId to ensure synchronization
+          if (!activeSession || activeSession.botId !== targetBotId || !activeSession.botName) {
+            setActiveSession({
+              botId: targetBotId,
+              botName: targetBotName,
+              title: 'New Chat',
+              isExisting: false
+            });
+          }
+        } else if (activeSession && !activeSession.isExisting) {
+          // Fallback if context has new chat but no loc state
+        } else {
+          // No bot selected, invalid new chat state -> Redirect home
+          if (!activeSession && !botIdProp) {
+            navigate(homePath);
+          }
         }
       }
-    }
+    };
+
+    initializeSession();
   }, [sessionId, location.state, homePath, botIdProp]);
 
   // Transform raw messages to UI format
@@ -134,6 +150,13 @@ const ChatInterface = ({ basePath = '/user/chat', homePath = '/user/home', sessi
 
     } catch (error) {
       console.error("Failed to load session/messages", error);
+      // If session not found (404), maybe we should notify user or redirect?
+      // For now, let's at least clear the loading state and show an error in history
+      setChatHistory([{
+        role: 'bot',
+        text: "Error: Could not load the conversation. It might have been deleted.",
+        timestamp: new Date()
+      }]);
     } finally {
       setLoadingMessages(false);
       setTimeout(scrollToBottom, 50);
@@ -243,9 +266,10 @@ const ChatInterface = ({ basePath = '/user/chat', homePath = '/user/home', sessi
     setInputValue('');
     setIsTyping(true);
 
+    // If we have a URL param sessionId, use it. Otherwise undefined.
+    const currentSessionId = sessionId;
+
     try {
-      // If we have a URL param sessionId, use it. Otherwise undefined.
-      const currentSessionId = sessionId;
 
       await streamChatResponse({
         botId: botId, // Needs to be known for new chats
@@ -258,7 +282,20 @@ const ChatInterface = ({ basePath = '/user/chat', homePath = '/user/home', sessi
           if (!sessionId && newId) {
             // Update context
             setActiveSession(prev => ({ ...prev, id: newId, isExisting: true }));
-            navigate(`${basePath}/${newId}`, { replace: true });
+
+            // Build navigation URL based on route pattern
+            // User: /user/chat/:sessionId
+            // Admin: /admin/chat/:botId?sessionId=:sessionId
+            let navUrl = `${basePath}/${newId}`;
+            if (activeSession?.botId || botIdProp) {
+              const bId = activeSession?.botId || botIdProp;
+              // Detect if basePath is /admin/chat or similar that needs query params
+              if (basePath.includes('/admin/')) {
+                navUrl = `${basePath}/${bId}?sessionId=${newId}`;
+              }
+            }
+
+            navigate(navUrl, { replace: true });
             fetchSessions();
           }
         },
@@ -268,8 +305,20 @@ const ChatInterface = ({ basePath = '/user/chat', homePath = '/user/home', sessi
         }
       });
     } catch (err) {
+      console.error("Sending failed, attempting recovery...", err);
+      // Self-healing: If the error was network/extension related but backend saved it,
+      // fetching the latest messages will restore the missing response.
+      const targetSessionId = currentSessionId || activeSession?.id;
+      if (targetSessionId) {
+        try {
+          // Silent refresh
+          await loadSessionAndMessages(targetSessionId);
+          return; // If successful, skip the error message
+        } catch (recoverErr) {
+          console.error("Recovery failed", recoverErr);
+        }
+      }
       addMessage('bot', "Sorry, I encountered an error.", false, activeSession?.botName);
-      console.error(err);
     } finally {
       setIsTyping(false);
     }
@@ -283,7 +332,15 @@ const ChatInterface = ({ basePath = '/user/chat', homePath = '/user/home', sessi
         newHistory[lastIndex] = { ...prev[lastIndex], text };
         return newHistory;
       } else {
-        return [...prev, { role: 'bot', text, timestamp: new Date() }];
+        // Did not find the last message to be from bot (rare if we just started streaming), 
+        // OR we are adding the very first chunk.
+        // Ensure we include senderName from activeSession
+        return [...prev, {
+          role: 'bot',
+          text,
+          timestamp: new Date(),
+          senderName: activeSession?.botName || 'Bot'
+        }];
       }
     });
   };
@@ -327,6 +384,8 @@ const ChatInterface = ({ basePath = '/user/chat', homePath = '/user/home', sessi
                 role={msg.role}
                 text={msg.text}
                 senderName={msg.senderName}
+                botId={activeSession?.botId}
+                sessionId={activeSession?.id || sessionId}
               />
             ))}
           </>
@@ -357,15 +416,24 @@ const ChatInterface = ({ basePath = '/user/chat', homePath = '/user/home', sessi
             </button>
 
             {/* Quiz Mode Toggle */}
-            <div className="absolute -top-10 right-0 flex items-center gap-2 bg-white/90 dark:bg-gray-800/90 py-1.5 px-3 rounded-full border border-slate-200 dark:border-gray-700 shadow-sm backdrop-blur-sm">
-              <span className="text-xs font-medium text-slate-600 dark:text-slate-300">Quiz Mode</span>
+            <div className="absolute -top-10 right-0 flex items-center gap-2">
               <button
-                onClick={() => setIsQuizMode(!isQuizMode)}
-                className={`w-8 h-4 rounded-full relative transition-colors ${isQuizMode ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-gray-600'}`}
-                title="Toggle Quiz Mode"
+                onClick={() => setShowQuizHistory(true)}
+                className="bg-white/90 dark:bg-gray-800/90 py-1.5 px-3 rounded-full border border-slate-200 dark:border-gray-700 shadow-sm backdrop-blur-sm text-xs font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition"
+                title="View History"
               >
-                <div className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full transition-transform shadow-sm ${isQuizMode ? 'translate-x-4' : ''}`} />
+                History
               </button>
+              <div className="flex items-center gap-2 bg-white/90 dark:bg-gray-800/90 py-1.5 px-3 rounded-full border border-slate-200 dark:border-gray-700 shadow-sm backdrop-blur-sm">
+                <span className="text-xs font-medium text-slate-600 dark:text-slate-300">Quiz Mode</span>
+                <button
+                  onClick={() => setIsQuizMode(!isQuizMode)}
+                  className={`w-8 h-4 rounded-full relative transition-colors ${isQuizMode ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-gray-600'}`}
+                  title="Toggle Quiz Mode"
+                >
+                  <div className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full transition-transform shadow-sm ${isQuizMode ? 'translate-x-4' : ''}`} />
+                </button>
+              </div>
             </div>
 
             <textarea
@@ -376,11 +444,11 @@ const ChatInterface = ({ basePath = '/user/chat', homePath = '/user/home', sessi
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyPress}
               style={{ minHeight: '48px' }}
-              disabled={loadingMessages || (!activeSession?.botId && !botIdProp)}
+              disabled={(!activeSession?.botId && !botIdProp)}
             ></textarea>
             <button
               onClick={handleSendMessage}
-              disabled={loadingMessages || (!activeSession?.botId && !botIdProp) || !inputValue.trim()}
+              disabled={(!activeSession?.botId && !botIdProp) || !inputValue.trim()}
               className="p-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition self-end shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <PaperPlaneRightIcon weight="bold" className="text-lg" />
@@ -389,6 +457,7 @@ const ChatInterface = ({ basePath = '/user/chat', homePath = '/user/home', sessi
           <p className="text-center text-[10px] text-slate-400 mt-2">{t('chatbot.disclaimer')}</p>
         </div>
       </div>
+      <QuizHistoryModal isOpen={showQuizHistory} onClose={() => setShowQuizHistory(false)} />
     </div>
   );
 };

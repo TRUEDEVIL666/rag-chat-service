@@ -16,7 +16,15 @@ const DocxViewer = ({ fileUrl }) => {
     const loadDocx = async () => {
       try {
         setLoading(true);
-        const response = await axios.get(fileUrl, { responseType: 'blob' });
+        const token = localStorage.getItem('token');
+        const headers = (fileUrl.startsWith('/') && token)
+          ? { Authorization: `Bearer ${token}` }
+          : {};
+
+        const response = await axios.get(fileUrl, {
+          responseType: 'blob',
+          headers: headers
+        });
         if (containerRef.current) {
           await renderAsync(response.data, containerRef.current, containerRef.current, {
             className: 'docx-viewer',
@@ -70,7 +78,15 @@ const ExcelViewer = ({ fileUrl }) => {
     const loadExcel = async () => {
       try {
         setLoading(true);
-        const response = await axios.get(fileUrl, { responseType: 'arraybuffer' });
+        const token = localStorage.getItem('token');
+        const headers = (fileUrl.startsWith('/') && token)
+          ? { Authorization: `Bearer ${token}` }
+          : {};
+
+        const response = await axios.get(fileUrl, {
+          responseType: 'arraybuffer',
+          headers: headers
+        });
         const workbook = XLSX.read(response.data, { type: 'array' });
         const firstSheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[firstSheetName];

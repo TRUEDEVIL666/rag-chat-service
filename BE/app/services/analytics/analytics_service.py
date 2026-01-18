@@ -38,7 +38,7 @@ class AnalyticsService:
         "total_documents": self.doc_repo.get_total_documents(access_token=access_token),
         "recent_documents": self.doc_repo.list_documents(
             tenant_id=None,
-            limit=5,
+            limit=7,
             cursor_timestamp=None,
             sort_column="updated_at",
             access_token=access_token
@@ -74,5 +74,19 @@ class AnalyticsService:
         interval=interval,
         start_date=start_date.isoformat(),
         end_date=end_date.isoformat(),
+        access_token=access_token
+    )
+
+  def get_chart_data_custom(self, auth_context: dict, start_date: str, end_date: str, interval: str = "day") -> list:
+    role = auth_context.get("role")
+    if role != "admin":
+      raise HTTPException(status_code=404, detail="Not Found")
+
+    access_token = auth_context.get("token")
+
+    return self.chat_repo.get_analytics_counts(
+        interval=interval,
+        start_date=start_date,
+        end_date=end_date,
         access_token=access_token
     )

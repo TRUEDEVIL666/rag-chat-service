@@ -38,6 +38,22 @@ export const useKnowledgeBases = () => {
     }
   }, []);
 
+  const updateKB = useCallback(async (id, data) => {
+    setLoading(true);
+    try {
+      const response = await kbsService.updateKnowledgeBase(id, data);
+      setKbs(prev => prev.map(kb => kb.id === id ? response : kb));
+      setError(null);
+      return response;
+    } catch (err) {
+      console.error(err);
+      setError(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   const deleteKB = useCallback(async (id) => {
     setLoading(true);
     try {
@@ -58,7 +74,9 @@ export const useKnowledgeBases = () => {
     loading,
     error,
     fetchKBs,
+
     createKB,
+    updateKB,
     deleteKB
   };
 };

@@ -36,3 +36,18 @@ class AuthenticationRequest(BaseModel):
 
 class UserIdRequest(BaseModel):
   user_id: UUID = Path(..., description="User ID")
+
+
+class BatchRegisterRequest(BaseModel):
+  users: list[RegisterRequest]
+
+
+class BatchRegisterError(BaseModel):
+  email: str
+  error: str
+
+
+class BatchRegisterResponse(BaseModel):
+  created_count: int
+  skipped_count: int
+  errors: list[BatchRegisterError]

@@ -10,6 +10,7 @@ from .analytics_api import router as analytics_router
 from .ai_model_api import router as ai_model_router
 from .document_api import router as document_router
 from .tenant_api import router as tenant_router
+from .quiz_api import router as quiz_router
 
 router = APIRouter()
 
@@ -26,3 +27,4 @@ router.include_router(router=ai_model_router,
 router.include_router(router=document_router,
                       prefix="/documents", tags=["Documents"])
 router.include_router(router=tenant_router, tags=["Tenants"])
+router.include_router(router=quiz_router, prefix="/quiz", tags=["Quiz"])

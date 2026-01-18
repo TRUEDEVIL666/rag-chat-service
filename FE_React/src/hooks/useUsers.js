@@ -93,6 +93,19 @@ export const useUsers = () => {
     }
   }, []);
 
+  const deleteUsersBatch = useCallback(async (ids) => {
+    setLoading(true);
+    try {
+      await userService.deleteUsersBatch(ids);
+      setUsers(prev => prev.filter(u => !ids.includes(u.id)));
+    } catch (err) {
+      setError(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   return {
     users,
     loading,
@@ -100,7 +113,9 @@ export const useUsers = () => {
     hasMore,
     fetchUsers,
     createUser,
+    createUsersBatch: userService.createUsersBatch, // Exporting this too if not already
     updateUser,
-    deleteUser
+    deleteUser,
+    deleteUsersBatch
   };
 };

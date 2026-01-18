@@ -49,7 +49,12 @@ class AiModelRepository:
     client = get_supabase_client(access_token)
     result = client.table("ai_models").select(
       "*, ai_providers(*)").eq("id", model_id).maybe_single().execute()
-    return result.data
+
+    data = result.data
+    if data and isinstance(data.get("ai_providers"), list):
+      data["ai_providers"] = data["ai_providers"][0] if data["ai_providers"] else None
+
+    return data
 
   def get_provider_by_id(self, provider_id: str, access_token: str = None):
     client = get_supabase_client(access_token)

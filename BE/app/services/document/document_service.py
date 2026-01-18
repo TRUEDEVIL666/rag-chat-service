@@ -494,3 +494,27 @@ class DocumentService:
           status_code=404, detail="File path not found for this document")
 
     return self.minio_storage.get_presigned_url(file_path)
+
+  def get_document_stream(self, document_id: str, tenant_id: str, access_token: str = None):
+    """
+    Get the file stream for a document.
+    """
+    doc = self.doc_repo.get_document_by_id(document_id, access_token)
+    if not doc:
+      raise HTTPException(status_code=404, detail="Document not found")
+
+    if doc["tenant_id"] != tenant_id:
+      raise HTTPException(
+          status_code=403, detail="Not authorized to access this document")
+
+    file_path = doc.get("path")
+    if not file_path:
+      raise HTTPException(
+          status_code=404, detail="File path not found for this document")
+
+    # Return stream, filename, and content_type (guess if needed)
+    # MinIO response has headers, we can try to use them or just octet-stream
+    stream = self.minio_storage.get_file_stream(file_path)
+    import mimetypes
+    content_type, _ = mimetypes.guess_type(doc.get("name"))
+    return stream, doc.get("name"), content_type or "application/octet-stream"

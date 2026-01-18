@@ -25,7 +25,7 @@ import { useDocuments } from '../../hooks/useDocuments';
 import { useKnowledgeBases } from '../../hooks/useKnowledgeBases';
 
 const UserDocuments = () => {
-  const { t } = useTranslation(['admin/documents', 'translation']);
+  const { t } = useTranslation();
 
   // Hooks
   const {

@@ -15,6 +15,11 @@ export const userService = {
     return response.data;
   },
 
+  createUsersBatch: async (users) => {
+    const response = await api.post('/users/batch', { users });
+    return response.data;
+  },
+
   updateUser: async (id, userData) => {
     const response = await api.put(`/users/${id}`, userData);
     return response.data;
@@ -22,6 +27,11 @@ export const userService = {
 
   deleteUser: async (id) => {
     const response = await api.delete(`/users/${id}`);
+    return response.data;
+  },
+
+  deleteUsersBatch: async (ids) => {
+    const response = await api.delete('/users', { data: ids });
     return response.data;
   }
 };

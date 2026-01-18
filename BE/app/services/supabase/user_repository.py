@@ -53,8 +53,8 @@ class UserRepository:
 
       if cursor_timestamp:
         # Cursor logic: created_at < cursor
-        from datetime import datetime
-        dt_cursor = datetime.fromtimestamp(cursor_timestamp)
+        from datetime import datetime, timezone
+        dt_cursor = datetime.fromtimestamp(cursor_timestamp, tz=timezone.utc)
         query = query.lt("created_at", dt_cursor.isoformat())
 
       # Apply sorting and limit

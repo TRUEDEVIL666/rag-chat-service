@@ -1,205 +1,133 @@
-# RAG Chatbot Project
+# RAG Chat Service 🤖
 
-A complete framework for building and configuring a **Retrieval-Augmented Generation (RAG)** chatbot system with FastAPI (backend) and Next.js (frontend).
+Welcome! This includes a **FastAPI** backend and a **Next.js** frontend for a Retrieval-Augmented Generation (RAG) system.
 
----
-
-## Access Points
-
-| Service             | URL                                                             |
-| :------------------ | :-------------------------------------------------------------- |
-| Backend API Docs    | [http://localhost:8000/docs](http://localhost:8000/docs)           |
-| Frontend UI         | [http://localhost:3000](http://localhost:3000)                     |
-| Qdrant UI           | [http://localhost:6333/dashboard](http://localhost:6333/dashboard) |
-| MinIO Console       | [http://localhost:9001](http://localhost:9001)                     |
-| RabbitMQ Management | [http://localhost:15672](http://localhost:15672)                   |
-| Redis Stack         | [http://localhost:8001/redis-stack/browser](http://localhost:8001/redis-stack/browser) |
+If you just downloaded this project, follow the steps below to get it running.
 
 ---
 
-## Getting Started — Backend (BE)
+## 🚀 Quick Start Guide
 
 ### 1. Prerequisites
 
-Ensure the following are installed on your system:
+Ensure you have these installed:
 
-* **Python 3.11**
-* **Docker** and **Docker Compose**
-* **Redis**, **Qdrant**, **MinIO**, **RabbitMQ** (auto-started via Docker)
-* **Hugging Face CLI** (`pip install huggingface_hub`)
-* **Celery** (`pip install celery`)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Required for DB, MinIO, Redis)
+- [Python 3.11+](https://www.python.org/downloads/)
+- [Node.js 18+](https://nodejs.org/) & `pnpm` (`npm install -g pnpm`)
 
----
+### 2. First-Time Setup
 
-### 2. Environment Setup
+#### Step A: Start Core Infrastructure
 
-Create a `.env` file in the backend root directory with the following variables:
+We use Docker to run the databases (Postgres/Supabase, Qdrant, Redis, MinIO).
 
-```env
-# ===== Security =====
-secret_key=a-string-secret-at-least-256-bits-long
-algorithm=HS256
-
-# ===== Supabase =====
-supabase_url=https://ilwtdmnadioboiffqohs.supabase.co
-supabase_key=
-
-# ===== Celery =====
-celery_broker=redis://localhost:6379/0
-celery_backend=redis://localhost:6379/0
-
-# ===== Embedding Service =====
-embedding_api_url=http://localhost:8000/embed
-embedding_model=
-
-# ===== Qdrant Vector DB =====
-qdrant_host=localhost
-qdrant_port=6333
-qdrant_collection=documents
-
-# ===== MinIO Storage =====
-minio_endpoint=localhost:9000
-minio_access_key=minioadmin
-minio_secret_key=minioadmin
+```bash
+# In project root
+docker compose up -d
 ```
 
+_Wait ~30 seconds for all containers to be healthy._
+
+#### Step B: Backend Setup
+
+1.  Navigate to the `BE` folder:
+    ```bash
+    cd BE
+    ```
+2.  Create your environment file:
+    - Copy `.env.example` to `.env` (if provided) or create a new `.env`.
+    - **Minimal Config** (See `BE/config.py` for full list):
+      ```env
+      secret_key=YOUR_SECRET_KEY
+      algorithm=HS256
+      celery_broker=redis://localhost:6379/0
+      celery_backend=redis://localhost:6379/0
+      qdrant_host=localhost
+      minio_endpoint=localhost:9000
+      minio_access_key=minioadmin
+      minio_secret_key=minioadmin
+      ```
+3.  Install dependencies:
+    ```bash
+    python -m venv .venv
+    .venv\Scripts\activate  # Windows
+    pip install .
+    # OR using uv
+    uv pip install .
+    ```
+
+#### Step C: Frontend Setup
+
+1.  Navigate to the `FE_React` folder (or `FE_Dat` if legacy):
+    ```bash
+    cd ../FE_React
+    ```
+2.  Install dependencies:
+    ```bash
+    pnpm install
+    ```
+3.  Create `.env.local`:
+    ```env
+    NEXT_PUBLIC_API_BASE=http://localhost:8000/api/v1
+    ```
+
 ---
 
-### 3. Installation
+## 🏃 running the App (Daily Usage)
 
-1. **Create a virtual environment**
+### Option 1: Manual Start (Recommended for Debugging)
 
-   ```bash
-   python -m venv .venv
-   ```
-2. **Install dependencies**
+You need **3 Terminals**:
 
-   ```bash
-   pip install .
-   ```
-
-   or using `uv`:
-
-   ```bash
-   uv pip install .
-   ```
-
----
-
-### 4. Start Required Services
-
-Use Docker Compose to launch all backend dependencies:
+**Terminal 1: Services (Docker)**
 
 ```bash
 docker compose up -d
 ```
 
-This will start Redis, Qdrant, MinIO, and RabbitMQ containers in detached mode.
-
----
-
-### 5. Run the Backend
-
-You will need two terminals:
-
-**Terminal 1 — Main Application**
+**Terminal 2: Backend & Worker**
 
 ```bash
+cd BE
 .venv\Scripts\activate
-python -m main
-```
-
-**Terminal 2 — Celery Worker**
-
-```bash
-.venv\Scripts\activate
+# Run API
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+# Run Worker (New Terminal)
 celery -A app.config worker --pool=solo --loglevel=info
 ```
 
----
-
-### 6. Access the API
-
-Once everything is running:
-
-* API Docs: [http://localhost:8000/docs](http://localhost:8000/docs)
-
----
-
-## Getting Started — Frontend (FE)
-
-### 1. Prerequisites
-
-Make sure the backend (`localhost:8000`) is running.
-
-Install Node.js 22 and **pnpm** globally if you haven’t already:
+**Terminal 3: Frontend**
 
 ```bash
-npm install -g pnpm
-```
-
----
-
-### 2. Environment Setup
-
-Create a `.env` file in the frontend root directory with:
-
-```env
-# ===== Frontend =====
-NEXT_PUBLIC_API_BASE=http://localhost:8000/api/v1
-
-AUTH_SECRET=Meow
-
-BLOB_READ_WRITE_TOKEN=
-```
-
-### 3. Installation & Run
-
-```bash
-pnpm install
+cd FE_React
 pnpm dev
 ```
 
-The app will start at [http://localhost:3000](http://localhost:3000)
+### Option 2: Windows Shortcut
+
+1.  Ensure Docker is running (`docker compose up -d`).
+2.  Run `run_dev.bat` in the root folder (Starts API & Celery).
+3.  Run `pnpm dev` in the Frontend folder.
 
 ---
 
-## Quick Commands
+## 🔗 Access Points
 
-| Task                   | Command                                                     |
-| :--------------------- | :---------------------------------------------------------- |
-| Start backend services | `docker compose up -d`                                    |
-| Run backend API        | `python -m main`                                          |
-| Run Celery worker      | `celery -A app.config worker --pool=solo --loglevel=info` |
-| Run frontend           | `pnpm dev`                                                |
-
----
-
-## Notes
-
-* Ensure Redis, Qdrant, RabbitMQ, and MinIO containers are healthy before running.
-* Make sure all `.env` files are correctly configured before startup.
-* Hugging Face login is required for embedding models:
-
-  ```bash
-  hf auth login
-  ```
+| Service                          | URL                                                                | Default Creds               |
+| :------------------------------- | :----------------------------------------------------------------- | :-------------------------- |
+| **Frontend UI**                  | [http://localhost:3000](http://localhost:3000)                     | -                           |
+| **Backend API Docs**             | [http://localhost:8000/docs](http://localhost:8000/docs)           | -                           |
+| **MinIO Console** (Storage)      | [http://localhost:9001](http://localhost:9001)                     | `minioadmin` / `minioadmin` |
+| **Qdrant Dashboard** (Vector DB) | [http://localhost:6333/dashboard](http://localhost:6333/dashboard) | -                           |
+| **RabbitMQ** (Queue)             | [http://localhost:15672](http://localhost:15672)                   | `guest` / `guest`           |
 
 ---
 
-## Access Points
+## 📂 Project Structure
 
-| Service             | URL                                                             |
-| :------------------ | :-------------------------------------------------------------- |
-| Backend API Docs    | [http://localhost:8000/docs](http://localhost:8000/docs)           |
-| Frontend UI         | [http://localhost:3000](http://localhost:3000)                     |
-| Qdrant UI           | [http://localhost:6333/dashboard](http://localhost:6333/dashboard) |
-| MinIO Console       | [http://localhost:9001](http://localhost:9001)                     |
-| RabbitMQ Management | [http://localhost:15672](http://localhost:15672)                   |
-| Redis Stack         | [http://localhost:8001/redis-stack/browser](http://localhost:8001/redis-stack/browser) |
-
----
-
-## License
-
-This project is licensed under the MIT License.
+- `BE/`: FastAPI Backend.
+  - `app/`: Core logic (Routers, Services).
+  - `main.py`: Entry point.
+- `FE_React/`: Next.js Frontend.
+- `docker-compose.yml`: Infrastructure definition.

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   MonitorPlayIcon,
   SquaresFourIcon,
@@ -24,6 +24,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   const { logout } = useAuth();
   const { t } = useTranslation();
   const location = useLocation();
+  const navigate = useNavigate();
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const {
     sessions,
@@ -153,7 +154,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
                       onClick={() => window.innerWidth < 768 && toggleSidebar()}
                       className={({ isActive }) => clsx(
                         "group/item flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-all text-xs relative",
-                        // Check if current URL matches this session ID (need to parse search params manually or use simplified check)
+                        // Check if current URL matches this session ID
                         location.search.includes(`sessionId=${session.id}`)
                           ? "bg-gray-100 text-primary-700 dark:bg-gray-800 dark:text-primary-300 border border-gray-200 dark:border-gray-700"
                           : "text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800/50 hover:text-gray-700 dark:hover:text-gray-200"
@@ -171,7 +172,15 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
                           e.preventDefault();
                           e.stopPropagation();
                           if (window.confirm(t('common.delete') + '?')) {
+                            // Check if deleting active session
+                            const searchParams = new URLSearchParams(location.search);
+                            const currentSessionId = searchParams.get('sessionId');
+
                             await deleteSessionContext(session.id);
+
+                            if (currentSessionId === session.id) {
+                              navigate('/admin/history');
+                            }
                           }
                         }}
                         className="p-0.5 hover:bg-red-100 dark:hover:bg-red-900/30 rounded text-gray-400 hover:text-red-500 dark:hover:text-red-400 opacity-0 group-hover/item:opacity-100 transition-opacity"

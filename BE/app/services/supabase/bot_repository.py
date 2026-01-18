@@ -2,6 +2,9 @@ from app.services.supabase.supabase_client import get_supabase_client
 from app.schemas.bot import BotCreateRequest, BotUpdateConfigRequest
 from datetime import datetime
 from uuid import uuid4
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class BotRepository:
@@ -101,16 +104,28 @@ class BotRepository:
   def get_bot(self, bot_id: str, tenant_id: str, access_token: str = None):
     client = get_supabase_client(access_token)
     # print(f"Fetching bot {bot_id} for tenant {tenant_id}")
-    result = (
-        client.table("bots")
-        .select("*, provider:ai_providers(*), model:ai_models(*)")
-        .eq("id", bot_id)
-        .eq("tenant_id", tenant_id)
-        .maybe_single()
-        .execute()
-    )
-    # print(f"Bot fetch result: {result.data}")
-    return result.data
+    try:
+      result = (
+          client.table("bots")
+          .select("*, provider:ai_providers(*), model:ai_models(*)")
+          .eq("id", bot_id)
+          .eq("tenant_id", tenant_id)
+          .maybe_single()
+          .execute()
+      )
+
+      data = result.data
+      if data:
+        # Flatten joined objects if they are returned as lists
+        if isinstance(data.get("provider"), list):
+          data["provider"] = data["provider"][0] if data["provider"] else None
+        if isinstance(data.get("model"), list):
+          data["model"] = data["model"][0] if data["model"] else None
+
+      return data
+    except Exception as e:
+      logger.error(f"Error fetching bot {bot_id}: {e}")
+      return None
 
   def delete_bot(self, bot_id: str, tenant_id: str, access_token: str = None):
     client = get_supabase_client(access_token)

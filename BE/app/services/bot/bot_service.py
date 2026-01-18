@@ -5,11 +5,20 @@ from datetime import datetime
 from typing import AsyncGenerator, Dict, List, Optional, Tuple, Any, Union
 from enum import Enum
 from pydantic import BaseModel
+import json
+from langchain_core.documents import Document
+from langchain_core.prompts import ChatPromptTemplate
 
 from app.config.config import settings
 from app.schemas.bot import BotCreateRequest, BotUpdateConfigRequest
+from app.services.llm.prompt_templates import (
+    QUIZ_PROMPT,
+    MARKDOWN_INSTRUCTION_PROMPT,
+    ROUTER_SYSTEM_PROMPT,
+)
 from app.services.indexer.vector_store import VectorRepository
 from app.services.llm.llm_service import LLMService
+from app.schemas.llm import LLMConfig
 
 # Import Repositories
 from app.services.supabase.bot_repository import BotRepository
@@ -28,14 +37,6 @@ class MessageRole(str, Enum):
   USER = "user"
   SYSTEM = "system"
   ASSISTANT = "AI assistant"
-
-
-class LLMConfig(BaseModel):
-  model: str
-  temperature: float
-  system_prompt: Optional[str] = None
-  api_key: Optional[str] = None
-  base_url: Optional[str] = None
 
 
 class BotRetrievalConfig(BaseModel):
@@ -148,6 +149,85 @@ class BotService:
     return session["id"]
 
   # ----------------------------------------------------------------------
+  # ROUTING
+  # ----------------------------------------------------------------------
+  async def _route_to_kbs(
+      self,
+      query: str,
+      candidate_kb_ids: List[str],
+      tenant_id: str,
+      access_token: str = None
+  ) -> List[str]:
+    """
+    Uses LLM to select the most relevant KBs for the query.
+    """
+    # 0. Safety check (no need to route if 0 or 1 KB)
+    if not candidate_kb_ids or len(candidate_kb_ids) <= 1:
+      return candidate_kb_ids
+
+    # 1. Fetch KB Metadata (Name & Description)
+    try:
+      kb_details_map = await asyncio.to_thread(
+          self.kb_repo.get_retrieval_configs_by_ids,
+          candidate_kb_ids,
+          tenant_id,
+          access_token=access_token
+      )
+    except Exception as e:
+      logger.warning(f"Failed to fetch KB details for routing: {e}")
+      return candidate_kb_ids
+
+    # 2. Construct Routing Prompt
+    kb_list_text = ""
+    valid_kbs = []
+    for kb_id in candidate_kb_ids:
+      details = kb_details_map.get(kb_id)
+      if details:
+        name = details.get("name", "Unknown")
+        desc = details.get("description") or "No description provided."
+        kb_list_text += f"- ID: {kb_id}\n  Name: {name}\n  Description: {desc}\n"
+        valid_kbs.append(kb_id)
+
+    if not valid_kbs:
+      return candidate_kb_ids
+
+    system_prompt = ROUTER_SYSTEM_PROMPT
+
+    user_prompt = (
+        f"Available Knowledge Bases:\n{kb_list_text}\n\n"
+        f"User Query: {query}\n\n"
+        "Select Relevant KB IDs:"
+    )
+
+    # 3. Call LLM via Chain
+    llm_config = self._resolve_model_config(
+      {"config_model": {"temperature": 0}})
+
+    try:
+      selected_ids = await self.llm_service.route_query(user_prompt, system_prompt, llm_config)
+
+      if isinstance(selected_ids, list):
+        # Filter to ensure we only return IDs that were in the candidate list
+        final_ids = [str(kid)
+                     for kid in selected_ids if str(kid) in candidate_kb_ids]
+        if final_ids:
+          logger.info(
+            f"Routing selected {len(final_ids)}/{len(candidate_kb_ids)} KBs: {final_ids}")
+          return final_ids
+        else:
+          logger.warning(
+            "Routing returned empty list, falling back to all KBs")
+          return candidate_kb_ids
+      else:
+        logger.warning(
+          f"Routing returned invalid JSON type: {type(selected_ids)}")
+        return candidate_kb_ids
+
+    except Exception as e:
+      logger.error(f"Error during KB routing: {e}")
+      return candidate_kb_ids
+
+  # ----------------------------------------------------------------------
   # CONTEXT & SEARCH HELPERS
   # ----------------------------------------------------------------------
   def _resolve_model_config(self, bot_config: Dict[str, Any]) -> LLMConfig:
@@ -181,7 +261,8 @@ class BotService:
 
           model = model_data.get("model_id")
           return LLMConfig(
-              model=f"{provider_name}/{model}",
+              provider=provider_name,
+              model=model,
               temperature=temp,
               system_prompt=system_prompt,
               api_key=api_key,
@@ -192,12 +273,13 @@ class BotService:
 
     # 2. Final Fallback to Settings Defaults (No more JSONB identity parsing)
     combined = settings.DEFAULT_CHAT_MODEL
+    provider = "ollama"
+    model_name = combined
 
-    # Ensure combined has a provider prefix if not present (default to ollama)
-    if "/" not in combined:
-      combined = f"ollama/{combined}"
+    if "/" in combined:
+      provider, model_name = combined.split("/", 1)
 
-    return LLMConfig(model=combined, temperature=temp, system_prompt=system_prompt)
+    return LLMConfig(provider=provider, model=model_name, temperature=temp, system_prompt=system_prompt)
 
   def _parse_kb_config(self, kb_config: Optional[dict]) -> KBIndexConfig:
     """
@@ -298,17 +380,19 @@ class BotService:
 
   async def _search_knowledge_bases(
       self,
-      query: str,
+      queries: List[str],
       kb_ids: List[str],
       tenant_id: str,
       global_config: BotRetrievalConfig,
-      access_token: str = None
+      access_token: str = None,
+      rerank_query: str = None
   ) -> List[Dict]:
     """
-    Iterates through KB IDs, searches each in PARALLEL using global bot config.
-    Reranking is done GLOBALLY after aggregation.
+    Iterates through KB IDs, searches each in PARALLEL for ALL queries using global bot config.
+    Reranking is done GLOBALLY after aggregation against the `rerank_query` (or primary query).
+    Deduplicates results based on node_id.
     """
-    if not kb_ids:
+    if not kb_ids or not queries:
       return []
 
     import time
@@ -329,7 +413,7 @@ class BotService:
     # 2. Prepare Parallel Search Tasks
     tasks = []
 
-    async def search_single_kb(kb_id_inner: str):
+    async def search_single_kb_query(kb_id_inner: str, query_text: str):
       try:
         # Determine Embedding Model & Search Method from KB Config
         raw_kb_config = kb_configs_map.get(kb_id_inner)
@@ -341,7 +425,7 @@ class BotService:
         # Execute Search
         from app.core.factory import get_vector_store
         results = await get_vector_store().search(
-            query=query,
+            query=query_text,
             k=local_k,
             kb_id=str(kb_id_inner),
             score_threshold=global_config.score_threshold,
@@ -355,27 +439,44 @@ class BotService:
         return []
 
     for kbid in kb_ids:
-      tasks.append(search_single_kb(kbid))
+      for q in queries:
+        tasks.append(search_single_kb_query(kbid, q))
 
     # 3. Execute Parallel Search
-    logger.info(f"Starting parallel search for {len(tasks)} KBs...")
+    logger.info(
+      f"Starting parallel search for {len(tasks)} tasks (KBs * Queries)...")
     search_results_list = await asyncio.gather(*tasks)
 
-    # 4. Aggregate
+    # 4. Aggregate & Deduplicate
     all_results = []
+    seen_ids = set()
+
     for res_list in search_results_list:
       if res_list:
-        all_results.extend(res_list)
+        for res in res_list:
+            # Use metadata node_id or id for deduplication
+          meta = res.get("metadata", {})
+          node_id = meta.get("node_id") or res.get("id")
+          if node_id and node_id in seen_ids:
+            continue
+
+          if node_id:
+            seen_ids.add(node_id)
+          all_results.append(res)
 
     # 5. Global Reranking (if enabled)
-    if global_config.rerank:
+    # Prefer explicitly provided rerank_query (unified), fallback to first query
+    primary_query = rerank_query if rerank_query else (
+      queries[0] if queries else "")
+
+    if global_config.rerank and all_results:
       logger.info(
         f"Executing Global Reranking on {len(all_results)} results with model {global_config.rerank_model}")
       from app.core.factory import get_vector_store
       all_results = await asyncio.to_thread(
           get_vector_store().rerank_results,
           results=all_results,
-          query=query,
+          query=primary_query,
           top_k=global_config.top_k,
           model_name=global_config.rerank_model
       )
@@ -385,9 +486,27 @@ class BotService:
       all_results = all_results[:global_config.top_k]
 
     elapsed = time.perf_counter() - start_time
-    logger.info(f"Parallel KB search completed in {elapsed:.4f}s")
+    logger.info(
+      f"Parallel KB search completed in {elapsed:.4f}s. Found {len(all_results)} raw results.")
 
-    return all_results
+    # 6. Transform search results (dicts) into LangChain Document objects
+    documents = []
+    for i, r in enumerate(all_results):
+      meta = r.get("metadata", {})
+      source = meta.get("source", "Unknown")
+      if "page_label" in meta:
+        source += f" (Page {meta['page_label']})"
+
+      text = r.get("text", "")
+      content_with_header = f"DOCUMENT [{i + 1}]: Source: {source}\nContent:\n{text}\n---"
+
+      doc = Document(
+          page_content=content_with_header,
+          metadata=meta
+      )
+      documents.append(doc)
+
+    return documents
 
   async def _get_history(self, session_id: str, limit: int = 20, access_token: str = None) -> str:
     """
@@ -417,10 +536,11 @@ class BotService:
 
   async def _prepare_chat_execution(
       self, bot_id: str, query: str, tenant_id: str, user_id: str, session_id: str, access_token: str = None, quiz_mode: bool = False
-  ) -> Tuple[Optional[str], Optional[str], Optional[LLMConfig], Optional[str], Optional[str]]:
+  ) -> Tuple[Optional[str], Optional[List[Document]], Optional[LLMConfig], Optional[str], Optional[str]]:
     """
     Orchestrate the context retrieval and prompt setup.
-    Returns: (history, context, llm_config, bot_name, error_message)
+    Returns: (history, context (documents),
+              llm_config, bot_name, error_message)
     """
     # 1. Save User Message
     await asyncio.to_thread(
@@ -447,90 +567,95 @@ class BotService:
     if not bot:
       return None, None, None, None, f"Bot {bot_id} not found"
 
-    # 3. Check KBs
+    # 3. Resolve Model Config (needed for rewriting/routing)
+    llm_config = self._resolve_model_config(bot)
+
+    # 4. Advanced Retrieval Part 1: Rewrite Query (Context-Awareness)
+    search_queries = [query]
+    unified_query = query
+
+    if history.strip():
+      try:
+        rewritten = await self.llm_service.rewrite_query(history, query, llm_config)
+        if rewritten and rewritten != query:
+          search_queries[0] = rewritten
+          unified_query = rewritten
+          logger.info(f"Rewritten Query: '{rewritten}'")
+      except Exception as e:
+        logger.warning(f"Query rewriting failed: {e}")
+
+    # 5. Intelligent Routing (using potentially rewritten query)
     kb_ids = bot.get("kb_ids")
-    if not kb_ids:
+    if kb_ids and len(kb_ids) > 1:
+      candidate_kb_ids = [str(k) for k in kb_ids]
+      logger.info(
+        f"Routing start for query: '{unified_query}' among {len(candidate_kb_ids)} KBs")
+      selected_kb_ids = await self._route_to_kbs(unified_query, candidate_kb_ids, tenant_id, access_token)
+      kb_ids = selected_kb_ids
+    elif not kb_ids:
       msg = "Bot is not configured with any knowledge bases."
       await asyncio.to_thread(
           self.message_repo.create_message, session_id, msg, role=MessageRole.SYSTEM, sender_id=bot_id, access_token=access_token
       )
       return None, None, None, None, msg
 
-    # 4. Resolve Model
-    llm_config = self._resolve_model_config(bot)
+    # 6. Advanced Retrieval Part 2: Decomposition
+    try:
+      decomposed = await self.llm_service.decompose_query(unified_query, llm_config)
+      if decomposed:
+        search_queries = decomposed
+        logger.info(f"Decomposed Queries: {search_queries}")
+    except Exception as e:
+      logger.warning(f"Query decomposition failed: {e}")
 
+    # 7. Finalize LLM System Prompt & Retrieval Config
     # Append to System Prompt if Quiz Mode is enabled
     if quiz_mode:
-      quiz_prompt = (
-          "\n\nIMPORTANT: You are currently in Quiz Mode. "
-          "Based on the provided context, generate a multiple-choice quiz. "
-          f"If the user specified a number of questions, output that many (maximum {settings.MAX_QUIZ_QUESTIONS}). Otherwise, default to 5 questions. "
-          "Output ONLY a raw JSON array. Do not use Markdown code blocks (like ```json). "
-          "Use this exact schema: "
-          '[{"question": "Question text", "options": ["Option A", "Option B", "Option C", "Option D"], "correct_answer": "Option A"}]'
-      )
+      quiz_prompt = QUIZ_PROMPT.format(
+        max_questions=settings.MAX_QUIZ_QUESTIONS)
       if llm_config.system_prompt:
         llm_config.system_prompt += quiz_prompt
       else:
         llm_config.system_prompt = quiz_prompt
     else:
         # Standard Markdown Instruction for normal mode
-      mk_instruction = "\nProvide your response in clear Markdown format. Use headers, bold text, lists, and code blocks where appropriate to make the information easy to read."
+      mk_instruction = MARKDOWN_INSTRUCTION_PROMPT
       if llm_config.system_prompt:
         llm_config.system_prompt += mk_instruction
       else:
-        # Fallback will be handled in _call_llm if None, but we can set it here too
         llm_config.system_prompt = "You are a helpful AI assistant." + mk_instruction
 
-    # 5. Resolve Retrieval Config (Global)
     retrieval_config = self._parse_bot_retrieval_config(bot)
-
-    # Override for Quiz Mode: Force top_k to configured value (default 20) to gather more context
     if quiz_mode:
       retrieval_config.top_k = settings.QUIZ_MODE_TOP_K
 
-    # 6. Search
-    results = await self._search_knowledge_bases(
-        query,
+    # 8. Search
+    logger.info(
+      f"Starting parallel KB search for {len(search_queries)} queries")
+    documents = await self._search_knowledge_bases(
+        search_queries,
         kb_ids,
         tenant_id,
         retrieval_config,
-        access_token=access_token
+        access_token=access_token,
+        rerank_query=unified_query
     )
 
-    if not results:
-      msg = "I don't have enough information to answer your question."
-      await asyncio.to_thread(
-          self.message_repo.create_message, session_id, msg, role=MessageRole.ASSISTANT, sender_id=bot_id
-      )
-      return None, None, None, None, msg
+    if not documents:
+      logger.info("No documents found in Knowledge Bases.")
+      return history, [], llm_config, bot.get("name", "AI Assistant"), None
 
-    context_parts = []
-    for r in results:
-      meta = r.get("metadata", {})
-      source = meta.get("file_name", "Unknown Source")
-      if "page_label" in meta:
-        source += f" (Page {meta['page_label']})"
+    logger.info(
+      f"RAG Preparation Complete. Found {len(documents)} context documents.")
 
-      score = r.get("score", 0.0)
-      text = r.get("text", "")
-
-      # Format:
-      # Source: filename (Page X)
-      # Relevance: 0.XX
-      # Content: ...
-      part = f"Source: {source}\nRelevance: {score:.2f}\nContent:\n{text}\n---"
-      context_parts.append(part)
-
-    context = "\n".join(context_parts)
-    return history, context, llm_config, bot.get("name", "AI Assistant"), None
+    return history, documents, llm_config, bot.get("name", "AI Assistant"), None
 
   # ----------------------------------------------------------------------
   # CHAT INTERFACE
   # ----------------------------------------------------------------------
   async def ask_bot(
       self, bot_id: str, query: str, tenant_id: str, user_id: str, session_id: str = None, access_token: str = None, quiz_mode: bool = False
-  ) -> Tuple[str, str]:
+  ) -> Tuple[Optional[str], Optional[str]]:
     session_id = await self._ensure_session(session_id, tenant_id, user_id, bot_id, access_token)
 
     history, context, llm_config, bot_name, error_msg = await self._prepare_chat_execution(
@@ -597,7 +722,7 @@ class BotService:
     return self._stream_response_wrapper(
         query=query,
         history=history,
-        context=context,
+        documents=context,  # context is now List[Document]
         config=llm_config,
         session_id=session_id,
         bot_id=bot_id,
@@ -609,29 +734,42 @@ class BotService:
       self,
       query: str,
       history: str,
-      context: str,
-      config: LLMConfig,
+      documents: List[Document],
+      config: Any,
       session_id: str,
       bot_id: str,
       bot_name: str,
-      access_token: str = None
+      access_token: str
   ):
     """
     Internal helper to handle the streaming, aggregation, and final logging.
     """
+    # Stream from LLM via Utility
     full_response = ""
     try:
+      # Use the unified LLM interaction helper
       stream = await self._call_llm(
           query=query,
           history=history,
-          context=context,
+          context=documents,
           config=config,
           streaming=True
       )
 
       async for chunk in stream:
-        full_response += chunk
-        yield chunk
+        if chunk is not None:
+          # Extract text if it's a LangChain chunk object
+          content = chunk.content if hasattr(chunk, 'content') else str(chunk)
+
+          if content:
+            yield content
+            full_response += content
+        else:
+          logger.debug("Received None chunk from stream")
+
+      if not full_response:
+        logger.warning(
+            f"Stream completed with empty response for session {session_id}")
 
       # Only start saving to DB after stream completes successfully
       await asyncio.to_thread(
@@ -651,7 +789,7 @@ class BotService:
         )
       except Exception:
         pass
-      raise e
+      yield f"Error: {str(e)}"
 
   # ----------------------------------------------------------------------
   # LLM INTERACTION
@@ -660,43 +798,52 @@ class BotService:
       self,
       query: str,
       history: str,
-      context: str,
+      context: Union[str, List[Document]],
       config: LLMConfig,
       streaming: bool = False
   ):
+    # Handle legacy context string or new Document list
+    if isinstance(context, list):
+      context_str = "\n".join([d.page_content for d in context])
+    else:
+      context_str = context
+
     # Use configured system prompt
     instruction = config.system_prompt
 
-    # Construct clean prompt without leading whitespace
-    prompt_user_content = (
-      f"Here's the previous conversation:\n{history if history else 'No previous history.'}\n\n"
-      f"Context from Knowledge Base:\n{context}\n\n"
-      f"User Question:\n{query}\n\n"
-    )
+    # Create Prompt Template
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", instruction),
+        ("human",
+         "Here's the previous conversation:\n{history}\n\nContext from Knowledge Base:\n{context}\n\nUser Question:\n{query}")
+    ])
 
-    # Parse concatenated model string
-    provider = "ollama"
+    # Resolve provider and model from config
+    provider = config.provider
     model = config.model
     if "/" in config.model:
       provider, model = config.model.split("/", 1)
 
+    logger.info(
+        f"Synthesis call: provider={provider}, model={model}, streaming={streaming}")
+
+    # Initialize model via helper
+    llm = self.llm_service._get_llm(
+        provider=provider,
+        model=model,
+        temperature=config.temperature,
+        api_key=config.api_key,
+        base_url=config.base_url
+    )
+
+    inputs = {
+        "history": history if history else "No previous history.",
+        "context": context_str,
+        "query": query
+    }
+
     if streaming:
-      return self.llm_service.stream_chat(
-          prompt=prompt_user_content,
-          system_instruction=instruction,
-          provider=provider,
-          model=model,
-          temperature=config.temperature,
-          api_key=config.api_key,
-          base_url=config.base_url
-      )
+      return llm.astream(prompt.format_messages(**inputs))
     else:
-      return self.llm_service.chat(
-          prompt=prompt_user_content,
-          system_instruction=instruction,
-          provider=provider,
-          model=model,
-          temperature=config.temperature,
-          api_key=config.api_key,
-          base_url=config.base_url
-      )
+      response = await llm.ainvoke(prompt.format_messages(**inputs))
+      return response.content

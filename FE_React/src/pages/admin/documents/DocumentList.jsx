@@ -3,7 +3,7 @@ import CreateKBModal from '../../../components/documents/CreateKBModal';
 import PreviewModal from '../../../components/documents/PreviewModal';
 import { documentService } from '../../../services/documentService';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { usePageTour } from '../../../hooks/usePageTour';
 import TourButton from '../../../components/common/TourButton';
 import {
@@ -22,7 +22,8 @@ import {
   WarningIcon,
   ArrowCounterClockwiseIcon,
   EyeIcon,
-  DownloadSimpleIcon
+  DownloadSimpleIcon,
+  PencilSimpleIcon
 } from '@phosphor-icons/react';
 import { clsx } from 'clsx';
 import { formatDate, getExtension } from '../../../utils/formatters';
@@ -32,6 +33,7 @@ import { useKnowledgeBases } from '../../../hooks/useKnowledgeBases';
 const DocumentList = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Hooks
   const {
@@ -45,9 +47,11 @@ const DocumentList = () => {
 
   const {
     kbs,
+
     loading: kbsLoading,
     error: kbsError,
-    fetchKBs
+    fetchKBs,
+    deleteKB
   } = useKnowledgeBases();
 
   const error = docsError || kbsError;
@@ -57,10 +61,14 @@ const DocumentList = () => {
   const [currentPath, setCurrentPath] = useState([]); // Array of {id, name}
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedItems, setSelectedItems] = useState(new Set());
+  const [highlightedDocId, setHighlightedDocId] = useState(null);
+  const rowRefs = React.useRef({});
   const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
   const [retryingIds, setRetryingIds] = useState(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
+
   const [isCreateKBModalOpen, setIsCreateKBModalOpen] = useState(false);
+  const [kbToEdit, setKbToEdit] = useState(null);
 
   // Preview State
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
@@ -84,6 +92,30 @@ const DocumentList = () => {
     loadItems();
   }, [currentPath]);
 
+  // Handle Deep Linking from Dashboard
+
+  useEffect(() => {
+    if (location.state?.kbId && location.state?.kbName) {
+      setCurrentPath([{ id: location.state.kbId, name: location.state.kbName }]);
+
+      if (location.state.docId) {
+        setHighlightedDocId(location.state.docId);
+        // Clear highlight after 3 seconds
+        setTimeout(() => setHighlightedDocId(null), 3000);
+      }
+
+      // Clear state ensuring we don't re-trigger on refresh (optional but good practice)
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
+
+  // Scroll to highlighted item when items load
+  useEffect(() => {
+    if (highlightedDocId && rowRefs.current[highlightedDocId]) {
+      rowRefs.current[highlightedDocId].scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [items, highlightedDocId]);
+
   // Sync state when hooks update
   useEffect(() => {
     if (currentPath.length === 0) {
@@ -94,10 +126,12 @@ const DocumentList = () => {
         type: 'folder',
         description: kb.description || '--',
         document_count: kb.document_count || 0,
-        embedding_model: kb.embedding_model || '--',
+        embedding_model: kb.embedding_model_name || kb.embedding_model || '--',
         date_added: formatDate(kb.created_at),
         added_by: 'System',
         date_modified: formatDate(kb.updated_at),
+        embedding_provider_id: kb.embedding_provider_id,
+        embedding_model_id: kb.embedding_model_id,
       }));
       setItems(mappedKBs);
     } else {
@@ -278,6 +312,29 @@ const DocumentList = () => {
         next.delete(docId);
         return next;
       });
+    }
+  };
+
+
+
+  const handleEditKB = (kb, e) => {
+    e.stopPropagation();
+    setKbToEdit(kb);
+    setIsCreateKBModalOpen(true);
+  };
+
+  const handleDeleteKB = async (kb, e) => {
+    e.stopPropagation();
+    if (!window.confirm(t('admin.documents.list.deleteConfirmKB', `Are you sure you want to delete knowledge base "${kb.name}"? This will delete all documents inside it.`))) {
+      return;
+    }
+
+    try {
+      await deleteKB(kb.id);
+      await loadItems();
+    } catch (err) {
+      console.error("Failed to delete KB", err);
+      // alert(t('admin.documents.list.deleteError'));
     }
   };
 
@@ -488,29 +545,36 @@ const DocumentList = () => {
                   </div>
                 </th>
               )}
-              {currentPath.length > 0 && (
-                <th className="px-2 py-3 w-40 text-center">{t('admin.documents.list.table.actions')}</th>
-              )}
+              <th
+                className="px-2 py-3 w-40 text-center">{t('admin.documents.list.table.actions')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
             {loading ? (
               <tr>
-                <td colSpan="6" className="px-6 py-12 text-center text-gray-500">
+                <td colSpan="12" className="px-6 py-20 text-center text-gray-500">
                   <div className="flex flex-col items-center justify-center">
-                    <SpinnerIcon size={24} className="animate-spin text-primary-600 mb-2" />
-                    <span className="text-xs">{t('common.processing')}</span>
+                    <SpinnerIcon size={32} className="animate-spin text-primary-600 mb-3" />
+                    <span className="text-sm font-medium">{t('common.processing')}</span>
                   </div>
                 </td>
 
               </tr>
             ) : error ? (
               <tr>
-                <td colSpan="7" className="px-6 py-12 text-center text-red-500 bg-red-50 dark:bg-red-900/10">
-                  <div className="flex flex-col items-center gap-2">
-                    <WarningIcon size={32} />
-                    <p className="font-medium">{t('common.errorOccurred')}</p>
-                    <p className="text-sm text-red-600 dark:text-red-400">{error?.message || String(error)}</p>
+                <td colSpan="12" className="px-6 py-20 text-center text-red-500 bg-red-50 dark:bg-red-900/10 rounded-lg">
+                  <div className="flex flex-col items-center gap-3">
+                    <WarningIcon size={40} weight="duotone" className="text-red-600 dark:text-red-400" />
+                    <div className="space-y-1">
+                      <p className="font-semibold text-lg text-slate-800 dark:text-slate-200">{t('common.errorOccurred')}</p>
+                      <p className="text-sm text-red-600 dark:text-red-400 max-w-md mx-auto">{error?.message || String(error)}</p>
+                    </div>
+                    <button
+                      onClick={loadItems}
+                      className="mt-4 px-4 py-2 bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400 shadow-sm transition-all"
+                    >
+                      {t('common.retry', 'Try Again')}
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -520,13 +584,15 @@ const DocumentList = () => {
               filteredItems.map(item => (
                 <tr
                   key={item.id}
+                  ref={el => rowRefs.current[item.id] = el}
                   onClick={(e) => {
                     e.stopPropagation();
                     handleNavigateTo(item);
                   }}
                   className={clsx(
-                    "group border-b border-transparent hover:border-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white transition cursor-default text-gray-700 dark:text-gray-300",
-                    selectedItems.has(item.id) && "bg-blue-50 dark:bg-blue-900/20"
+                    "group border-b border-transparent hover:border-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white transition-all duration-500 cursor-default text-gray-700 dark:text-gray-300",
+                    selectedItems.has(item.id) && "bg-blue-50 dark:bg-blue-900/20",
+                    highlightedDocId === item.id && "bg-yellow-100 dark:bg-yellow-900/40"
                   )}
                 >
                   <td
@@ -640,6 +706,26 @@ const DocumentList = () => {
                       </div>
                     </td>
                   )}
+                  {currentPath.length === 0 && (
+                    <td className="px-2 py-2 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          onClick={(e) => handleEditKB(item, e)}
+                          className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors"
+                          title={t('common.edit', 'Edit')}
+                        >
+                          <PencilSimpleIcon size={18} />
+                        </button>
+                        <button
+                          onClick={(e) => handleDeleteKB(item, e)}
+                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                          title={t('common.delete', 'Delete')}
+                        >
+                          <TrashIcon size={18} />
+                        </button>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))
             )}
@@ -658,10 +744,14 @@ const DocumentList = () => {
       {/* Modals */}
       <CreateKBModal
         isOpen={isCreateKBModalOpen}
-        onClose={() => setIsCreateKBModalOpen(false)}
+        onClose={() => {
+          setIsCreateKBModalOpen(false);
+          setKbToEdit(null);
+        }}
         onSuccess={() => {
           loadItems(); // Refresh the list
         }}
+        initialData={kbToEdit}
       />
       <PreviewModal
         isOpen={previewModalOpen}

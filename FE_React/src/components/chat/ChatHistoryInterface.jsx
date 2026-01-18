@@ -1,12 +1,12 @@
 import React, { useMemo } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
-import { ClockCounterClockwise, MagnifyingGlass, List, ChatsCircle } from '@phosphor-icons/react';
+import { ClockCounterClockwise, MagnifyingGlass, List, ChatsCircle, Trash } from '@phosphor-icons/react';
 import { useChat } from '../../context/ChatContext';
 import { useTranslation } from 'react-i18next';
 
 const ChatHistoryInterface = ({ basePath }) => {
   const { toggleSidebar } = useOutletContext() || {};
-  const { loadSession } = useChat();
+  const { loadSession, deleteSession } = useChat();
   const navigate = useNavigate();
   const { t } = useTranslation();
   const [historySessions, setHistorySessions] = React.useState([]);
@@ -37,6 +37,13 @@ const ChatHistoryInterface = ({ basePath }) => {
       setLoading(false);
     }
   }, [search, dateRange]);
+
+  const handleDeleteSession = async (sessionId) => {
+    if (window.confirm(t('common.delete') + '?')) {
+      await deleteSession(sessionId);
+      fetchHistory(); // Refresh list
+    }
+  };
 
   React.useEffect(() => {
     const timer = setTimeout(() => {
@@ -174,6 +181,7 @@ const ChatHistoryInterface = ({ basePath }) => {
                     snippet={session.summary_text || "..."}
                     last={index === monthSessions.length - 1}
                     onClick={() => handleSessionClick(session)}
+                    onDelete={() => handleDeleteSession(session.id || session.session_id)}
                   />
                 ))}
               </div>
@@ -186,16 +194,29 @@ const ChatHistoryInterface = ({ basePath }) => {
   );
 };
 
-const HistoryItem = ({ title, date, snippet, last = false, onClick }) => (
+const HistoryItem = ({ title, date, snippet, last = false, onClick, onDelete }) => (
   <div
     onClick={onClick}
-    className={`p-4 ${!last ? 'border-b border-slate-100 dark:border-slate-700/50' : ''} hover:bg-white dark:hover:bg-gray-700/50 transition cursor-pointer group`}
+    className={`p-4 ${!last ? 'border-b border-slate-100 dark:border-slate-700/50' : ''} hover:bg-white dark:hover:bg-gray-700/50 transition cursor-pointer group flex justify-between items-center gap-4`}
   >
-    <div className="flex justify-between items-start mb-1">
-      <h4 className="font-medium text-slate-700 dark:text-slate-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition">{title}</h4>
-      <span className="text-xs text-slate-400 dark:text-slate-500">{date}</span>
+    <div className="flex-1 min-w-0">
+      <div className="flex justify-between items-start mb-1">
+        <h4 className="font-medium text-slate-700 dark:text-slate-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition truncate pr-2">{title}</h4>
+        <span className="text-xs text-slate-400 dark:text-slate-500 whitespace-nowrap">{date}</span>
+      </div>
+      <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-2">{snippet}</p>
     </div>
-    <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-2">{snippet}</p>
+
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        onDelete && onDelete();
+      }}
+      className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors opacity-0 group-hover:opacity-100"
+      title="Delete Session"
+    >
+      <Trash size={18} />
+    </button>
   </div>
 );
 
