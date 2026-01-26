@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { calculateChunks, getDefaultParams } from '../../../utils/chunking';
 import { formatSize } from '../../../utils/formatters';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { ROUTES } from '../../../routes';
 import { useDocuments } from '../../../hooks/useDocuments';
 import { useKnowledgeBases } from '../../../hooks/useKnowledgeBases';
 import {
@@ -359,7 +360,7 @@ const UploadDocument = () => {
       });
 
       setMsg({ text: t('admin.documents.upload.alert.uploadSuccess'), type: "success" });
-      setTimeout(() => navigate('/admin/documents'), 1500);
+      setTimeout(() => navigate(ROUTES.ADMIN.DOCUMENTS.LIST), 1500);
 
     } catch (error) {
       console.error("Upload failed", error);
@@ -381,7 +382,7 @@ const UploadDocument = () => {
               <header className="h-16 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-6 sticky top-0 z-50 -mx-8 lg:-mx-10 -mt-8 lg:-mt-10 mb-8">
                 <div className="flex items-center gap-4">
                   <button
-                    onClick={() => navigate('/admin/documents')}
+                    onClick={() => navigate(ROUTES.ADMIN.DOCUMENTS.LIST)}
                     className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors text-gray-500"
                   >
                     <ArrowLeftIcon size={24} />
@@ -663,7 +664,7 @@ const UploadDocument = () => {
               <div className="flex gap-4">
                 <button
                   type="button"
-                  onClick={() => navigate('/admin/documents')}
+                  onClick={() => navigate(ROUTES.ADMIN.DOCUMENTS.LIST)}
                   className="px-8 py-3.5 text-gray-700 dark:text-gray-300 font-bold bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-2xl transition"
                 >
                   {t('common.cancel')}

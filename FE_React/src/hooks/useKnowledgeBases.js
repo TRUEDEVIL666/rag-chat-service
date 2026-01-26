@@ -6,19 +6,20 @@ export const useKnowledgeBases = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const fetchKBs = useCallback(async () => {
+  const fetchKBs = useCallback(async (options = {}) => {
     setLoading(true);
     try {
-      const response = await kbsService.getKnowledgeBases();
+      const response = await kbsService.getKnowledgeBases(options);
+      if (options.signal?.aborted) return;
       // Service returns response.data, which should be the list response structure
-      // Based on kbsService.js and knowledge_base_api.py, response.data.data is the array
       setKbs(response.data || []); 
       setError(null);
     } catch (err) {
+      if (err.code === 'ERR_CANCELED' || err.name === 'AbortError') return;
       console.error(err);
       setError(err);
     } finally {
-      setLoading(false);
+      if (!options.signal?.aborted) setLoading(false);
     }
   }, []);
 

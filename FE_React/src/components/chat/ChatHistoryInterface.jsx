@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
-import { ClockCounterClockwise, MagnifyingGlass, List, ChatsCircle, Trash } from '@phosphor-icons/react';
+import { ROUTES } from '../../routes';
+import { ClockCounterClockwiseIcon, MagnifyingGlassIcon, ListIcon, ChatsCircleIcon, TrashIcon } from '@phosphor-icons/react';
 import { useChat } from '../../context/ChatContext';
 import { useTranslation } from 'react-i18next';
 
@@ -66,48 +67,13 @@ const ChatHistoryInterface = ({ basePath }) => {
   }, [historySessions]);
 
   const handleSessionClick = (session) => {
-    // For User: loadSession updates context, then navigate to /user/chat (which reads context) OR /user/chat/:id
-    // For Admin: loadSession updates context (maybe same context?), then navigate to /admin/chat/:id
-    // To be safe and explicit: Navigate to `${basePath}/${session.id}`
-    // If we use loadSession from context, it updates the "Active Session" in global state.
-
-    // Check if we are in Admin or User mode based on basePath or props?
-    // Doing both is fine if they share Context.
+    // Load session into context first (updates 'activeSession')
     loadSession(session);
-    // UserChat usually redirects to /user/home if "Chat" is clicked without ID, but here we have ID.
-    // Wait, UserChat logic: /user/chat/:sessionId -> loads session.
-    // So we should navigate to `${basePath}/${session.id}`.
-    // But original UserChatHistory navigated to `/user/home`?
-    // Original: `loadSession(session); navigate('/user/home');` 
-    // This is because /user/home is the main chat view in previous architecture?
-    // NO, /user/home is the Bot Selection screen. /user/chat is the chat.
-    // Let's check `UserChatHistory.jsx` original code again.
-    // Line 60: `navigate('/user/home');`
-    // This seems weird if it's history. Usually you go to /user/chat.
-    // Maybe /user/home renders the chat if activeSession is set?
-    // Let's Look at `UserHome.jsx` logic? 
-    // Actually, `UserChat` is at `/user/chat`. 
-    // If I click history, I want to go to the chat.
-    // Let's assume standard behavior: Navigate to chat page with session ID.
 
     if (basePath.includes('admin')) {
-      // Admin: /admin/chat/:botId is the route mapped to Chatbot.jsx.
-      // AND we just updated Chatbot.jsx to accept prop sessionId or resolve it.
-      // BUT currently Chatbot.jsx expects :id to be BOT_ID in URL?
-      // Let's re-read Chatbot.jsx.
-      // `const { id: botId } = useParams();` -> It interprets ID as BotID.
-      // If we navigate to `/admin/chat/${session.bot_id}`, it loads the latest session for that bot.
-      // It doesn't strictly support opening a *specific* session ID from URL yet, unless we change route.
-      // OR we pass state.
-
-      navigate(`${basePath}/${session.bot_id}`, { state: { sessionId: session.id } });
-      // We need to update Chatbot.jsx to read location.state?.sessionId too?
-      // Update: Chatbot.jsx uses ChatInterface. ChatInterface reads sessionId from props or params.
-      // Chatbot.jsx currently checks for existing session for bot. 
-      // If we pass state, we should use it.
+      navigate(ROUTES.ADMIN.CHAT.BOT(session.bot_id, session.id));
     } else {
-      // User: /user/chat/:sessionId
-      navigate(`${basePath}/${session.id}`);
+      navigate(ROUTES.USER.CHAT(session.bot_id, session.id));
     }
   };
 
@@ -118,11 +84,11 @@ const ChatHistoryInterface = ({ basePath }) => {
         <div className="flex items-center gap-3">
           {toggleSidebar && (
             <button onClick={toggleSidebar} className="md:hidden p-2 text-slate-500 dark:text-slate-400 hover:bg-white/50 dark:hover:bg-slate-800 rounded-lg">
-              <List className="text-xl" />
+              <ListIcon className="text-xl" />
             </button>
           )}
           <h1 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
-            <ClockCounterClockwise weight="fill" className="text-indigo-600 dark:text-indigo-500" />
+            <ClockCounterClockwiseIcon weight="fill" className="text-indigo-600 dark:text-indigo-500" />
             {t('nav.history', 'Lịch sử trò chuyện')}
           </h1>
         </div>
@@ -143,7 +109,7 @@ const ChatHistoryInterface = ({ basePath }) => {
             />
           </div>
           <div className="relative">
-            <MagnifyingGlass className="absolute left-3 top-2.5 text-slate-400 dark:text-slate-500" />
+            <MagnifyingGlassIcon className="absolute left-3 top-2.5 text-slate-400 dark:text-slate-500" />
             <input
               type="text"
               placeholder={t('home.search_placeholder', 'Tìm kiếm...')}
@@ -163,7 +129,7 @@ const ChatHistoryInterface = ({ basePath }) => {
           {!loading && Object.keys(groupedSessions).length === 0 && (
             <div className="text-center py-20">
               <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800/50 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-400 dark:text-slate-500">
-                <ChatsCircle weight="duotone" className="text-3xl" />
+                <ChatsCircleIcon weight="duotone" className="text-3xl" />
               </div>
               <h3 className="text-slate-500 dark:text-slate-400 font-medium">Chưa có lịch sử trò chuyện</h3>
             </div>
@@ -215,7 +181,7 @@ const HistoryItem = ({ title, date, snippet, last = false, onClick, onDelete }) 
       className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors opacity-0 group-hover:opacity-100"
       title="Delete Session"
     >
-      <Trash size={18} />
+      <TrashIcon size={18} />
     </button>
   </div>
 );

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import { useTheme } from '../../../context/ThemeContext';
 import { MoonIcon, SunIcon, BellIcon, SignOutIcon, ListIcon, RobotIcon, Globe as GlobeIcon } from '@phosphor-icons/react';
@@ -7,15 +7,13 @@ import { useChat } from '../../../context/ChatContext';
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
 
-const Topbar = ({ toggleSidebar }) => {
+const Topbar = ({ toggleSidebar, title }) => {
   const { theme, toggleTheme } = useTheme();
   const { i18n, t } = useTranslation();
   const { user, logout } = useAuth();
   const { activeSession } = useChat();
   const navigate = useNavigate();
   const location = useLocation();
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false); // Unused but keeping for safety diff? No, remove.
-  // Actually, replace the whole block.
 
   const currentLang = i18n.language;
 
@@ -28,12 +26,12 @@ const Topbar = ({ toggleSidebar }) => {
   };
 
   const getPageTitle = () => {
+    if (title) return title; // Priority to prop
     if (matchPath('/user/home', location.pathname)) return t('nav.home', 'Dashboard');
     if (matchPath('/user/documents', location.pathname)) return t('nav.documents', 'Documents');
     if (matchPath('/user/history', location.pathname)) return t('nav.history', 'History');
     if (matchPath('/user/settings', location.pathname)) return t('nav.settings', 'Settings');
     if (matchPath('/user/chat/*', location.pathname) || matchPath('/admin/chat/*', location.pathname)) {
-      // User request: "As for the title, use the bot name instead of the summary text"
       const title = activeSession?.botName || activeSession?.title || t('chatbot.chat_title', 'Chat');
       return (
         <div className="flex items-center gap-2">
@@ -62,7 +60,7 @@ const Topbar = ({ toggleSidebar }) => {
   const avatarName = displayName.replace(/ /g, '+');
 
   return (
-    <header className="h-16 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-6 sticky top-0 z-40 transition-colors">
+    <header className="h-16 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-6 sticky top-0 z-40 transition-colors shadow-sm">
       <button onClick={toggleSidebar} className="md:hidden p-2 text-slate-500 hover:bg-white/50 rounded-lg">
         <ListIcon className="text-2xl" />
       </button>
@@ -128,17 +126,6 @@ const Topbar = ({ toggleSidebar }) => {
             </div>
             <img src={`https://ui-avatars.com/api/?name=${avatarName}&background=2563eb&color=fff`} alt="User"
               className="w-9 h-9 rounded-full hover:ring-2 hover:ring-primary-100 transition" />
-          </div>
-
-          {/* Dropdown */}
-          <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-100 dark:border-gray-700 hidden group-hover:block p-2 z-50">
-            <button
-              onClick={handleLogout}
-              className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition"
-            >
-              <SignOutIcon size={18} />
-              {t('common.sign_out', 'Sign Out')}
-            </button>
           </div>
         </div>
       </div>

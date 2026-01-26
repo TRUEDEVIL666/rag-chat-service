@@ -1,6 +1,5 @@
-# app/services/supabase/supabase_client.py
 from app.config.config import settings
-from supabase import create_client, Client
+from supabase import create_async_client, AsyncClient
 from supabase.lib.client_options import ClientOptions
 
 if not settings.SUPABASE_URL or not settings.SUPABASE_KEY:
@@ -9,26 +8,34 @@ if not settings.SUPABASE_URL or not settings.SUPABASE_KEY:
 # Set a long timeout for Edge Functions (5 minutes) to handle batch operations
 client_options = ClientOptions(function_client_timeout=300)
 
-supabase: Client = create_client(
-    settings.SUPABASE_URL,
-    settings.SUPABASE_KEY,
-    options=client_options
-)
+_async_supabase: AsyncClient = None
 
 
-def get_supabase_client(access_token: str = None) -> Client:
+async def get_async_supabase_client(access_token: str = None) -> AsyncClient:
   """
-  Returns a Supabase client.
-  If access_token is provided, returns a new client authenticated with that token (RLS).
-  Otherwise, returns the global (service/admin) client.
+  Returns an Async Supabase client.
   """
+  global _async_supabase
+
+  # Initialize global client if needed (lazy init pattern for async)
+  if _async_supabase is None:
+    _async_supabase = await create_async_client(
+        settings.SUPABASE_URL,
+        settings.SUPABASE_KEY,
+        options=client_options
+    )
+
   if access_token:
-    # Create a new client instance for this request to ensure thread safety with the specific auth token
-    client = create_client(
+    # Create a new client for authenticated requests to ensure isolation (thread-safety/context-safety).
+    # This prevents the access token from leaking into other concurrent requests.
+    client = await create_async_client(
         settings.SUPABASE_URL,
         settings.SUPABASE_KEY,
         options=client_options
     )
     client.postgrest.auth(access_token)
     return client
-  return supabase
+
+  return _async_supabase
+
+# Legacy sync accessor is removed to force migration errors

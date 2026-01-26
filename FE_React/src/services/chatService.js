@@ -31,7 +31,7 @@ export const streamChatResponse = async ({
       const response = await api.post(endpoint, {
         message,
         streaming: false,
-        quiz_mode: true
+        quiz_mode: true,
       }, { 
         signal,
         timeout: 600000 // 10 minutes for long quiz generation
@@ -62,7 +62,7 @@ export const streamChatResponse = async ({
   const response = await api.post(endpoint, {
     message,
     streaming: true,
-    quiz_mode: false
+    quiz_mode: false,
   }, {
     signal,
     adapter: 'fetch', // Available in Axios v1.7.0+

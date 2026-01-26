@@ -4,6 +4,7 @@ import PreviewModal from '../../../components/documents/PreviewModal';
 import { documentService } from '../../../services/documentService';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { ROUTES } from '../../../routes';
 import { usePageTour } from '../../../hooks/usePageTour';
 import TourButton from '../../../components/common/TourButton';
 import {
@@ -89,11 +90,12 @@ const DocumentList = () => {
 
   // Load items on path change
   useEffect(() => {
-    loadItems();
+    const controller = new AbortController();
+    loadItems(controller.signal);
+    return () => controller.abort();
   }, [currentPath]);
 
   // Handle Deep Linking from Dashboard
-
   useEffect(() => {
     if (location.state?.kbId && location.state?.kbName) {
       setCurrentPath([{ id: location.state.kbId, name: location.state.kbName }]);
@@ -132,6 +134,7 @@ const DocumentList = () => {
         date_modified: formatDate(kb.updated_at),
         embedding_provider_id: kb.embedding_provider_id,
         embedding_model_id: kb.embedding_model_id,
+        retrieval_model: kb.retrieval_model,
       }));
       setItems(mappedKBs);
     } else {
@@ -152,18 +155,22 @@ const DocumentList = () => {
     }
   }, [kbs, documents, currentPath]);
 
-  const loadItems = async () => {
+  const loadItems = async (signal) => {
     setSearchQuery('');
     setSelectedItems(new Set());
 
     try {
+      // Pass signal to underlying hooks if they support it
+      // Note: fetchDocuments supports it. fetchKBs needs update.
+      const options = { signal };
       if (currentPath.length === 0) {
-        await fetchKBs();
+        await fetchKBs(options);
       } else {
         const currentFolder = currentPath[currentPath.length - 1];
-        await fetchDocuments(currentFolder.id);
+        await fetchDocuments(currentFolder.id, options);
       }
     } catch (error) {
+      if (signal?.aborted) return;
       console.error("Load failed:", error);
       setItems([]);
     }
@@ -446,7 +453,7 @@ const DocumentList = () => {
                 setIsCreateKBModalOpen(true);
               } else {
                 const currentKbId = currentPath[currentPath.length - 1].id;
-                navigate('/admin/documents/upload', { state: { defaultKbId: currentKbId } });
+                navigate(ROUTES.ADMIN.DOCUMENTS.UPLOAD, { state: { defaultKbId: currentKbId } });
               }
             }}
             className="btn-primary flex items-center gap-2"

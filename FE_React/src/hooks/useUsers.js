@@ -10,7 +10,7 @@ export const useUsers = () => {
   
   const [filters, setFilters] = useState({});
 
-  const fetchUsers = useCallback(async (loadMore = false, newFilters = null) => {
+  const fetchUsers = useCallback(async (loadMore = false, newFilters = null, options = {}) => {
     setLoading(true);
     try {
       // If new filters provided, reset cursor and use those filters
@@ -28,7 +28,9 @@ export const useUsers = () => {
         return;
       }
 
-      const response = await userService.getUsers(20, cursor, currentFilters);
+      const response = await userService.getUsers(20, cursor, currentFilters, options);
+
+      if (options.signal?.aborted) return;
       
       const newUsers = response.items || [];
       const newNextCursor = response.next_cursor;
@@ -46,10 +48,11 @@ export const useUsers = () => {
       setHasMore(!!newNextCursor);
       setError(null);
     } catch (err) {
+      if (err.code === 'ERR_CANCELED' || err.name === 'AbortError') return;
       setError(err);
       console.error("Failed to fetch users", err);
     } finally {
-      setLoading(false);
+      if (!options.signal?.aborted) setLoading(false);
     }
   }, [filters]);
 

@@ -1,4 +1,4 @@
-from app.services.supabase.supabase_client import get_supabase_client
+from app.services.supabase.supabase_client import get_async_supabase_client
 from app.schemas.bot import BotCreateRequest, BotUpdateConfigRequest
 from datetime import datetime
 from uuid import uuid4
@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 class BotRepository:
-  def create_bot(
+  async def create_bot(
       self,
       data: BotCreateRequest,
       tenant_id: str,
@@ -31,23 +31,23 @@ class BotRepository:
         "created_at": now,
     }
 
-    client = get_supabase_client(access_token)
-    result = client.table("bots").insert(insert_data).select(
+    client = await get_async_supabase_client(access_token)
+    result = await client.table("bots").insert(insert_data).select(
         "*, provider:ai_providers(*), model:ai_models(*)").execute()
     if result.data:
       return result.data[0]
     else:
       raise Exception("Failed to insert bot")
 
-  def update_config(
+  async def update_config(
       self,
       bot_id: str,
       tenant_id: str,
       request: BotUpdateConfigRequest,
       access_token: str = None
   ):
-    client = get_supabase_client(access_token)
-    existing = (
+    client = await get_async_supabase_client(access_token)
+    existing = await (
         client.table("bots")
         .select("*")
         .eq("id", bot_id)
@@ -75,10 +75,10 @@ class BotRepository:
       update_data["kb_ids"] = [str(uid) for uid in request.kb_ids]
 
     # Execute update
-    client.table("bots").update(update_data).eq("id", bot_id).execute()
+    await client.table("bots").update(update_data).eq("id", bot_id).execute()
 
     # Fetch updated record to return
-    updated = (
+    updated = await (
         client.table("bots")
         .select("*, provider:ai_providers(*), model:ai_models(*)")
         .eq("id", bot_id)
@@ -90,22 +90,55 @@ class BotRepository:
     else:
       raise ValueError("Failed to update bot")
 
-  def list_bots(self, tenant_id: str, access_token: str = None):
-    client = get_supabase_client(access_token)
-    result = (
+  async def _hydrate_bots_with_kbs(self, bots: list, client):
+    """
+    Helper to fetch and attach KB details to a list of bots.
+    """
+    if not bots:
+      return bots
+
+    # 1. Collect all unique KB IDs
+    all_kb_ids = set()
+    for bot in bots:
+      if bot.get("kb_ids"):
+        all_kb_ids.update(bot["kb_ids"])
+
+    if not all_kb_ids:
+      return bots
+
+    # 2. Fetch details for these KBs
+    kb_res = await client.table("knowledgebases").select(
+      "id, name").in_("id", list(all_kb_ids)).execute()
+    kb_map = {kb["id"]: kb for kb in kb_res.data} if kb_res.data else {}
+
+    # 3. Attach to bots
+    for bot in bots:
+      if bot.get("kb_ids"):
+        bot["knowledge_bases"] = [
+            kb_map.get(kb_id) for kb_id in bot["kb_ids"] if kb_map.get(kb_id)
+        ]
+      else:
+        bot["knowledge_bases"] = []
+
+    return bots
+
+  async def list_bots(self, tenant_id: str, access_token: str = None):
+    client = await get_async_supabase_client(access_token)
+    result = await (
         client.table("bots")
         .select("*, provider:ai_providers(*), model:ai_models(*)")
         .eq("tenant_id", tenant_id)
         .order("created_at", desc=True)
         .execute()
     )
-    return result.data or []
 
-  def get_bot(self, bot_id: str, tenant_id: str, access_token: str = None):
-    client = get_supabase_client(access_token)
-    # print(f"Fetching bot {bot_id} for tenant {tenant_id}")
+    bots = result.data or []
+    return await self._hydrate_bots_with_kbs(bots, client)
+
+  async def get_bot(self, bot_id: str, tenant_id: str, access_token: str = None):
+    client = await get_async_supabase_client(access_token)
     try:
-      result = (
+      result = await (
           client.table("bots")
           .select("*, provider:ai_providers(*), model:ai_models(*)")
           .eq("id", bot_id)
@@ -122,14 +155,18 @@ class BotRepository:
         if isinstance(data.get("model"), list):
           data["model"] = data["model"][0] if data["model"] else None
 
+        # Hydrate KBs
+        hydrated_list = await self._hydrate_bots_with_kbs([data], client)
+        return hydrated_list[0]
+
       return data
     except Exception as e:
       logger.error(f"Error fetching bot {bot_id}: {e}")
       return None
 
-  def delete_bot(self, bot_id: str, tenant_id: str, access_token: str = None):
-    client = get_supabase_client(access_token)
-    result = (
+  async def delete_bot(self, bot_id: str, tenant_id: str, access_token: str = None):
+    client = await get_async_supabase_client(access_token)
+    result = await (
         client.table("bots")
         .delete()
         .eq("id", bot_id)

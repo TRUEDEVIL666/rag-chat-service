@@ -21,8 +21,8 @@
     "loadError": "Không thể tải dữ liệu.",
     "deleteError": "Xóa thất bại!",
     "actionFailed": "Thao tác thất bại",
-    "errorOccurred": "Đã có lỗi xảy ra!",
     "processing": "Đang xử lý...",
+    "unknown": "Không rõ",
     "startTour": "Bắt đầu hướng dẫn",
     "na": "N/A",
     "justNow": "Vừa xong",
@@ -58,7 +58,8 @@
       "oct": "T10",
       "nov": "T11",
       "dec": "T12"
-    }
+    },
+    "back": "Quay lại"
   },
   "topbar": {
     "profile": "Hồ sơ",
@@ -76,18 +77,22 @@
     "settings": "Cài đặt",
     "aiModels": "Mô hình AI",
     "history": "Lịch sử Chat",
-    "system": "Hệ thống"
+    "system": "Hệ thống",
+    "courses": "Khóa học",
+    "classes": "Lớp học"
   },
   "nav": {
-    "home": "Dashboard",
+    "home": "Tổng quan",
     "documents": "Tài liệu",
     "history": "Lịch sử",
     "settings": "Cài đặt",
     "sign_out": "Đăng xuất",
-    "close_menu": "Đóng menu"
+    "close_menu": "Đóng menu",
+    "classes": "Lớp học của tôi"
   },
   "home": {
     "subtitle": "Chọn một trợ lý AI bên dưới để bắt đầu",
+    "welcome_user": "Xin chào, <1>{{name}}</1> 👋",
     "suggestions": {
       "available_bots": "Chatbot có sẵn"
     },
@@ -135,6 +140,29 @@
   "admin": {
     "dashboard": {
       "title": "Tổng Quan",
+      "welcome": "Chào mừng trở lại, {{name}}!",
+      "subtitle": "Đây là những gì đang diễn ra trong lớp học kỹ thuật số của bạn hôm nay.",
+      "systems_operational": "Hệ thống hoạt động ổn định",
+      "active_learners": "{{count}} Người học đang hoạt động",
+      "view_all_classes": "XEM TẤT CẢ LỚP",
+      "engagement": {
+        "title": "Nhịp độ tương tác"
+      },
+      "top_active_classes": "Lớp học tích cực nhất",
+      "students_count": "{{count}} Sinh viên",
+      "queries": "Câu hỏi",
+      "needs_attention": "Cần chú ý (Có rủi ro)",
+      "inactive_for": "Không hoạt động {{time}}",
+      "ping": "Nhắc nhở",
+      "student_feedback": "Phản hồi học viên",
+      "positive": "Tích cực",
+      "negative": "Tiêu cực",
+      "trending_topics": "Chủ đề xu hướng",
+      "new_bot": "Bot Mới",
+      "new_class": "Lớp Mới",
+      "upload_doc": "Tải Tài Liệu",
+      "add_user": "Thêm User",
+      "live_activity": "Hoạt động trực tiếp",
       "last7Days": "7 ngày qua",
       "last30Days": "30 ngày qua",
       "allTime": "Toàn thời gian",
@@ -603,6 +631,99 @@
       "optionC": "Lựa chọn C",
       "optionD": "Lựa chọn D",
       "correctAnswer": "Đáp án đúng"
+    }
+  },
+  "classes": {
+    "load_error": "Không thể tải danh sách lớp học",
+    "title": "Lớp học của tôi",
+    "subtitle": "Truy cập tài liệu khóa học và trợ lý AI",
+    "assigned_classes": "Danh sách lớp học",
+    "no_classes": "Bạn chưa được phân công giảng dạy lớp nào.",
+    "manage_students_bots": "Quản lý sinh viên & Chatbots",
+    "search_placeholder": "Tìm kiếm lớp học...",
+    "all_semesters": "Tất cả học kỳ",
+    "no_results": "Không tìm thấy lớp học nào phù hợp.",
+    "details": {
+      "coming_soon": "Sắp ra mắt",
+      "docs_placeholder": "Tài liệu riêng của lớp học sẽ sớm có mặt tại đây. Vui lòng quay lại sau."
+    }
+  },
+  "courses": {
+    "title": "Quản lý Khóa học",
+    "create": "Tạo Khóa học",
+    "edit": "Sửa Khóa học",
+    "delete": "Xóa Khóa học",
+    "code": "Mã học phần",
+    "name": "Tên học phần",
+    "semester": "Học kỳ",
+    "actions": "Hành động",
+    "empty": "Chưa có khóa học nào. Hãy tạo mới!",
+    "deleteConfirm": "Bạn có chắc chắn muốn xóa khóa học này?",
+    "createSuccess": "Tạo khóa học thành công",
+    "deleteSuccess": "Xóa khóa học thành công",
+    "instructor_classes": "Danh sách lớp học",
+    "load_courses_error": "Không thể tải danh sách khóa học",
+    "semester_created": "Đã tạo học kỳ thành công",
+    "create_failed": "Tạo thất bại",
+    "new_semester": "Học kỳ mới",
+    "emptySemesters": "Chưa có học kỳ nào",
+    "count": "khóa học",
+    "manage": "Quản lý lớp học và tài liệu",
+    "select_semester": "Chọn một học kỳ để xem danh sách khóa học",
+    "knowledge_bases": "Cơ sở tri thức",
+    "no_kb_available": "Không có cơ sở tri thức nào.",
+    "course_deleted": "Xóa khóa học thành công",
+    "delete_failed": "Xóa khóa học thất bại",
+    "form": {
+      "title": "Tạo Khóa học Mới",
+      "createCourseTitle": "Tạo Khóa học",
+      "createSemesterTitle": "Tạo Học kỳ",
+      "semesterNameLabel": "Tên Học kỳ",
+      "editTitle": "Sửa Khóa học",
+      "codeLabel": "Mã học phần",
+      "codePlaceholder": "VD: CS101",
+      "nameLabel": "Tên học phần",
+      "namePlaceholder": "VD: Nhập môn Khoa học Máy tính",
+      "descLabel": "Mô tả",
+      "descPlaceholder": "Mô tả khóa học...",
+      "semesterLabel": "Học kỳ",
+      "selectSemester": "Chọn Học kỳ"
+    },
+    "detail": {
+      "title": "Chi tiết Khóa học",
+      "classes": "Lớp học phần",
+      "addClass": "Thêm Lớp",
+      "modules": "Học liệu",
+      "assignments": "Bài tập",
+      "kbs": "Cơ sở Tri thức",
+      "bots": "Chatbots đã gán",
+      "assignBot": "Gán Bot",
+      "assignKb": "Gán KB",
+      "students": "Sinh viên",
+      "backToList": "Quay lại danh sách"
+    },
+    "class": {
+      "title": "Chi tiết Lớp học",
+      "section": "Mã lớp/Nhóm",
+      "schedule": "Lịch học",
+      "create": "Tạo Lớp học",
+      "createSuccess": "Tạo lớp học thành công",
+      "deleteConfirm": "Bạn có chắc chắn muốn xóa lớp học này?",
+      "students": "Sinh viên đã đăng ký",
+      "enrollStudent": "Thêm sinh viên",
+      "bots": "Bot được gán",
+      "kbs": "Kho tri thức được gán",
+      "noStudents": "Chưa có sinh viên nào.",
+      "noBots": "Chưa gán Bot nào.",
+      "noKbs": "Chưa gán Kho tri thức nào.",
+      "instructor": "Giảng viên",
+      "select_instructor": "Chọn giảng viên",
+      "section_placeholder": "VD: L01",
+      "notFound": "Không tìm thấy lớp học"
+    },
+    "student": {
+      "myCourses": "Khóa học của tôi",
+      "noCourses": "Bạn chưa đăng ký khóa học nào."
     }
   }
 }

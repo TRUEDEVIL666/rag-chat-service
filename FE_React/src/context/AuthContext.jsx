@@ -33,7 +33,7 @@ export const AuthProvider = ({ children }) => {
         setToken(newToken);
         const decoded = jwtDecode(newToken);
         setUser(decoded);
-        return true;
+        return decoded;
       }
       return false;
     } catch (e) {
@@ -44,6 +44,8 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('user');
     setToken(null);
     setUser(null);
   };

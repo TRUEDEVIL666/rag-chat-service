@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 
 import { Eye, EyeSlash, Spinner } from '@phosphor-icons/react';
+import { ROUTES } from './../../routes';
 import { useAuth } from '../../context/AuthContext';
+import { getHomeRoute } from '../../utils/authUtils';
 
 
 const Login = () => {
@@ -13,11 +15,18 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const { login } = useAuth();
+  const { login, user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
   const location = useLocation();
   const from = location.state?.from?.pathname || null; // Don't default to '/' yet, let getHomeRoute decide if null
+
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      const target = getHomeRoute(user);
+      navigate(target, { replace: true });
+    }
+  }, [isAuthenticated, user, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -25,34 +34,16 @@ const Login = () => {
     setError('');
 
     try {
-      const success = await login(email, password);
-      // login returns the user object or true/false depending on implementation. 
-      // Assuming it returns truthy on success. 
-      // We need to fetch the user if login doesn't return it, but typically useAuth updates state.
-      // We'll trust useAuth state identifies change or we wait a tick? 
-      // Actually, standard practice: if await login succeeds, the context state might update asynchronously 
-      // but usually we can trust the promise resolution.
+      const user = await login(email, password);
 
-      if (success) {
+      if (user) {
         // If we have a stored location, go there
         if (from) {
           navigate(from, { replace: true });
         } else {
-          // Otherwise, we need to know where to go based on the user.
-          // Since we just logged in, we might need to access the user from the result of login() 
-          // OR assume the context has updated. 
-          // Ideally login() returns user data. 
-          // If not detailed, we might default to '/' which RootRedirect handles, 
-          // BUT avoiding double redirect is the goal.
-          // Let's assume navigating to '/' triggers RootRedirect which is "okay" as a fallback,
-          // but let's try to be smarter if we can.
-          // For now, let's keep it robust: likely navigate('/') or handle internally.
-          // Wait, if we navigate('/') RootRedirect takes over. That is ONE redirect. 
-          // Is that better than guessing? 
-          // Better: The Code Review suggested fixing Login.
-          // Let's use getHomeRoute if we can access the user. 
-          // If context isn't updated yet, falling back to '/' is safe because RootRedirect exists.
-          navigate(from || '/', { replace: true });
+          // Otherwise, go to their role-based home
+          const target = getHomeRoute(user);
+          navigate(target, { replace: true });
         }
       } else {
         setError(t('auth.login.fail'));
@@ -140,7 +131,7 @@ const Login = () => {
 
         <div className="mt-8 text-center text-gray-600 dark:text-gray-400">
           {t('auth.login.noAccount')}{' '}
-          <Link to="/register" className="text-primary-600 dark:text-primary-400 font-bold hover:underline">
+          <Link to={ROUTES.AUTH.REGISTER} className="text-primary-600 dark:text-primary-400 font-bold hover:underline">
             {t('auth.login.registerNow')}
           </Link>
         </div>

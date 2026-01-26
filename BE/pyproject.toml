@@ -59,6 +59,8 @@ dependencies = [
     "langchain-google-genai>=4.2.0",
     "langchain-ollama>=1.0.1",
     "langchain-community>=0.4.1",
+    "duckduckgo-search<7.0.0",
+    "ddgs>=9.10.0",
 ]
 
 [tool.setuptools]

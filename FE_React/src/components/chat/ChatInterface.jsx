@@ -4,7 +4,8 @@ import {
   PaperPlaneRightIcon,
   RobotIcon,
   PaperclipIcon,
-  SpinnerIcon
+  SpinnerIcon,
+  StopIcon
 } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
@@ -22,12 +23,14 @@ const ChatInterface = ({ basePath = '/user/chat', homePath = '/user/home', sessi
   const navigate = useNavigate();
   const location = useLocation();
 
-  const sessionId = sessionIdProp || paramSessionId;
+  const sessionIdPropFromQuery = new URLSearchParams(location.search).get('sessionId');
+  const sessionId = sessionIdProp || paramSessionId || sessionIdPropFromQuery;
 
   const [inputValue, setInputValue] = useState('');
   const [chatHistory, setChatHistory] = useState([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
 
   const [isQuizMode, setIsQuizMode] = useState(false);
   const [showQuizHistory, setShowQuizHistory] = useState(false);
@@ -35,6 +38,7 @@ const ChatInterface = ({ basePath = '/user/chat', homePath = '/user/home', sessi
   const chatBottomRef = useRef(null);
   const scrollContainerRef = useRef(null);
   const shouldAutoScrollRef = useRef(true);
+  const abortControllerRef = useRef(null);
 
   // State for Infinite Scroll
   const [nextCursor, setNextCursor] = useState(null);
@@ -43,13 +47,15 @@ const ChatInterface = ({ basePath = '/user/chat', homePath = '/user/home', sessi
 
   // Initial setup: Handle routing and state initialization
   useEffect(() => {
+    const controller = new AbortController();
+
     const initializeSession = async () => {
       // If we have a sessionId (prop or param), we load that session
       if (sessionId) {
         if (activeSession?.id !== sessionId) {
           // Context update handled inside loadSessionAndMessages or redundant
         }
-        await loadSessionAndMessages(sessionId);
+        await loadSessionAndMessages(sessionId, controller.signal);
       } else {
         // No sessionId (New Chat)
         // Check if we have activeSession state passed from Home (bot selection)
@@ -61,7 +67,9 @@ const ChatInterface = ({ basePath = '/user/chat', homePath = '/user/home', sessi
           // If we have an ID but no name, fetch it
           if (!targetBotName) {
             try {
-              const botDetails = await botService.getBot(targetBotId);
+              if (controller.signal.aborted) return;
+              const botDetails = await botService.getBot(targetBotId); // BotService likely needs signal update too, but skipping for now or assumed valid
+              if (controller.signal.aborted) return;
               targetBotName = botDetails.name;
             } catch (err) {
               console.error("Failed to fetch bot details for new chat", err);
@@ -102,6 +110,8 @@ const ChatInterface = ({ basePath = '/user/chat', homePath = '/user/home', sessi
     };
 
     initializeSession();
+
+    return () => controller.abort();
   }, [sessionId, location.state, homePath, botIdProp]);
 
   // Transform raw messages to UI format
@@ -116,28 +126,32 @@ const ChatInterface = ({ basePath = '/user/chat', homePath = '/user/home', sessi
 
 
 
-  const loadSessionAndMessages = async (id) => {
+  const loadSessionAndMessages = async (id, signal) => {
     setLoadingMessages(true);
     try {
       // 1. Fetch Session Details if needed
       let currentSession = activeSession;
       if (!currentSession || activeSession.id !== id) {
-        const sessionData = await getSession(id);
+        const sessionData = await getSession(id, { signal });
         if (sessionData) {
           const newSessionState = {
             id: sessionData.id,
             botId: sessionData.bot_id,
-            botName: sessionData.bots?.name || 'Bot',
+            botName: sessionData.bots?.name || activeSession?.botName || 'Bot',
             title: sessionData.summary_text || sessionData.title || 'Chat',
             isExisting: true
           };
+          // Abort check before state update
+          if (signal?.aborted) return;
           setActiveSession(newSessionState);
           currentSession = newSessionState;
         }
       }
 
       // 2. Fetch Messages (sort_desc=true to get latest)
-      const response = await getSessionMessages(id, { limit: 20, sort_desc: true });
+      const response = await getSessionMessages(id, { limit: 20, sort_desc: true }, { signal });
+      if (signal?.aborted) return;
+
       const messageList = response.items || [];
       const cursor = response.next_cursor || null;
 
@@ -149,6 +163,10 @@ const ChatInterface = ({ basePath = '/user/chat', homePath = '/user/home', sessi
       setHasMore(!!cursor);
 
     } catch (error) {
+      if (error.code === 'ERR_CANCELED' || error.name === 'AbortError') {
+        console.log('Session loading aborted');
+        return;
+      }
       console.error("Failed to load session/messages", error);
       // If session not found (404), maybe we should notify user or redirect?
       // For now, let's at least clear the loading state and show an error in history
@@ -158,8 +176,10 @@ const ChatInterface = ({ basePath = '/user/chat', homePath = '/user/home', sessi
         timestamp: new Date()
       }]);
     } finally {
-      setLoadingMessages(false);
-      setTimeout(scrollToBottom, 50);
+      if (!signal?.aborted) {
+        setLoadingMessages(false);
+        setTimeout(scrollToBottom, 50);
+      }
     }
   };
 
@@ -251,6 +271,14 @@ const ChatInterface = ({ basePath = '/user/chat', homePath = '/user/home', sessi
     }
   }, [chatHistory, isTyping, isFetchingMore]);
 
+  const handleStop = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setIsTyping(false);
+    setIsStreaming(false);
+  };
 
   const handleSendMessage = async () => {
     // Safety check: specific botId is required for the API
@@ -265,9 +293,14 @@ const ChatInterface = ({ basePath = '/user/chat', homePath = '/user/home', sessi
 
     setInputValue('');
     setIsTyping(true);
+    setIsStreaming(false);
 
     // If we have a URL param sessionId, use it. Otherwise undefined.
     const currentSessionId = sessionId;
+
+    // Create new AbortController
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     try {
 
@@ -276,6 +309,7 @@ const ChatInterface = ({ basePath = '/user/chat', homePath = '/user/home', sessi
         sessionId: currentSessionId,
         message: message,
         quizMode: isQuizMode,
+        signal: controller.signal,
         onSessionId: (newId) => {
           // If we were in "new chat" mode (no URL param), we now have an ID.
           // Update URL to active chat path without reloading
@@ -300,27 +334,35 @@ const ChatInterface = ({ basePath = '/user/chat', homePath = '/user/home', sessi
           }
         },
         onChunk: (accumulated) => {
-          setIsTyping(false); // Hide typing indicator as soon as we start receiving data
+          setIsTyping(true);
+          setIsStreaming(true); // Text has started arriving
           updateLastBotMessage(accumulated);
         }
       });
     } catch (err) {
-      console.error("Sending failed, attempting recovery...", err);
-      // Self-healing: If the error was network/extension related but backend saved it,
-      // fetching the latest messages will restore the missing response.
-      const targetSessionId = currentSessionId || activeSession?.id;
-      if (targetSessionId) {
-        try {
-          // Silent refresh
-          await loadSessionAndMessages(targetSessionId);
-          return; // If successful, skip the error message
-        } catch (recoverErr) {
-          console.error("Recovery failed", recoverErr);
+      if (err.name === 'AbortError') {
+        console.log("Response generation stopped by user");
+        // We can optionally add a small system message or just leave the partial response
+      } else {
+        console.error("Sending failed, attempting recovery...", err);
+        // Self-healing: If the error was network/extension related but backend saved it,
+        // fetching the latest messages will restore the missing response.
+        const targetSessionId = currentSessionId || activeSession?.id;
+        if (targetSessionId) {
+          try {
+            // Silent refresh
+            await loadSessionAndMessages(targetSessionId);
+            return; // If successful, skip the error message
+          } catch (recoverErr) {
+            console.error("Recovery failed", recoverErr);
+          }
         }
+        addMessage('bot', "Sorry, I encountered an error.", false, activeSession?.botName);
       }
-      addMessage('bot', "Sorry, I encountered an error.", false, activeSession?.botName);
     } finally {
       setIsTyping(false);
+      setIsStreaming(false);
+      abortControllerRef.current = null;
     }
   };
 
@@ -391,7 +433,7 @@ const ChatInterface = ({ basePath = '/user/chat', homePath = '/user/home', sessi
           </>
         )}
 
-        {isTyping && (
+        {isTyping && !isStreaming && (
           <div className="flex w-full justify-start fade-in">
             <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 mr-3 mt-1 shrink-0">
               <RobotIcon weight="fill" />
@@ -444,15 +486,25 @@ const ChatInterface = ({ basePath = '/user/chat', homePath = '/user/home', sessi
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyPress}
               style={{ minHeight: '48px' }}
-              disabled={(!activeSession?.botId && !botIdProp)}
+              disabled={(!activeSession?.botId && !botIdProp) || loadingMessages}
             ></textarea>
-            <button
-              onClick={handleSendMessage}
-              disabled={(!activeSession?.botId && !botIdProp) || !inputValue.trim()}
-              className="p-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition self-end shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <PaperPlaneRightIcon weight="bold" className="text-lg" />
-            </button>
+            {isTyping ? (
+              <button
+                onClick={handleStop}
+                className="p-3 bg-red-500 text-white rounded-xl hover:bg-red-600 transition self-end shadow-md"
+                title="Stop generation"
+              >
+                <StopIcon weight="fill" className="text-lg" />
+              </button>
+            ) : (
+              <button
+                onClick={handleSendMessage}
+                disabled={(!activeSession?.botId && !botIdProp) || !inputValue.trim() || loadingMessages}
+                className="p-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition self-end shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <PaperPlaneRightIcon weight="bold" className="text-lg" />
+              </button>
+            )}
           </div>
           <p className="text-center text-[10px] text-slate-400 mt-2">{t('chatbot.disclaimer')}</p>
         </div>

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { ROUTES } from '../../../routes';
 import { clsx } from 'clsx';
 import { RobotIcon, PlusCircleIcon, ChatCircleDotsIcon, PencilSimpleIcon, TrashIcon, SpinnerIcon, WarningIcon, BookBookmarkIcon, MagnifyingGlassIcon } from '@phosphor-icons/react';
-import { useAuth } from '../../../context/AuthContext';
+
 import { useTranslation } from 'react-i18next';
 import { useBots } from '../../../hooks/useBots';
 import { usePageTour } from '../../../hooks/usePageTour';
@@ -13,7 +14,6 @@ import TourButton from '../../../components/common/TourButton';
 const BotList = () => {
   const { t } = useTranslation();
   const { bots, loading: isLoading, error, fetchBots, deleteBot } = useBots();
-  const { user } = useAuth();
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -40,7 +40,9 @@ const BotList = () => {
   const { startTour } = usePageTour('bot-list', tourSteps);
 
   useEffect(() => {
-    fetchBots();
+    const controller = new AbortController();
+    fetchBots({ signal: controller.signal });
+    return () => controller.abort();
   }, [fetchBots]);
 
   const handleDelete = async (id) => {
@@ -94,7 +96,7 @@ const BotList = () => {
               />
             </div>
 
-            <Link id="create-bot-btn" to="create" className="btn-primary flex items-center gap-2 px-4 py-2 rounded-lg shadow-sm hover:shadow text-sm font-medium">
+            <Link id="create-bot-btn" to={ROUTES.ADMIN.BOTS.CREATE} className="btn-primary flex items-center gap-2 px-4 py-2 rounded-lg shadow-sm hover:shadow text-sm font-medium">
               <PlusCircleIcon size={18} weight="bold" /> <span>{t('admin.bots.createNew')}</span>
             </Link>
           </div>
@@ -158,7 +160,7 @@ const BotList = () => {
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-center gap-1 opacity-100 lg:opacity-60 lg:group-hover:opacity-100 transition-opacity">
                         <button
-                          onClick={() => navigate(`/admin/chat/${bot.id}?new=true`)}
+                          onClick={() => navigate(ROUTES.ADMIN.CHAT.BOT(bot.id) + '?new=true')}
                           disabled={!bot.model_id}
                           className={clsx(
                             "tour-chat-btn transition p-2 rounded-lg",
@@ -171,7 +173,7 @@ const BotList = () => {
                           <ChatCircleDotsIcon size={20} weight="regular" />
                         </button>
                         <Link
-                          to={`edit/${bot.id}`}
+                          to={bot.id}
                           className="text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition inline-block p-2 rounded-lg"
                           title={t('admin.bots.tooltip.edit')}
                         >
@@ -185,7 +187,7 @@ const BotList = () => {
                           <TrashIcon size={20} />
                         </button>
                         <button
-                          onClick={() => navigate(`/admin/bots/${bot.id}/kbs`)}
+                          onClick={() => navigate(ROUTES.ADMIN.BOTS.KNOWLEDGE(bot.id))}
                           className="text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition p-2 rounded-lg"
                           title={t('admin.bots.tooltip.kb')}
                         >
@@ -200,8 +202,6 @@ const BotList = () => {
           </table>
         </div>
       </div>
-
-
     </div>
   );
 };

@@ -4,49 +4,59 @@ import { dashboardService } from '../services/dashboardService';
 export const useDashboard = () => {
   const [stats, setStats] = useState(null);
   const [chartData, setChartData] = useState(null);
-  const [loadingStats, setLoadingStats] = useState(false);
-  const [loadingChart, setLoadingChart] = useState(false);
+  
+  // New Bento States
+  const [activity, setActivity] = useState([]);
+  const [topics, setTopics] = useState([]);
+  const [engagement, setEngagement] = useState(null);
+  const [feedback, setFeedback] = useState(null);
+
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const fetchSummary = useCallback(async () => {
-    setLoadingStats(true);
+  const fetchDashboardData = useCallback(async (withLoading = true, signal) => {
+    if (withLoading) setLoading(true);
     try {
-      const data = await dashboardService.getStatsSummary();
-      setStats(data);
+      const options = { signal };
+      const [
+        statsData, 
+        activityData, 
+        topicsData, 
+        engagementData, 
+        feedbackData
+      ] = await Promise.all([
+        dashboardService.getStatsSummary(options),
+        dashboardService.getRecentActivity(options),
+        dashboardService.getTrendingTopics(options),
+        dashboardService.getEngagementStats(options),
+        dashboardService.getFeedbackSummary(options)
+      ]);
+
+      if (signal?.aborted) return;
+
+      setStats(statsData);
+      setActivity(activityData);
+      setTopics(topicsData);
+      setEngagement(engagementData);
+      setFeedback(feedbackData);
       setError(null);
     } catch (err) {
+      if (err.code === 'ERR_CANCELED' || err.name === 'AbortError') return;
       setError(err);
-      console.error("Failed to fetch dashboard summary", err);
+      console.error("Failed to fetch dashboard data", err);
     } finally {
-      setLoadingStats(false);
+      if (withLoading && !signal?.aborted) setLoading(false);
     }
   }, []);
-
-  const fetchChart = useCallback(async (timeRange) => {
-    setLoadingChart(true);
-    try {
-      const data = await dashboardService.getChartData(timeRange);
-      setChartData(data);
-    } catch (err) {
-      console.error("Failed to fetch chart data", err);
-    } finally {
-      setLoadingChart(false);
-    }
-  }, []);
-
-  const fetchAll = useCallback(async (timeRange) => {
-    fetchSummary();
-    fetchChart(timeRange);
-  }, [fetchSummary, fetchChart]);
 
   return {
     stats,
-    chartData,
-    loadingStats,
-    loadingChart,
+    activity,
+    topics,
+    engagement,
+    feedback,
+    loading,
     error,
-    fetchSummary,
-    fetchChart,
-    fetchAll
+    fetchDashboardData
   };
 };

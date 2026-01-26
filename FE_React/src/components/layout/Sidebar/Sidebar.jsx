@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import Skeleton from '../../common/Skeleton';
 import {
   MonitorPlayIcon,
   SquaresFourIcon,
@@ -12,7 +13,8 @@ import {
   ClockCounterClockwiseIcon,
   XIcon,
   CaretDownIcon,
-  TrashIcon
+  TrashIcon,
+  GraduationCapIcon
 } from '@phosphor-icons/react';
 
 import { useAuth } from '../../../context/AuthContext';
@@ -78,7 +80,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
         isOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         {/* Logo */}
-        <div className="h-16 flex items-center justify-between px-6 border-b border-gray-100 dark:border-gray-700">
+        <div className="h-16 flex items-center justify-between px-6 border-b border-gray-100 dark:border-gray-700 shadow-sm relative z-10">
           <div className="flex items-center gap-2 text-primary-600 font-bold text-xl uppercase tracking-wider">
             <MonitorPlayIcon size={24} weight="fill" />
             <span>{t('common.adminPortal', 'Admin Portal')}</span>
@@ -94,6 +96,8 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
           <NavItem to="/admin/dashboard" icon={SquaresFourIcon} label={t('sidebar.dashboard')} />
           <NavItem to="/admin/ai-models" icon={BrainIcon} label={t('sidebar.aiModels', 'AI Models')} />
           <NavItem to="/admin/bots" icon={RobotIcon} label={t('sidebar.chatbots')} />
+          <NavItem to="/admin/courses" icon={GraduationCapIcon} label={t('sidebar.courses', 'Courses')} />
+          <NavItem to="/admin/classes" icon={UsersIcon} label={t('sidebar.classes', 'Classes')} />
 
 
           {/* History Collapsible */}
@@ -143,7 +147,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
             )}>
               <div className="pl-3 border-l border-gray-200 dark:border-gray-700/50 space-y-1 py-1">
                 {sessionsLoading ? (
-                  <div className="px-4 py-2 text-xs text-gray-500 animate-pulse">Loading...</div>
+                  <Skeleton className="h-4 w-24 mx-4 my-2" />
                 ) : sessions.length === 0 ? (
                   <div className="px-4 py-2 text-xs text-gray-500 italic">No recent sessions</div>
                 ) : (

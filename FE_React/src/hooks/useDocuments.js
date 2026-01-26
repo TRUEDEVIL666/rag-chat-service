@@ -7,17 +7,19 @@ export const useDocuments = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const fetchDocuments = useCallback(async (kbId) => {
+  const fetchDocuments = useCallback(async (kbId, options = {}) => {
     setLoading(true);
     try {
-      const { data } = await documentService.getDocuments(kbId);
+      const { data } = await documentService.getDocuments(kbId, options);
+      if (options.signal?.aborted) return;
       setDocuments(data);
       setError(null);
     } catch (err) {
+      if (err.code === 'ERR_CANCELED' || err.name === 'AbortError') return;
       setError(err);
       console.error("Failed to fetch documents", err);
     } finally {
-      setLoading(false);
+      if (!options.signal?.aborted) setLoading(false);
     }
   }, []);
 

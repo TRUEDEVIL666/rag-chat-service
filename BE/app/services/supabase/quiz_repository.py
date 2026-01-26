@@ -2,7 +2,7 @@ from typing import List, Optional, Dict, Any
 from uuid import UUID
 from datetime import datetime
 
-from app.services.supabase.supabase_client import get_supabase_client
+from app.services.supabase.supabase_client import get_async_supabase_client
 
 
 class QuizAttemptCreate:
@@ -40,15 +40,15 @@ class QuizAttemptCreate:
 
 
 class QuizRepository:
-  def create_attempt(self, attempt: QuizAttemptCreate, access_token: str = None) -> Dict:
+  async def create_attempt(self, attempt: QuizAttemptCreate, access_token: str = None) -> Dict:
     """
     Creates a new quiz attempt record.
     """
-    client = get_supabase_client(access_token)
+    client = await get_async_supabase_client(access_token)
     data = attempt.to_dict()
 
     try:
-      res = client.table("quiz_attempts").insert(data).execute()
+      res = await client.table("quiz_attempts").insert(data).execute()
       if res.data and len(res.data) > 0:
         return res.data[0]
       return None
@@ -56,11 +56,11 @@ class QuizRepository:
       print(f"Error creating quiz attempt: {e}")
       raise e
 
-  def get_history(self, user_id: UUID, tenant_id: UUID, limit: int = 20, access_token: str = None) -> List[Dict]:
+  async def get_history(self, user_id: UUID, tenant_id: UUID, limit: int = 20, access_token: str = None) -> List[Dict]:
     """
     Fetches quiz history for a user.
     """
-    client = get_supabase_client(access_token)
+    client = await get_async_supabase_client(access_token)
 
     try:
       # We want to fetch user's attempts. RLS handles the user_id check implicitly if token is valid,
@@ -72,7 +72,7 @@ class QuizRepository:
           .order("created_at", desc=True)\
           .limit(limit)
 
-      res = query.execute()
+      res = await query.execute()
       return res.data
     except Exception as e:
       print(f"Error fetching quiz history: {e}")

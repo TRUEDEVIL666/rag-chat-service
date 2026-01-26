@@ -14,19 +14,7 @@ const MessageBubble = ({ role, text, senderName, botId, sessionId }) => {
   let quizData = null;
   if (!isUser) {
     try {
-      let content = text.trim();
-
-      // 1. Try to extract from markdown code blocks first
-      const codeBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-      if (codeBlockMatch) {
-        content = codeBlockMatch[1].trim();
-      } else {
-        // 2. Fallback: Try to find the first JSON array pattern [...]
-        const arrayMatch = content.match(/\[\s*\{[\s\S]*\}\s*\]/);
-        if (arrayMatch) {
-          content = arrayMatch[0];
-        }
-      }
+      const content = text.trim();
 
       if (content.startsWith('[') && content.endsWith(']')) {
         const parsed = JSON.parse(content);

@@ -1,3 +1,5 @@
+from pydantic.warnings import UnsupportedFieldAttributeWarning
+import warnings
 from fastapi import FastAPI
 from app.api import router as api_router
 import uvicorn
@@ -6,10 +8,12 @@ from contextlib import asynccontextmanager
 from fastapi_cache import FastAPICache
 from fastapi_cache.backends.redis import RedisBackend
 from redis import asyncio as aioredis
-from app.config.config import settings
-import warnings
-from pydantic.warnings import UnsupportedFieldAttributeWarning
 from fastapi_limiter import FastAPILimiter
+from app.config.config import settings
+from app.core.logger import setup_logging
+
+# Initialize Logging (Global)
+setup_logging()
 
 # Suppress "UnsupportedFieldAttributeWarning" from libraries (e.g. llama_index)
 warnings.filterwarnings("ignore", category=UnsupportedFieldAttributeWarning)

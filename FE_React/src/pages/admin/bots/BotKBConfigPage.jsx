@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { ROUTES } from '../../../routes';
 import { useTranslation } from 'react-i18next';
 import {
   MagnifyingGlassIcon,
@@ -10,7 +11,6 @@ import {
 } from '@phosphor-icons/react';
 import { kbsService } from '../../../services/kbsService';
 import { botService } from '../../../services/botService';
-import api from '../../../services/api'; // Corrected default import
 
 const BotKBConfigPage = () => {
   const { id } = useParams();
@@ -75,7 +75,7 @@ const BotKBConfigPage = () => {
     try {
       await botService.updateBot(id, { kb_ids: selectedKbIds });
       // toast.success(t('common.savedSuccessfully'));
-      navigate('/admin/bots');
+      navigate(ROUTES.ADMIN.BOTS.LIST);
     } catch (error) {
       console.error("Failed to save", error);
       // toast.error(t('common.errorOccurred'));
@@ -152,7 +152,7 @@ const BotKBConfigPage = () => {
       {/* Header */}
       <div className="mb-8">
         <button
-          onClick={() => navigate('/admin/bots')}
+          onClick={() => navigate(ROUTES.ADMIN.BOTS.LIST)}
           className="flex items-center gap-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition mb-4"
         >
           <ArrowLeftIcon size={20} />

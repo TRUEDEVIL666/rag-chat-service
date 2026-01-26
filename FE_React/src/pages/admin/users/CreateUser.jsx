@@ -1,12 +1,14 @@
+
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ROUTES } from '../../../routes';
 import {
-  ArrowLeftIcon,
-  UserIcon,
+  ArrowLeft,
+  User,
   CameraIcon,
   ShieldCheckIcon,
   KeyIcon,
-  EnvelopeIcon,
+  Envelope,
   LockIcon,
   CheckSquareIcon,
   IdentificationBadgeIcon,
@@ -103,7 +105,7 @@ const CreateUser = () => {
 
       setMsg({ text: t('admin.users.create.alert.createSuccess'), type: "success" });
       setTimeout(() => {
-        navigate('/admin/users');
+        navigate(ROUTES.ADMIN.USERS.LIST);
       }, 1500);
 
     } catch (error) {
@@ -124,7 +126,7 @@ const CreateUser = () => {
           <div className="px-8 py-6 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between bg-white/50 dark:bg-gray-800/50">
             <div className="flex items-center gap-4">
               <button
-                onClick={() => navigate('/admin/users')}
+                onClick={() => navigate(ROUTES.ADMIN.USERS.LIST)}
                 className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition text-gray-500 dark:text-gray-400 hover:text-primary-600"
               >
                 <ArrowLeftIcon size={24} weight="bold" />
@@ -336,10 +338,10 @@ const CreateUser = () => {
                               key={tenant.id}
                               onClick={() => handleSelectTenant(tenant)}
                               className={`
-                        p-4 rounded-xl border border-gray-200 dark:border-gray-700 cursor-pointer transition-all duration-200
-                        hover:border-primary-500 hover:shadow-md hover:bg-primary-50 dark:hover:bg-primary-900/10 group
+p - 4 rounded - xl border border - gray - 200 dark: border - gray - 700 cursor - pointer transition - all duration - 200
+hover: border - primary - 500 hover: shadow - md hover: bg - primary - 50 dark: hover: bg - primary - 900 / 10 group
                         ${formData.tenant_id === tenant.id ? 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'bg-white dark:bg-gray-800'}
-                      `}
+`}
                             >
                               <div className="flex items-start justify-between mb-2">
                                 <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg group-hover:bg-white dark:group-hover:bg-gray-600 transition-colors">

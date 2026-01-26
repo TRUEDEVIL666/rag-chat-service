@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useBots } from '../../../hooks/useBots';
 import BotForm from './BotForm';
-import { Spinner } from '@phosphor-icons/react';
+import { SpinnerIcon } from '@phosphor-icons/react';
 
 
 
@@ -42,7 +42,7 @@ const EditBot = () => {
     loadBot();
   }, [id, fetchBot]);
 
-  if (loading) return <div className="flex justify-center items-center h-full"><Spinner className="animate-spin text-primary-600" size={32} /></div>;
+  if (loading) return <div className="flex justify-center items-center h-full"><SpinnerIcon className="animate-spin text-primary-600" size={32} /></div>;
 
   return <BotForm initialData={botData} isEdit={true} />;
 };

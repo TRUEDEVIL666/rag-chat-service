@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, NavLink, useLocation } from 'react-router-dom';
+import { ROUTES } from '../../../routes';
 import {
   HouseIcon,
   FolderIcon,
@@ -9,8 +10,10 @@ import {
   SignOutIcon,
   ChatsCircleIcon,
   TrashIcon,
-  CaretDownIcon
+  CaretDownIcon,
+  StudentIcon
 } from '@phosphor-icons/react';
+import Skeleton from '../../common/Skeleton'; // Added import
 import { useAuth } from '../../../context/AuthContext';
 import { useChat } from '../../../context/ChatContext';
 import { useTranslation } from 'react-i18next';
@@ -18,15 +21,16 @@ import clsx from 'clsx';
 
 const UserSidebar = ({ isOpen, toggleSidebar }) => {
   const { t } = useTranslation();
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
   const {
     sessions,
-    activeSessionId,
+    activeSession,
     setActiveSession,
-    createNewSession,
     deleteSession: deleteSessionContext,
     loading: sessionsLoading
   } = useChat();
+
+  const activeSessionId = activeSession?.id;
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -38,14 +42,14 @@ const UserSidebar = ({ isOpen, toggleSidebar }) => {
     if (window.confirm(t('common.delete') + '?')) {
       await deleteSessionContext(sessionId);
       if (String(activeSessionId) === String(sessionId)) {
-        navigate('/user/home');
+        navigate('/user/history');
       }
     }
   };
 
   const handleSelectSession = (session) => {
     setActiveSession(session);
-    navigate(`/user/chat/${session.id}`);
+    navigate(ROUTES.USER.CHAT(session.bot_id, session.id));
     if (window.innerWidth < 768) toggleSidebar();
   };
 
@@ -53,6 +57,12 @@ const UserSidebar = ({ isOpen, toggleSidebar }) => {
     e.preventDefault();
     e.stopPropagation();
     setIsHistoryOpen(!isHistoryOpen);
+  };
+
+  const handleLogout = () => {
+    if (window.confirm("Are you sure you want to sign out?")) {
+      logout();
+    }
   };
 
   return (
@@ -69,13 +79,13 @@ const UserSidebar = ({ isOpen, toggleSidebar }) => {
       <aside
         className={clsx(
           "fixed md:static inset-y-0 left-0 z-40 w-64 flex flex-col transition-transform duration-300 ease-in-out border-r shadow-2xl md:shadow-none",
-          "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700/50",
+          "bg-white/70 backdrop-blur-md dark:bg-slate-950/90 border-slate-200 dark:border-slate-800",
           isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
           "md:flex"
         )}
       >
         {/* Header */}
-        <div className="h-16 flex items-center justify-between px-6 border-b shrink-0 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700/50">
+        <div className="h-16 flex items-center justify-between px-6 border-b shrink-0 bg-transparent border-slate-200 dark:border-slate-800">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
               <ChatsCircleIcon weight="fill" className="text-white text-lg" />
@@ -85,12 +95,12 @@ const UserSidebar = ({ isOpen, toggleSidebar }) => {
           <button onClick={toggleSidebar} className="md:hidden text-slate-400 hover:text-slate-600 dark:hover:text-white transition">
             <XIcon size={20} />
           </button>
-        </div>
+        </div >
 
         {/* Navigation */}
-        <nav className="px-3 flex-1 overflow-y-auto space-y-1 py-4">
+        < nav className="px-3 flex-1 overflow-y-auto space-y-1 py-4" >
           {/* Dashboard */}
-          <NavLink
+          < NavLink
             to="/user/home"
             onClick={() => window.innerWidth < 768 && toggleSidebar()}
             className={({ isActive }) =>
@@ -104,11 +114,11 @@ const UserSidebar = ({ isOpen, toggleSidebar }) => {
           >
             <HouseIcon className="text-lg transition-colors group-hover:text-indigo-600 dark:group-hover:text-indigo-400" weight="duotone" />
             <span>{t('nav.home')}</span>
-          </NavLink>
+          </NavLink >
 
-          {/* Documents */}
-          <NavLink
-            to="/user/documents"
+          {/* Classes */}
+          < NavLink
+            to="/user/classes"
             onClick={() => window.innerWidth < 768 && toggleSidebar()}
             className={({ isActive }) =>
               clsx(
@@ -119,12 +129,12 @@ const UserSidebar = ({ isOpen, toggleSidebar }) => {
               )
             }
           >
-            <FolderIcon className="text-lg transition-colors group-hover:text-indigo-600 dark:group-hover:text-indigo-400" weight="duotone" />
-            <span>{t('nav.documents')}</span>
-          </NavLink>
+            <StudentIcon className="text-lg transition-colors group-hover:text-indigo-600 dark:group-hover:text-indigo-400" weight="duotone" />
+            <span>{t('nav.classes', 'My Classes')}</span>
+          </NavLink >
 
           {/* Custom History Item with Dropdown */}
-          <div className="space-y-0.5">
+          < div className="space-y-0.5" >
             <div className="flex items-center pr-2 group">
               <NavLink
                 to="/user/history"
@@ -167,7 +177,7 @@ const UserSidebar = ({ isOpen, toggleSidebar }) => {
             )}>
               <div className="pl-3 border-l border-slate-200 dark:border-slate-700/50 space-y-1 py-1">
                 {sessionsLoading ? (
-                  <div className="px-4 py-2 text-xs text-slate-500 animate-pulse">Loading...</div>
+                  <Skeleton className="h-4 w-24 mx-4 my-2" />
                 ) : sessions.length === 0 ? (
                   <div className="px-4 py-2 text-xs text-slate-500 italic">No recent sessions</div>
                 ) : (
@@ -176,7 +186,7 @@ const UserSidebar = ({ isOpen, toggleSidebar }) => {
                       key={session.id}
                       className={clsx(
                         "group/item flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-all text-xs relative",
-                        activeSessionId === session.id
+                        (String(activeSessionId) === String(session.id) && location.pathname.includes('/chat'))
                           ? "bg-slate-100 text-indigo-700 dark:bg-slate-800 dark:text-indigo-300 border border-slate-200 dark:border-slate-700"
                           : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-700 dark:hover:text-slate-200"
                       )}
@@ -189,7 +199,7 @@ const UserSidebar = ({ isOpen, toggleSidebar }) => {
                       </div>
 
                       {/* Hover Actions */}
-                      <div className={clsx("flex items-center gap-1 opacity-100 md:opacity-0 transition-opacity", activeSessionId === session.id ? "opacity-100" : "group-hover/item:opacity-100")}>
+                      <div className={clsx("flex items-center gap-1 opacity-100 md:opacity-0 transition-opacity", String(activeSessionId) === String(session.id) ? "opacity-100 md:opacity-100" : "group-hover/item:opacity-100")}>
                         <button
                           onClick={(e) => handleDeleteSession(e, session.id)}
                           className="p-0.5 hover:bg-red-100 dark:hover:bg-red-900/30 rounded text-slate-400 hover:text-red-500 dark:hover:text-red-400"
@@ -202,10 +212,10 @@ const UserSidebar = ({ isOpen, toggleSidebar }) => {
                 )}
               </div>
             </div>
-          </div>
+          </div >
 
           {/* Settings */}
-          <NavLink
+          < NavLink
             to="/user/settings"
             onClick={() => window.innerWidth < 768 && toggleSidebar()}
             className={({ isActive }) =>
@@ -219,20 +229,20 @@ const UserSidebar = ({ isOpen, toggleSidebar }) => {
           >
             <GearIcon className="text-lg transition-colors group-hover:text-indigo-600 dark:group-hover:text-indigo-400" weight="duotone" />
             <span>{t('nav.settings')}</span>
-          </NavLink>
+          </NavLink >
 
-        </nav>
+        </nav >
 
         {/* Footer */}
-        <div className="p-4 border-t border-slate-200 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900/50">
+        < div className="p-4 border-t border-slate-200 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900/50" >
           <button
-            onClick={logout}
+            onClick={handleLogout}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-red-50 dark:hover:bg-red-500/10 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-all group"
           >
             <SignOutIcon className="text-lg group-hover:text-red-600 dark:group-hover:text-red-400 transition-colors" weight="duotone" />
             <span className="font-medium text-sm">{t('nav.sign_out')}</span>
           </button>
-        </div>
+        </div >
       </aside >
     </>
   );

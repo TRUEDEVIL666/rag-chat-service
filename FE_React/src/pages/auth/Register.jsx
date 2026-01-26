@@ -1,7 +1,8 @@
+
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-
-import { Spinner } from '@phosphor-icons/react';
+import { ROUTES } from './../../routes';
+import { Eye, EyeSlash, Spinner } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 
 import { authService } from '../../services/authService';
@@ -35,7 +36,7 @@ const Register = () => {
       });
       // On success, redirect to login
       alert(t('auth.register.success'));
-      navigate('/login');
+      navigate(ROUTES.AUTH.LOGIN);
     } catch (err) {
       setError(err.response?.data?.detail || t('auth.register.fail'));
     } finally {
@@ -132,7 +133,7 @@ const Register = () => {
 
         <div className="mt-6 text-center text-gray-600 dark:text-gray-400">
           {t('auth.register.hasAccount')}{' '}
-          <Link to="/login" className="text-primary-600 dark:text-primary-400 font-bold hover:underline">
+          <Link to={ROUTES.AUTH.LOGIN} className="text-primary-600 dark:text-primary-400 font-bold hover:underline">
             {t('auth.register.loginNow')}
           </Link>
         </div>

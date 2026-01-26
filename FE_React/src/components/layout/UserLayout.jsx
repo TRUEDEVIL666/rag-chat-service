@@ -10,9 +10,9 @@ const UserLayout = () => {
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
   return (
-    <div className="user-portal-root text-slate-700 h-screen flex overflow-hidden bg-[url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop')] bg-cover bg-center">
+    <div className="user-portal-root text-slate-700 h-screen flex overflow-hidden bg-[url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop')] bg-cover bg-center dark:text-gray-100 transition-colors duration-500">
       {/* Privacy Layer overlay */}
-      <div className="absolute inset-0 bg-slate-50/90 dark:bg-gray-900/90 z-0"></div>
+      <div className="absolute inset-0 bg-white/40 dark:bg-slate-950/90 z-0 transition-colors duration-500"></div>
 
       {/* SIDEBAR */}
       <aside

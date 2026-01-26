@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import ProviderList from './ProviderList';
 import ModelList from './ModelList';
-import { SquaresFour, Cube } from '@phosphor-icons/react';
+import { SquaresFourIcon, CubeIcon } from '@phosphor-icons/react';
 import clsx from 'clsx';
 
 
@@ -11,8 +11,8 @@ const AiProviderModelPage = () => {
   const [activeTab, setActiveTab] = useState('providers');
 
   const tabs = [
-    { id: 'providers', label: t('admin.aiModels.providers.title'), icon: SquaresFour },
-    { id: 'models', label: t('admin.aiModels.models.title'), icon: Cube },
+    { id: 'providers', label: t('admin.aiModels.providers.title'), icon: SquaresFourIcon },
+    { id: 'models', label: t('admin.aiModels.models.title'), icon: CubeIcon },
   ];
 
   return (

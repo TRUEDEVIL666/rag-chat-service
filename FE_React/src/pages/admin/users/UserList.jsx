@@ -29,7 +29,9 @@ const UserList = () => {
   const { startTour } = usePageTour('user-list', tourSteps);
 
   useEffect(() => {
-    fetchUsers();
+    const controller = new AbortController();
+    fetchUsers(false, null, { signal: controller.signal });
+    return () => controller.abort();
   }, []); // Initial load only
 
   // Local state for debouncing
@@ -123,7 +125,7 @@ const UserList = () => {
             <UploadSimpleIcon size={20} /> {t('admin.users.import', 'Import')}
           </button>
           <button id="create-user-btn"
-            onClick={() => navigate('/admin/users/create')}
+            onClick={() => navigate(ROUTES.ADMIN.USERS.CREATE)}
             className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 flex items-center gap-2 shadow-sm transition"
           >
             <UserPlusIcon size={20} /> {t('admin.users.createNew')}

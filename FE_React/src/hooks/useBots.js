@@ -7,17 +7,19 @@ export const useBots = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const fetchBots = useCallback(async () => {
+  const fetchBots = useCallback(async (options = {}) => {
     setLoading(true);
     try {
-      const data = await botService.getBots();
+      const data = await botService.getBots(options);
+      if (options.signal?.aborted) return;
       setBots(data);
       setError(null);
     } catch (err) {
+      if (err.code === 'ERR_CANCELED' || err.name === 'AbortError') return;
       setError(err);
       console.error("Failed to fetch bots", err);
     } finally {
-      setLoading(false);
+      if (!options.signal?.aborted) setLoading(false);
     }
   }, []);
 

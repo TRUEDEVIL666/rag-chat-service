@@ -1,6 +1,6 @@
 # app/services/supabase/user_repository.py
 from uuid import UUID
-from app.services.supabase.supabase_client import get_supabase_client
+from app.services.supabase.supabase_client import get_async_supabase_client
 from app.core.logger import get_logger
 from typing import Any, Dict, Optional, TYPE_CHECKING
 if TYPE_CHECKING:
@@ -13,10 +13,10 @@ class UserRepository:
   def __init__(self):
     self.table_name = "users"
 
-  def update_user_param(self, user_id: str, param_name: str, param_value: Any) -> dict | None:
+  async def update_user_param(self, user_id: str, param_name: str, param_value: Any) -> dict | None:
     try:
-      client = get_supabase_client()
-      response = client.table(self.table_name).update(
+      client = await get_async_supabase_client()
+      response = await client.table(self.table_name).update(
         {param_name: param_value}).eq("id", user_id).execute()
       if response.data:
         logger.info(f"Updated user {user_id} {param_name} to {param_value}")
@@ -26,9 +26,9 @@ class UserRepository:
       logger.exception(f"Failed to update user {user_id} {param_name}")
       raise RuntimeError(f"Failed to update user {user_id} {param_name}")
 
-  def get_users(self, limit: int = 20, cursor_timestamp: int = None, search_params: Optional["UserSearchParams"] = None, access_token: str = None) -> list[dict] | None:
+  async def get_users(self, limit: int = 20, cursor_timestamp: int = None, search_params: Optional["UserSearchParams"] = None, access_token: str = None) -> list[dict] | None:
     try:
-      client = get_supabase_client(access_token)
+      client = await get_async_supabase_client(access_token)
       # Fetch users + tenant name
       query = client.table(self.table_name).select("*, tenants(name)")
 
@@ -60,7 +60,7 @@ class UserRepository:
       # Apply sorting and limit
       query = query.order("created_at", desc=True).limit(limit)
 
-      response = query.execute()
+      response = await query.execute()
       if response.data:
         return response.data
       return []
@@ -68,11 +68,11 @@ class UserRepository:
       logger.exception("Failed to get all non-admin users")
       raise RuntimeError("Failed to get all non-admin users")
 
-  def delete_users(self, user_ids: list[str], access_token: str) -> None:
+  async def delete_users(self, user_ids: list[str], access_token: str) -> None:
     try:
       # Invoke the Edge Function to delete users from auth.users
-      client = get_supabase_client()
-      res = client.functions.invoke(
+      client = await get_async_supabase_client()
+      res = await client.functions.invoke(
           "delete-users",
           invoke_options={
               "body": {"user_ids": user_ids},
@@ -87,20 +87,20 @@ class UserRepository:
           logger.error(f"Some users failed to delete: {res.get('errors')}")
 
       # Manual cleanup in public.users just in case (optional if cascade exists)
-      client = get_supabase_client()
-      client.table(self.table_name).delete().in_("id", user_ids).execute()
+      client = await get_async_supabase_client()
+      await client.table(self.table_name).delete().in_("id", user_ids).execute()
 
     except Exception as e:
       logger.exception(f"Failed to delete users {user_ids}")
       raise RuntimeError(f"Failed to delete users: {str(e)}")
 
-  def delete_user(self, user_id: str, access_token: str) -> None:
-    return self.delete_users([user_id], access_token)
+  async def delete_user(self, user_id: str, access_token: str) -> None:
+    return await self.delete_users([user_id], access_token)
 
-  def get_user_details(self, user_id: str) -> dict | None:
+  async def get_user_details(self, user_id: str) -> dict | None:
     try:
-      client = get_supabase_client()
-      response = client.from_(self.table_name).select(
+      client = await get_async_supabase_client()
+      response = await client.from_(self.table_name).select(
         "*").eq("id", user_id).single().execute()
       if response.data:
         return response.data
@@ -111,12 +111,38 @@ class UserRepository:
       raise RuntimeError(
         f"Failed to get user details from public.users for user_id: {user_id}")
 
-  def get_total_users(self, access_token: str = None) -> int:
+  async def get_total_users(self, access_token: str = None) -> int:
     try:
-      client = get_supabase_client(access_token)
-      res = client.table(self.table_name).select(
+      client = await get_async_supabase_client(access_token)
+      res = await client.table(self.table_name).select(
         "*", count="exact", head=True).execute()
       return res.count or 0
     except Exception as e:
       logger.exception("Failed to get total users count")
       return 0
+
+  async def get_at_risk_users(self, days_threshold: int = 7) -> list[dict]:
+    try:
+      client = await get_async_supabase_client()
+      from datetime import datetime, timedelta, timezone
+
+      cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_threshold)
+
+      # Assuming 'last_sign_in_at' or 'updated_at' is used for activity tracking
+      # If last_sign_in_at is in auth.users and not public.users, we might need a different approach
+      # or rely on updated_at/created_at if last_sign_in_at is not synced.
+      # For now, we'll try to query 'last_sign_in_at' if it exists, or fallback to 'created_at' for demo
+
+      # ideally public.users should have last_sign_in_at synced from auth.users traces
+      # Query: "active" means they logged in recently. "At risk" means last_login < cutoff
+
+      response = await client.table(self.table_name).select(
+        "*").lt("last_sign_in_at", cutoff_date.isoformat()).limit(10).execute()
+
+      if response.data:
+        return response.data
+      return []
+    except Exception as e:
+      logger.warning(
+        f"Failed to get at-risk users (Column might be missing): {e}")
+      return []

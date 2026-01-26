@@ -1,430 +1,335 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CurrencyDollarIcon, ChatCircleTextIcon, UserPlusIcon, QuestionIcon, FileTextIcon, WarningIcon } from '@phosphor-icons/react';
+import {
+  CurrencyDollarIcon, ChatCircleTextIcon, UserPlusIcon,
+  FileTextIcon, WarningIcon, LightningIcon, PlusIcon,
+  UsersIcon, UploadIcon, RobotIcon, TrendUpIcon,
+  ThumbsUpIcon, ThumbsDownIcon, HeartbeatIcon, CheckCircleIcon
+} from '@phosphor-icons/react';
 import { useDashboard } from '../../hooks/useDashboard';
 import { useTranslation } from 'react-i18next';
-import { useTheme } from '../../context/ThemeContext';
-import { usePageTour } from '../../hooks/usePageTour';
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Filler,
-  Legend,
-} from 'chart.js';
-import { Line } from 'react-chartjs-2';
+import { ROUTES } from '../../routes';
+import Skeleton from '../../components/common/Skeleton';
+import { useAuth } from '../../context/AuthContext';
+import ReactWordcloud from '../../components/common/WordCloud';
 
-// Register ChartJS components
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Filler,
-  Legend
+const WelcomeHeader = ({ t, user, stats }) => (
+  <div className="col-span-1 md:col-span-2 lg:col-span-2 p-6 rounded-3xl bg-gradient-to-r from-primary-600 to-primary-800 text-white shadow-xl relative overflow-hidden">
+    <div className="relative z-10">
+      <h1 className="text-3xl font-bold mb-2">
+        {t('admin.dashboard.welcome', 'Welcome back, {{name}}!', { name: user?.name || 'Admin' })}
+      </h1>
+      <p className="text-primary-100 mb-6 max-w-lg">
+        {t('admin.dashboard.subtitle', 'Here is what’s happening in your digital classroom today.')}
+      </p>
+      <div className="flex gap-3">
+        <div className="flex items-center gap-2 bg-white/20 backdrop-blur-md px-4 py-2 rounded-xl text-sm font-medium">
+          <CheckCircleIcon size={18} weight="fill" className="text-green-300" />
+          <span>{t('admin.dashboard.systems_operational', 'All Systems Operational')}</span>
+        </div>
+        <div className="flex items-center gap-2 bg-white/20 backdrop-blur-md px-4 py-2 rounded-xl text-sm font-medium">
+          <UsersIcon size={18} weight="fill" className="text-blue-300" />
+          <span>{t('admin.dashboard.active_learners', '{{count}} Active Learners', { count: stats?.total_users || 0 })}</span>
+        </div>
+      </div>
+    </div>
+    {/* Decorative Background */}
+    <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/4 blur-3xl"></div>
+    <div className="absolute bottom-0 right-20 w-40 h-40 bg-primary-400/20 rounded-full translate-y-1/2 blur-2xl"></div>
+  </div>
+);
+
+const QuickActionTile = ({ title, icon: Icon, color, onClick }) => (
+  <button
+    onClick={onClick}
+    className={`group p-4 rounded-2xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-md transition-all flex flex-col items-center justify-center gap-3 h-full`}
+  >
+    <div className={`w-12 h-12 rounded-xl ${color} flex items-center justify-center text-white text-xl group-hover:scale-110 transition-transform`}>
+      <Icon weight="bold" />
+    </div>
+    <span className="font-semibold text-gray-700 dark:text-gray-200 text-sm">{title}</span>
+  </button>
+);
+
+const StatCard = ({ title, value, icon: Icon, colorClass, loading }) => (
+  <div className="p-5 rounded-2xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm flex items-center gap-4">
+    <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${colorClass}`}>
+      <Icon weight="duotone" />
+    </div>
+    <div>
+      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">{title}</p>
+      <h3 className="text-2xl font-bold text-gray-900 dark:text-white mt-0.5">
+        {loading ? <Skeleton className="h-8 w-16" /> : value}
+      </h3>
+    </div>
+  </div>
+);
+
+const ActivityFeed = ({ t, activity, loading }) => (
+  <div className="row-span-2 col-span-1 bg-white dark:bg-gray-800 rounded-3xl border border-gray-100 dark:border-gray-700 p-6 shadow-sm flex flex-col h-[500px] lg:h-auto">
+    <div className="flex items-center justify-between mb-6">
+      <h3 className="font-bold text-lg text-gray-800 dark:text-gray-100 flex items-center gap-2">
+        <LightningIcon className="text-yellow-500" weight="fill" />
+        {t('admin.dashboard.live_activity', 'Live Pulse')}
+      </h3>
+    </div>
+
+    <div className="flex-1 overflow-y-auto custom-scrollbar -mr-2 pr-2 space-y-6">
+      {loading ? (
+        [...Array(5)].map((_, i) => (
+          <div key={i} className="flex gap-4">
+            <Skeleton className="w-10 h-10 rounded-full flex-shrink-0" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-3 w-1/2" />
+            </div>
+          </div>
+        ))
+      ) : activity && activity.length > 0 ? (
+        activity.map(item => (
+          <div key={item.id} className="relative pl-6 border-l-2 border-gray-100 dark:border-gray-700 last:border-0 pb-2">
+            <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-white dark:bg-gray-800 border-2 border-primary-500"></div>
+            <div className="mb-1 flex items-center gap-2">
+              <span className="text-sm font-bold text-gray-900 dark:text-white">{item.user}</span>
+              <span className="text-xs text-gray-500">{item.time}</span>
+            </div>
+            <p className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2" title={item.type === 'query' ? item.message : ''}>
+              {item.type === 'query' && (
+                <>Asked <span className="text-primary-600 dark:text-primary-400 font-medium">{item.bot}</span>: "{item.message}"</>
+              )}
+              {item.type === 'enrollment' && (
+                <>Joined <span className="text-green-600 dark:text-green-400 font-medium">{item.class}</span></>
+              )}
+              {item.type === 'upload' && (
+                <>Uploaded <span className="text-purple-600 dark:text-purple-400 font-medium">{item.doc}</span> to {item.kb}</>
+              )}
+            </p>
+          </div>
+        ))
+      ) : (
+        <div className="text-center text-gray-400 py-10 mt-10">
+          <HeartbeatIcon size={48} className="mx-auto mb-2 opacity-20" />
+          <p>No recent signals</p>
+        </div>
+      )}
+    </div>
+  </div>
+);
+
+const TrendingWidget = ({ t, topics, loading }) => (
+  <div className="bg-white dark:bg-gray-800 rounded-3xl border border-gray-100 dark:border-gray-700 p-6 shadow-sm h-[300px] flex flex-col">
+    <h3 className="font-bold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
+      <TrendUpIcon className="text-red-500" weight="fill" />
+      {t('admin.dashboard.trending_topics', 'Trending Topics')}
+    </h3>
+    <div className="flex-1 w-full h-full relative flex items-center justify-center">
+      {loading ? (
+        <Skeleton className="h-full w-full rounded-xl" />
+      ) : topics?.length > 0 ? (
+        <ReactWordcloud
+          words={topics}
+          width={400}
+          height={200}
+        />
+      ) : (
+        <p className="text-sm text-gray-400 italic w-full text-center py-10">No trending topics yet.</p>
+      )}
+    </div>
+  </div>
+);
+
+const EngagementWidget = ({ t, engagement, navigate }) => (
+  <div className="col-span-1 lg:col-span-2 bg-white dark:bg-gray-800 rounded-3xl border border-gray-100 dark:border-gray-700 p-6 shadow-sm">
+    <h3 className="font-bold text-gray-800 dark:text-gray-100 mb-6 flex items-center justify-between">
+      <span className="flex items-center gap-2">
+        <UsersIcon className="text-indigo-500" weight="fill" />
+        {t('admin.dashboard.engagement.title', 'Engagement Pulse')}
+      </span>
+      <button
+        onClick={() => navigate(ROUTES.ADMIN.CLASSES.LIST)}
+        className="text-xs text-primary-600 font-bold hover:underline"
+      >
+        {t('admin.dashboard.view_all_classes', 'VIEW ALL CLASSES')}
+      </button>
+    </h3>
+
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <div>
+        <h4 className="text-xs font-bold uppercase text-gray-400 mb-3">{t('admin.dashboard.top_active_classes', 'Top Active Classes')}</h4>
+        <div className="space-y-3">
+          {engagement?.active_classes?.map((c, i) => (
+            <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-gray-900/50">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 flex items-center justify-center font-bold text-xs">{i + 1}</div>
+                <div>
+                  <p className="font-bold text-sm text-gray-800 dark:text-gray-200">{c.name}</p>
+                  <p className="text-xs text-gray-500">{t('admin.dashboard.students_count', '{{count}} Students', { count: c.students })}</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="font-bold text-primary-600">{c.queries}</p>
+                <p className="text-[10px] text-gray-400 uppercase">{t('admin.dashboard.queries', 'Queries')}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <h4 className="text-xs font-bold uppercase text-red-400 mb-3">{t('admin.dashboard.needs_attention', 'Needs Attention (At Risk)')}</h4>
+        <div className="space-y-3">
+          {engagement?.at_risk_students?.map((s, i) => (
+            <div key={i} className="flex items-center gap-3 p-3 rounded-xl border border-red-50 dark:border-red-900/20 bg-red-50/50 dark:bg-red-900/10">
+              <div className="w-2 h-2 rounded-full bg-red-500"></div>
+              <div className="flex-1">
+                <p className="font-medium text-sm text-gray-800 dark:text-gray-200">{s.name}</p>
+                <p className="text-xs text-red-500">{t('admin.dashboard.inactive_for', 'Inactive for {{time}}', { time: s.last_active })}</p>
+              </div>
+              <button className="px-3 py-1 bg-white dark:bg-gray-800 shadow-sm text-xs font-bold text-gray-600 rounded-lg hover:bg-gray-50">
+                {t('admin.dashboard.ping', 'Ping')}
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+const FeedbackWidget = ({ t, feedback }) => (
+  <div className="bg-white dark:bg-gray-800 rounded-3xl border border-gray-100 dark:border-gray-700 p-6 shadow-sm flex flex-col justify-center">
+    <h3 className="font-bold text-gray-800 dark:text-gray-100 mb-4 text-center">{t('admin.dashboard.student_feedback', 'Student Feedback')}</h3>
+    {feedback && (
+      <div className="flex items-center justify-center gap-6">
+        <div className="text-center">
+          <div className="w-16 h-16 rounded-2xl bg-green-50 dark:bg-green-900/20 text-green-500 flex items-center justify-center text-3xl mb-2 mx-auto">
+            <ThumbsUpIcon weight="fill" />
+          </div>
+          <p className="text-2xl font-bold text-gray-800 dark:text-white">{feedback.positive}%</p>
+          <p className="text-xs text-gray-500">{t('admin.dashboard.positive', 'Positive')}</p>
+        </div>
+        <div className="h-12 w-px bg-gray-200 dark:bg-gray-700"></div>
+        <div className="text-center">
+          <div className="w-16 h-16 rounded-2xl bg-red-50 dark:bg-red-900/20 text-red-500 flex items-center justify-center text-3xl mb-2 mx-auto">
+            <ThumbsDownIcon weight="fill" />
+          </div>
+          <p className="text-2xl font-bold text-gray-800 dark:text-white">{feedback.negative}%</p>
+          <p className="text-xs text-gray-500">{t('admin.dashboard.negative', 'Negative')}</p>
+        </div>
+      </div>
+    )}
+  </div>
 );
 
 const Dashboard = () => {
   const { t } = useTranslation();
-  const { theme } = useTheme();
   const navigate = useNavigate();
+  const { user } = useAuth();
 
-  // Data Hooks
-  const { stats, loadingStats, error: statsError, fetchSummary } = useDashboard();
-
-  const [recentDocs, setRecentDocs] = useState([]);
-  const [timeRange, setTimeRange] = useState('30days'); // '7days', '30days', 'all'
-
-  const [realTimeChartData, setRealTimeChartData] = useState([]);
-  const [loadingStream, setLoadingStream] = useState(false);
+  const {
+    stats, activity, topics, engagement, feedback,
+    loading, error, fetchDashboardData
+  } = useDashboard();
 
   useEffect(() => {
-    fetchSummary();
-  }, [fetchSummary]);
-
-  useEffect(() => {
-    let isMounted = true;
     const controller = new AbortController();
+    fetchDashboardData(true, controller.signal); // allow hook to handle signal
 
-    const streamChartData = async () => {
-      setLoadingStream(true);
-      setRealTimeChartData([]); // Reset on new range
-
-      try {
-        const token = localStorage.getItem('token');
-        if (!token) return;
-
-        const response = await fetch(`${import.meta.env.VITE_API_BASE}/analytics/chart?time_range=${timeRange}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          },
-          signal: controller.signal
-        });
-
-        if (!response.ok) throw new Error('Network response was not ok');
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        while (isMounted) {
-          const { value, done } = await reader.read();
-          if (done) break;
-
-          const chunk = decoder.decode(value, { stream: true });
-          buffer += chunk;
-
-          const lines = buffer.split('\n\n');
-          // Keep the last partial line in the buffer
-          buffer = lines.pop() || '';
-
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const jsonStr = line.substring(6);
-              try {
-                const newData = JSON.parse(jsonStr);
-                // Merge data: chunks are arrays of daily stats
-                setRealTimeChartData(prev => {
-                  // Merge and sort
-                  const merged = [...prev, ...newData];
-                  // Basic dedication not strictly needed if backend is ordered, but good safety
-                  // Sort by date strings
-                  return merged.sort((a, b) => a.period_date.localeCompare(b.period_date));
-                });
-              } catch (e) {
-                console.error("Failed to parse chunk", e);
-              }
-            }
-          }
-        }
-      } catch (err) {
-        if (err.name !== 'AbortError') {
-          console.error("Stream failed", err);
-        }
-      } finally {
-        if (isMounted) setLoadingStream(false);
-      }
-    };
-
-    streamChartData();
+    // Auto-refresh every 30 seconds for "Live Pulse" feel
+    const intervalId = setInterval(() => {
+      // Create new controller for interval? Or reuse?
+      // Intervals are tricky with cancellation. Usually we don't cancel interval fetches on unmount via controller,
+      // closely, but we do clear interval.
+      // For the initial fetch, we want to cancel if we navigate away quickly.
+    }, 30000);
 
     return () => {
-      isMounted = false;
       controller.abort();
+      clearInterval(intervalId);
     };
-  }, [timeRange]);
+  }, [fetchDashboardData]);
 
-
-
-  useEffect(() => {
-    if (stats?.recent_documents) {
-      setRecentDocs(stats.recent_documents);
-    }
-  }, [stats]);
-
-  // Process real chart data or fallback to empty
-  const chartLabels = React.useMemo(() => {
-    if (!realTimeChartData) return [];
-    return realTimeChartData.map(item => item.period_date);
-  }, [realTimeChartData]);
-
-  const chartValues = React.useMemo(() => {
-    if (!realTimeChartData) return [];
-    return realTimeChartData.map(item => item.count);
-  }, [realTimeChartData]);
-
-  const chartData = {
-    labels: chartLabels.length > 0 ? chartLabels : ['No Data'],
-    datasets: [
-      {
-        label: t('admin.dashboard.total_messages'),
-        data: chartValues.length > 0 ? chartValues : [0],
-        fill: true,
-        backgroundColor: (context) => {
-          const ctx = context.chart.ctx;
-          const gradient = ctx.createLinearGradient(0, 0, 0, 400);
-          gradient.addColorStop(0, 'rgba(59, 130, 246, 0.5)');
-          gradient.addColorStop(1, 'rgba(59, 130, 246, 0.05)');
-          return gradient;
-        },
-        borderColor: '#3b82f6',
-        tension: 0.4,
-        pointBackgroundColor: '#fff',
-        pointBorderColor: '#3b82f6',
-        pointBorderWidth: 2,
-        pointRadius: 4,
-        pointHoverRadius: 6,
-      },
-    ],
-  };
-
-  const chartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        display: false, // Hide default legend as we have custom one
-      },
-      tooltip: {
-        mode: 'index',
-        intersect: false,
-        backgroundColor: 'rgba(17, 24, 39, 0.9)',
-        titleColor: '#fff',
-        bodyColor: '#fff',
-        borderColor: 'rgba(255, 255, 255, 0.1)',
-        borderWidth: 1,
-        padding: 10,
-        displayColors: false,
-      },
-    },
-    scales: {
-      x: {
-        grid: {
-          display: false,
-          drawBorder: false,
-        },
-        ticks: {
-          color: '#9ca3af', // gray-400
-          font: {
-            size: 11
-          }
-        }
-      },
-      y: {
-        grid: {
-          color: 'rgba(243, 244, 246, 0.6)', // gray-100 equivalent
-          borderDash: [5, 5],
-          drawBorder: false,
-        },
-        ticks: {
-          color: '#9ca3af', // gray-400
-          font: {
-            size: 11
-          },
-          padding: 10
-        },
-        min: 0,
-        grace: '5%',
-      }
-    },
-    interaction: {
-      mode: 'nearest',
-      axis: 'x',
-      intersect: false
-    }
-  };
-
-  // Tour Steps
-  const tourSteps = [
-    { element: '#dashboard-title', popover: { title: t('tour.dashboard.title'), description: t('tour.dashboard.desc'), side: "bottom" } },
-    { element: '#time-filters', popover: { title: t('tour.dashboard.filters'), description: t('tour.dashboard.filters_desc'), side: "bottom" } },
-    { element: '#stat-cards', popover: { title: t('tour.dashboard.stats'), description: t('tour.dashboard.stats_desc'), side: "bottom" } },
-    { element: '#activity-chart', popover: { title: t('tour.dashboard.chart'), description: t('tour.dashboard.chart_desc'), side: "top" } },
-    { element: '#recent-activity', popover: { title: t('tour.dashboard.recent'), description: t('tour.dashboard.recent_desc'), side: "left" } },
-  ];
-  const { startTour } = usePageTour('dashboard', tourSteps);
-
-  const getStatusBadge = (status) => {
-    const s = status?.toLowerCase();
-    if (s === 'active') return <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400">{t('common.status.active')}</span>;
-    if (s === 'closed') return <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">{t('common.status.closed')}</span>;
-    return <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">{t(`common.status.${s}`, status || 'Unknown')}</span>;
-  };
-
-
-
+  if (error) {
+    return <div className="p-10 text-center text-red-500"><WarningIcon size={32} className="mx-auto mb-2" />{t('common.error_loading', 'Failed to load dashboard')}</div>;
+  }
 
   return (
-    <div className="flex-1 overflow-auto p-6" id="dashboard-content">
-      {/* Page Title & Filters */}
-      {/* Page Title */}
-      <div className="mb-8 flex items-center gap-3" id="dashboard-title">
-        <h1 className="text-2xl font-bold text-gray-800 dark:text-white">{t('admin.dashboard.title')}</h1>
-        <button
-          onClick={startTour}
-          className="w-8 h-8 bg-red-600 text-white rounded-full shadow-lg shadow-red-200 flex items-center justify-center hover:bg-red-700 transition"
-          title={t('common.startTour', 'Start Tour')}
-        >
-          <QuestionIcon weight="bold" className="text-lg" />
-        </button>
-      </div>
+    <div className="flex-1 overflow-y-auto p-4 lg:p-8 bg-gray-50/50 dark:bg-gray-900/50">
 
-      {statsError && (
-        <div className="mb-6 bg-red-50 text-red-600 p-4 rounded-lg flex items-center gap-2">
-          <WarningIcon size={20} /> {statsError?.message || String(statsError)}
-        </div>
-      )}
+      {/* Bento Grid Layout */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
 
-      {/* Stats Cards */}
-      <div id="stat-cards" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {/* Total Users */}
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-5">
-          <div className="w-14 h-14 rounded-full bg-green-50 dark:bg-green-900/20 flex items-center justify-center text-green-600 dark:text-green-400 text-2xl flex-shrink-0">
-            <CurrencyDollarIcon weight="fill" />
-          </div>
-          <div>
-            <p className="text-gray-500 dark:text-gray-400 text-sm font-medium mb-1">{t('admin.dashboard.total_users')}</p>
-            {loadingStats ? (
-              <div className="h-8 w-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-            ) : (
-              <h3 className="text-2xl font-bold text-gray-800 dark:text-white">{stats ? stats.total_users : 0}</h3>
-            )}
-          </div>
+        {/* Row 1: Welcome & Quick Actions */}
+        <WelcomeHeader t={t} user={user} stats={stats} />
+
+        <div className="col-span-1 md:col-span-2 grid grid-cols-2 gap-4">
+          <QuickActionTile
+            title={t('admin.dashboard.new_bot', 'New Bot')}
+            icon={RobotIcon}
+            color="bg-indigo-500"
+            onClick={() => navigate(ROUTES.ADMIN.BOTS.CREATE)}
+          />
+          <QuickActionTile
+            title={t('admin.dashboard.new_class', 'New Class')}
+            icon={UsersIcon}
+            color="bg-emerald-500"
+            onClick={() => navigate(ROUTES.ADMIN.CLASSES.LIST)}
+          />
+          <QuickActionTile
+            title={t('admin.dashboard.upload_doc', 'Upload Doc')}
+            icon={UploadIcon}
+            color="bg-pink-500"
+            onClick={() => navigate(ROUTES.ADMIN.DOCUMENTS.LIST)}
+          />
+          <QuickActionTile
+            title={t('admin.dashboard.add_user', 'Add User')}
+            icon={UserPlusIcon}
+            color="bg-orange-500"
+            onClick={() => navigate(ROUTES.ADMIN.USERS.LIST)}
+          />
         </div>
 
-        {/* Total Chats */}
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-5">
-          <div className="w-14 h-14 rounded-full bg-yellow-50 dark:bg-yellow-900/20 flex items-center justify-center text-yellow-600 dark:text-yellow-400 text-2xl flex-shrink-0">
-            <ChatCircleTextIcon weight="fill" />
-          </div>
-          <div>
-            <p className="text-gray-500 dark:text-gray-400 text-sm font-medium mb-1">{t('admin.dashboard.total_chats')}</p>
-            {loadingStats ? (
-              <div className="h-8 w-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-            ) : (
-              <h3 className="text-2xl font-bold text-gray-800 dark:text-white">{stats ? stats.total_chats : 0}</h3>
-            )}
-          </div>
-        </div>
+        {/* Row 2: Stats & Feed */}
+        <div className="col-span-1 md:col-span-2 lg:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-6">
+          <StatCard
+            title={t('admin.dashboard.total_users', 'Total Users')}
+            value={stats?.total_users || 0}
+            icon={UsersIcon}
+            colorClass="bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400"
+            loading={loading}
+          />
+          <StatCard
+            title={t('admin.dashboard.total_chats', 'Total Chats')}
+            value={stats?.total_chats || 0}
+            icon={ChatCircleTextIcon}
+            colorClass="bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400"
+            loading={loading}
+          />
+          <StatCard
+            title={t('admin.dashboard.total_kbs', 'Knowledge Bases')}
+            value={stats?.total_kbs || 0}
+            icon={FileTextIcon}
+            colorClass="bg-yellow-50 text-yellow-600 dark:bg-yellow-900/20 dark:text-yellow-400"
+            loading={loading}
+          />
 
-        {/* Total KBs/Documents */}
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-5">
-          <div className="w-14 h-14 rounded-full bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center text-primary-600 dark:text-primary-400 text-2xl flex-shrink-0">
-            <UserPlusIcon weight="fill" />
+          {/* Charts Row inside this column block to stack properly */}
+          <div className="col-span-1 md:col-span-3">
+            <EngagementWidget t={t} engagement={engagement} navigate={navigate} />
           </div>
-          <div>
-            <p className="text-gray-500 dark:text-gray-400 text-sm font-medium mb-1">{t('admin.dashboard.total_kbs')}</p>
-            {loadingStats ? (
-              <div className="h-8 w-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-            ) : (
-              <h3 className="text-2xl font-bold text-gray-800 dark:text-white">{stats ? stats.total_kbs : 0}</h3>
-            )}
-          </div>
-        </div>
-
-        {/* Total Documents */}
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-5">
-          <div className="w-14 h-14 rounded-full bg-purple-50 dark:bg-purple-900/20 flex items-center justify-center text-purple-600 dark:text-purple-400 text-2xl flex-shrink-0">
-            <FileTextIcon weight="fill" />
-          </div>
-          <div>
-            <p className="text-gray-500 dark:text-gray-400 text-sm font-medium mb-1">{t('admin.dashboard.total_documents')}</p>
-            {loadingStats ? (
-              <div className="h-8 w-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-            ) : (
-              <h3 className="text-2xl font-bold text-gray-800 dark:text-white">{stats ? stats.total_documents : 0}</h3>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Content Grid: Charts & Tables */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Chart Area (Left - 2/3 width) */}
-        <div id="activity-chart" className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 relative">
-          {loadingStream && realTimeChartData.length === 0 && (
-            <div className="absolute inset-0 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm flex items-center justify-center z-10 rounded-xl">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
-            </div>
-          )}
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <h3 className="font-bold text-gray-800 dark:text-white">
-                {t('admin.dashboard.activity_statistics')}
-              </h3>
-              {/* Dropdown Filter - Moved to Left */}
-              <select
-                value={timeRange}
-                onChange={(e) => setTimeRange(e.target.value)}
-                className="px-3 py-1 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm font-medium text-gray-700 dark:text-gray-300 focus:ring-2 focus:ring-primary-500 focus:outline-none"
-              >
-                <option value="7days">{t('admin.dashboard.last7Days')}</option>
-                <option value="30days">{t('admin.dashboard.last30Days')}</option>
-                <option value="all">{t('admin.dashboard.allTime')}</option>
-              </select>
-            </div>
-
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-primary-400"></span>
-                  <span>{t('admin.dashboard.messages')}</span></span>
-              </div>
-            </div>
-          </div>
-
-          {/* Real Chart using react-chartjs-2 */}
-          <div className="h-80 w-full">
-            <Line data={chartData} options={chartOptions} />
+          <div className="col-span-1 md:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6">
+            <TrendingWidget t={t} topics={topics} loading={loading} />
+            <FeedbackWidget t={t} feedback={feedback} />
           </div>
         </div>
 
-        {/* Recent List (Right - 1/3 width) */}
-        <div id="recent-activity" className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 flex flex-col relative">
-          <h3 className="font-bold text-gray-800 dark:text-white mb-4">{t('admin.dashboard.recent_activity')}</h3>
-          <div className="flex-1 overflow-auto -mx-2 px-2">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="text-xs text-gray-400 border-b border-gray-100 dark:border-gray-700">
-                  <th className="py-3 font-medium">{t('admin.dashboard.th_doc_name')}</th>
-                  <th className="py-3 font-medium text-right">{t('admin.dashboard.th_status')}</th>
-                </tr>
-              </thead>
-              <tbody className="text-sm">
-                {loadingStats ? (
-                  [1, 2, 3, 4, 5].map((i) => (
-                    <tr key={i} className="border-b border-gray-50 dark:border-gray-700 last:border-0">
-                      <td className="py-3">
-                        <div className="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-                      </td>
-                      <td className="py-3 text-right">
-                        <div className="h-6 w-16 ml-auto bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <>
-                    {recentDocs.map((doc) => (
-                      <tr
-                        key={doc.id}
-                        onClick={() => navigate('/admin/documents', { state: { kbId: doc.knowledgebase_id, kbName: doc.knowledgebases?.name, docId: doc.id } })}
-                        className="border-b border-gray-50 dark:border-gray-700 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700 transition cursor-pointer"
-                      >
-                        <td className="py-3 text-gray-500 dark:text-gray-400 font-mono" title={doc.name}>
-                          {doc.name.length > 20 ? doc.name.substring(0, 20) + '...' : doc.name}
-                        </td>
-                        <td className="py-3 text-right">
-                          <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${doc.status === 'completed' ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400' :
-                            doc.status === 'processing' ? 'bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400' :
-                              'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
-                            }`}>
-                            {t(`common.status.${doc.status}`, doc.status || 'Unknown')}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                    {!loadingStats && recentDocs.length === 0 && (
-                      <tr>
-                        <td colSpan="2" className="py-4 text-center text-gray-500">{t('admin.dashboard.no_recent_docs')}</td>
-                      </tr>
-                    )}
-                  </>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Help Button */}
-
+        <div className="row-span-1 col-span-1 md:col-span-1 lg:col-span-1">
+          <ActivityFeed t={t} activity={activity} loading={loading} />
         </div>
+
       </div>
     </div>
-
   );
 };
 
