@@ -72,7 +72,7 @@ async def delete_document(
   """
   Hard delete a document and all related artifacts (file, vectors, metadata).
   """
-  return service.delete_document(
+  return await service.delete_document(
       document_id=document_id,
       tenant_id=auth["tenant_id"],
       user_id=auth["user_id"],
@@ -81,14 +81,14 @@ async def delete_document(
 
 
 @router.get("/tasks/{task_id}", response_model=TaskStatusResponse, summary="Get Task Status")
-def get_task_status(
+async def get_task_status(
     req: TaskIdRequest = Depends(),
     service=Depends(get_document_service)
 ):
   """
   Check the status of any document-related background task.
   """
-  return service.get_task_status(req.task_id)
+  return await service.get_task_status(req.task_id)
 
 
 @router.post("/batch-delete", summary="Batch Delete Documents")
@@ -100,7 +100,7 @@ async def batch_delete_documents(
   """
   Batch delete multiple documents.
   """
-  return service.batch_delete_documents(
+  return await service.batch_delete_documents(
       doc_ids=request.ids,
       tenant_id=auth["tenant_id"],
       user_id=auth["user_id"],
@@ -163,16 +163,18 @@ async def get_document_content(
   service = get_document_service()
   # Actually better to keep service injection.
 
-  stream, filename, media_type = service.get_document_stream(
+  stream, filename, media_type = await service.get_document_stream(
       document_id=document_id,
       tenant_id=user_auth["tenant_id"],
       access_token=user_auth.get("token")
   )
 
+  from urllib.parse import quote
+  encoded_filename = quote(filename)
   return StreamingResponse(
       stream,
       media_type=media_type,
-      headers={"Content-Disposition": f"inline; filename={filename}"}
+      headers={"Content-Disposition": f"inline; filename*=UTF-8''{encoded_filename}"}
   )
 
 

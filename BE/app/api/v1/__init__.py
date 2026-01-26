@@ -11,6 +11,9 @@ from .ai_model_api import router as ai_model_router
 from .document_api import router as document_router
 from .tenant_api import router as tenant_router
 from .quiz_api import router as quiz_router
+from .semester_api import router as semester_router
+from .course_api import router as course_router
+from .class_api import router as class_router
 
 router = APIRouter()
 
@@ -28,3 +31,7 @@ router.include_router(router=document_router,
                       prefix="/documents", tags=["Documents"])
 router.include_router(router=tenant_router, tags=["Tenants"])
 router.include_router(router=quiz_router, prefix="/quiz", tags=["Quiz"])
+# LMS
+router.include_router(router=semester_router, tags=["Semesters"])
+router.include_router(router=course_router, tags=["Courses"])
+router.include_router(router=class_router, tags=["Classes"])

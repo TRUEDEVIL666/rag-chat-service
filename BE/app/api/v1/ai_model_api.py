@@ -11,84 +11,84 @@ router = APIRouter()
 
 
 @router.get("/providers", response_model=List[AiProviderResponse])
-def list_providers(
+async def list_providers(
     service=Depends(get_ai_model_service),
     auth=Depends(get_current_user)
 ):
   try:
-    return service.list_providers(access_token=auth.get("token"))
+    return await service.list_providers(access_token=auth.get("token"))
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/providers/{provider_id}/models", response_model=List[AiModelResponse])
-def list_models_by_provider(
+async def list_models_by_provider(
     req: AiModelProviderRequest = Depends(),
     service=Depends(get_ai_model_service),
     auth=Depends(get_current_user)
 ):
   try:
-    return service.get_models_by_provider(str(req.provider_id), model_type=req.model_type, access_token=auth.get("token"))
+    return await service.get_models_by_provider(str(req.provider_id), model_type=req.model_type, access_token=auth.get("token"))
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/models/type/{model_type}", response_model=List[AiModelResponse])
-def list_models_by_type(
+async def list_models_by_type(
     req: AiModelTypeRequest = Depends(),
     service=Depends(get_ai_model_service),
     auth=Depends(get_current_user)
 ):
   try:
-    return service.list_models_by_type(req.model_type, access_token=auth.get("token"))
+    return await service.list_models_by_type(req.model_type, access_token=auth.get("token"))
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/models", response_model=List[AiModelResponse])
-def list_all_models(
+async def list_all_models(
     service=Depends(get_ai_model_service),
     auth=Depends(get_current_user)
 ):
   try:
-    return service.list_all_models(access_token=auth.get("token"))
+    return await service.list_all_models(access_token=auth.get("token"))
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/providers", response_model=AiProviderResponse)
-def create_provider(
+async def create_provider(
     data: AiProviderCreate,
     service=Depends(get_ai_model_service),
     auth=Depends(get_current_user)
 ):
   try:
-    return service.create_provider(data.dict(exclude_unset=True), access_token=auth.get("token"))
+    return await service.create_provider(data.dict(exclude_unset=True), access_token=auth.get("token"))
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.put("/providers/{provider_id}", response_model=AiProviderResponse)
-def update_provider(
+async def update_provider(
     provider_id: str,
     data: AiProviderUpdate,
     service=Depends(get_ai_model_service),
     auth=Depends(get_current_user)
 ):
   try:
-    return service.update_provider(provider_id, data.dict(exclude_unset=True), access_token=auth.get("token"))
+    return await service.update_provider(provider_id, data.dict(exclude_unset=True), access_token=auth.get("token"))
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.delete("/providers/{provider_id}")
-def delete_provider(
+async def delete_provider(
     provider_id: str,
     service=Depends(get_ai_model_service),
     auth=Depends(get_current_user)
 ):
   try:
-    success = service.delete_provider(
+    success = await service.delete_provider(
       provider_id, access_token=auth.get("token"))
     if not success:
       raise HTTPException(status_code=404, detail="Provider not found")
@@ -98,38 +98,38 @@ def delete_provider(
 
 
 @router.post("/models", response_model=AiModelResponse)
-def create_model(
+async def create_model(
     data: AiModelCreate,
     service=Depends(get_ai_model_service),
     auth=Depends(get_current_user)
 ):
   try:
-    return service.create_model(data.dict(exclude_unset=True), access_token=auth.get("token"))
+    return await service.create_model(data.dict(exclude_unset=True), access_token=auth.get("token"))
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.put("/models/{model_id}", response_model=AiModelResponse)
-def update_model(
+async def update_model(
     model_id: str,
     data: AiModelUpdate,
     service=Depends(get_ai_model_service),
     auth=Depends(get_current_user)
 ):
   try:
-    return service.update_model(model_id, data.dict(exclude_unset=True), access_token=auth.get("token"))
+    return await service.update_model(model_id, data.dict(exclude_unset=True), access_token=auth.get("token"))
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.delete("/models/{model_id}")
-def delete_model(
+async def delete_model(
     model_id: str,
     service=Depends(get_ai_model_service),
     auth=Depends(get_current_user)
 ):
   try:
-    success = service.delete_model(model_id, access_token=auth.get("token"))
+    success = await service.delete_model(model_id, access_token=auth.get("token"))
     if not success:
       raise HTTPException(status_code=404, detail="Model not found")
     return {"message": "Model deleted successfully"}
@@ -138,7 +138,7 @@ def delete_model(
 
 
 @router.get("/providers/{provider_id}/external-models", response_model=List[str])
-def list_external_models(
+async def list_external_models(
     provider_id: str,
     model_type: str = Query(None),
     service=Depends(get_ai_model_service),
@@ -148,7 +148,7 @@ def list_external_models(
   Fetches available models directly from the provider's API.
   """
   try:
-    return service.fetch_external_models(provider_id, model_type=model_type, access_token=auth.get("token"))
+    return await service.fetch_external_models(provider_id, model_type=model_type, access_token=auth.get("token"))
   except ValueError as e:
     raise HTTPException(status_code=400, detail=str(e))
   except Exception as e:

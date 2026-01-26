@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.concurrency import run_in_threadpool
 from app.core.factory import get_analytics_service
 from app.utils.auth import get_current_user
 from fastapi_cache.decorator import cache
@@ -20,7 +19,7 @@ async def get_analytics_stats(
     auth: dict = Depends(get_current_user)
 ):
   try:
-    return analytics_service.get_summary_stats(auth)
+    return await analytics_service.get_summary_stats(auth)
   except HTTPException:
     raise
   except Exception as e:
@@ -59,8 +58,7 @@ async def get_analytics_chart(
         current_end = end_date
 
       # Fetch chunk
-      data_chunk = await run_in_threadpool(
-          analytics_service.get_chart_data_custom,
+      data_chunk = await analytics_service.get_chart_data_custom(
           auth,
           start_date=current_start.isoformat(),
           end_date=current_end.isoformat(),
@@ -74,3 +72,47 @@ async def get_analytics_chart(
       await asyncio.sleep(0.01)  # Yield control
 
   return StreamingResponse(data_generator(), media_type="text/event-stream")
+
+
+@router.get("/analytics/activity", summary="Get recent activity feed")
+async def get_recent_activity(
+    analytics_service=Depends(get_analytics_service),
+    auth: dict = Depends(get_current_user)
+):
+  try:
+    return await analytics_service.get_recent_activity(auth)
+  except Exception as e:
+    raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/analytics/topics", summary="Get trending topics")
+async def get_trending_topics(
+    analytics_service=Depends(get_analytics_service),
+    auth: dict = Depends(get_current_user)
+):
+  try:
+    return await analytics_service.get_trending_topics(auth)
+  except Exception as e:
+    raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/analytics/engagement", summary="Get engagement stats")
+async def get_engagement_stats(
+    analytics_service=Depends(get_analytics_service),
+    auth: dict = Depends(get_current_user)
+):
+  try:
+    return await analytics_service.get_engagement_stats(auth)
+  except Exception as e:
+    raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/analytics/feedback", summary="Get feedback summary")
+async def get_feedback_summary(
+    analytics_service=Depends(get_analytics_service),
+    auth: dict = Depends(get_current_user)
+):
+  try:
+    return await analytics_service.get_feedback_summary(auth)
+  except Exception as e:
+    raise HTTPException(status_code=500, detail=str(e))

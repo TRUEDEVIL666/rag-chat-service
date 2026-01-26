@@ -16,7 +16,7 @@ from app.helper.utils_kb import INDEX_MAP, PERM_MAP, api_to_db_retrieval, db_to_
 from app.schemas.knowledge_base import (
     KnowledgeBaseDetail, KnowledgeBaseInput, KnowledgeBaseItem,
     KnowledgeBaseResponse, KnowledgeBaseListResponse,
-    RetrievalModeSchema, RetrievalModel, RetrievalModelSchema, UpdateKnowledgeBaseRequest
+    RetrievalModel, RetrievalModelSchema, UpdateKnowledgeBaseRequest
 )
 from app.schemas.document import DocumentListResponse, DocumentItem
 
@@ -44,7 +44,7 @@ def _to_epoch(ts) -> int:
     description="Retrieves a list of knowledge bases, with options for pagination and filtering."
 )
 @cache(expire=60)
-def list_knowledge_bases(
+async def list_knowledge_bases(
     # keyword: Optional[str] = Query(None, description="Search keyword to filter by name"),
     # tag_ids: Optional[List[str]] = Query(None, description="List of tag IDs (ALL-of filtering)"),
     # page: int = Query(1, ge=1, description="Page number"),
@@ -57,7 +57,7 @@ def list_knowledge_bases(
     tenant_id = auth["tenant_id"]
     is_owner = bool(auth.get("is_owner", False))
 
-    rows, total = kb_service.list_knowledge_bases(
+    rows, total = await kb_service.list_knowledge_bases(
         tenant_id=tenant_id,
         access_token=auth.get("token")
     )
@@ -78,6 +78,7 @@ def list_knowledge_bases(
           embedding_provider_id=r.get("embedding_provider_id"),
           embedding_model_provider=r["embedding_provider"]["name"] if r.get(
             "embedding_provider") else None,
+          retrieval_model=r.get("retrieval_model"),
           embedding_available=r["embedding_model"]["is_active"] if r.get(
             "embedding_model") else False,
       ))
@@ -100,13 +101,13 @@ def list_knowledge_bases(
     summary="Create an Empty Knowledge Base",
     status_code=201
 )
-def create_knowledge_base(
+async def create_knowledge_base(
     request: KnowledgeBaseInput,
     kb_service=Depends(get_knowledge_base_service),
     auth=Depends(get_current_user)
 ):
   try:
-    created = kb_service.create_knowledge_base(
+    created = await kb_service.create_knowledge_base(
         tenant_id=auth["tenant_id"],
         user_id=auth.get("user_id"),
         access_token=auth.get("token"),
@@ -132,14 +133,14 @@ def create_knowledge_base(
     summary="Get Knowledge Base Details",
     description="Fetches the detailed information of a specific knowledge base by its ID."
 )
-def get_knowledge_base_details(
+async def get_knowledge_base_details(
     knowledge_base_id: UUID = Path(..., description="KB ID (uuid)"),
     kb_service=Depends(get_knowledge_base_service),
     auth=Depends(get_current_user)
 ):
   tenant_id = auth["tenant_id"]
 
-  kb_detail = kb_service.get_knowledge_base_details(
+  kb_detail = await kb_service.get_knowledge_base_details(
       knowledge_base_id=str(knowledge_base_id),
       tenant_id=tenant_id,
       access_token=auth.get("token")
@@ -155,7 +156,7 @@ def get_knowledge_base_details(
     "/knowledge_bases/{knowledge_base_id}",
     summary="Update Knowledge Base",
 )
-def update_knowledge_base(
+async def update_knowledge_base(
     knowledge_base_id: UUID = Path(..., description="KB ID"),
     body: UpdateKnowledgeBaseRequest = Body(...),
     kb_service=Depends(get_knowledge_base_service),
@@ -165,13 +166,13 @@ def update_knowledge_base(
   kb_id = str(knowledge_base_id)
 
   try:
-    updated = kb_service.update_knowledge_base(
+    updated = await kb_service.update_knowledge_base(
         kb_id, tenant_id, body, access_token=auth.get("token"))
     if not updated:
       raise HTTPException(
         status_code=404, detail="Knowledge base not found or update failed.")
 
-    full_detail = kb_service.get_knowledge_base_details(kb_id, tenant_id)
+    full_detail = await kb_service.get_knowledge_base_details(kb_id, tenant_id)
     return full_detail
   except ValueError as e:
     if "exists" in str(e):
@@ -185,7 +186,7 @@ def update_knowledge_base(
     description="Deletes a knowledge base and all its associated data (documents, chunks, vectors).",
     response_model=MessageResponse
 )
-def delete_knowledge_base(
+async def delete_knowledge_base(
     knowledge_base_id: UUID = Path(..., description="KB ID"),
     kb_service=Depends(get_knowledge_base_service),
     auth=Depends(get_current_user)
@@ -194,7 +195,7 @@ def delete_knowledge_base(
   kb_id = str(knowledge_base_id)
 
   try:
-    success = kb_service.delete_knowledge_base(
+    success = await kb_service.delete_knowledge_base(
         kb_id, tenant_id, access_token=auth.get("token"))
     if not success:
       raise HTTPException(
@@ -211,7 +212,7 @@ def delete_knowledge_base(
     response_model=DocumentListResponse,
     summary="List Documents in Knowledge Base",
 )
-def list_documents(
+async def list_documents(
     knowledge_base_id: UUID = Path(..., description="KB ID"),
     kb_service=Depends(get_knowledge_base_service),
     auth=Depends(get_current_user)
@@ -220,7 +221,7 @@ def list_documents(
   kb_id = str(knowledge_base_id)
 
   try:
-    docs = kb_service.list_documents(
+    docs = await kb_service.list_documents(
         kb_id, tenant_id, access_token=auth.get("token"))
     data = []
     for d in docs:

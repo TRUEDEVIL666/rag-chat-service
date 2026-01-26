@@ -8,8 +8,9 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from app.utils.auth import get_current_user
-from app.core.factory import get_bot_service
+from app.core.factory import get_bot_service, get_chat_service
 from app.services.bot.bot_service import BotService
+from app.services.chat.chat_service import ChatService
 from app.schemas.bot import (
     BotAskIdRequest, BotAskRequest, BotAskResponse,
     BotCreateRequest, BotIdRequest, BotResponse, BotUpdateConfigIdRequest, BotUpdateConfigRequest
@@ -20,95 +21,59 @@ router = APIRouter()
 
 @router.post("/bots", response_model=BotResponse, summary="Create new bot")
 async def create_bot(
-    request: BotCreateRequest,
-    auth=Depends(get_current_user),
-    bot_service: BotService = Depends(get_bot_service)
+  request: BotCreateRequest,
+  bot_service: BotService = Depends(get_bot_service),
+  auth=Depends(get_current_user)
 ):
-  tenant_id = auth["tenant_id"]
-  user_id = auth["user_id"]
-
-  try:
-    access_token = auth.get("token")
-    bot = await bot_service.create_bot(request, tenant_id, user_id, access_token)
-    # Clear cache so the new bot appears in the list
-    await FastAPICache.clear(namespace="bots")
-    return bot
-  except Exception as e:
-    raise HTTPException(status_code=500, detail=str(e))
+  bot = await bot_service.create_bot(request, auth["tenant_id"], auth["user_id"], auth.get("token"))
+  return bot
 
 
-@router.patch("/bots/{bot_id}/config", summary="Update bot configuration")
+@router.put("/bots/{bot_id}", response_model=BotResponse, summary="Update bot configuration")
 async def update_bot_config(
-    req: BotUpdateConfigIdRequest = Depends(),
-    request: BotUpdateConfigRequest = None,
-    auth=Depends(get_current_user),
-    bot_service: BotService = Depends(get_bot_service)
+  req: BotUpdateConfigIdRequest = Depends(),
+  request: BotUpdateConfigRequest = None,
+  bot_service: BotService = Depends(get_bot_service),
+  auth=Depends(get_current_user)
 ):
-  tenant_id = auth["tenant_id"]
-  try:
-    access_token = auth.get("token")
-    updated_bot = await bot_service.update_config(str(req.bot_id), tenant_id, request, access_token)
-    # Clear cache so config changes are reflected
-    await FastAPICache.clear(namespace="bots")
-    return {"message": "Bot updated successfully", "bot": updated_bot}
-  except ValueError as ve:
-    raise HTTPException(status_code=404, detail=str(ve))
-  except Exception as e:
-    raise HTTPException(status_code=500, detail=str(e))
+  if request is None:
+    raise HTTPException(status_code=400, detail="Request body is required")
+  updated_bot = await bot_service.update_config(str(req.bot_id), auth["tenant_id"], request, auth.get("token"))
+  return updated_bot
 
 
-@router.get("/bots", response_model=List[BotResponse], summary="List all bots of current tenant")
-@cache(expire=60, namespace="bots")
+@router.get("/bots", response_model=List[BotResponse], summary="List all bots")
 async def list_bots(
-    auth=Depends(get_current_user),
-    bot_service: BotService = Depends(get_bot_service)
+  bot_service: BotService = Depends(get_bot_service),
+  auth=Depends(get_current_user)
 ):
-  tenant_id = auth["tenant_id"]
-  try:
-    access_token = auth.get("token")
-    bots = await bot_service.list_bots(tenant_id, access_token)
-    return bots
-  except Exception as e:
-    raise HTTPException(status_code=500, detail=str(e))
+  bots = await bot_service.list_bots(auth["tenant_id"], auth.get("token"))
+  return bots
 
 
-@router.get("/bots/{bot_id}", response_model=BotResponse, summary="Get detailed information about a bot")
+@router.get("/bots/{bot_id}", response_model=BotResponse, summary="Get bot by ID")
 async def get_bot(
-    req: BotIdRequest = Depends(),
-    auth=Depends(get_current_user),
-    bot_service: BotService = Depends(get_bot_service)
+  req: BotIdRequest = Depends(),
+  bot_service: BotService = Depends(get_bot_service),
+  auth=Depends(get_current_user)
 ):
-  tenant_id = auth["tenant_id"]
-  try:
-    access_token = auth.get("token")
-    bot = await bot_service.get_bot(str(req.bot_id), tenant_id, access_token)
-    if not bot:
-      raise HTTPException(status_code=404, detail="Bot not found")
-    return bot
-  except Exception as e:
-    raise HTTPException(status_code=500, detail=str(e))
+  bot = await bot_service.get_bot(str(req.bot_id), auth["tenant_id"], auth.get("token"))
+  if not bot:
+    raise HTTPException(status_code=404, detail="Bot not found")
+  return bot
 
 
-@router.delete("/bots/{bot_id}", summary="Delete a bot", response_model=MessageResponse)
+@router.delete("/bots/{bot_id}", response_model=MessageResponse)
 async def delete_bot(
-    req: BotIdRequest = Depends(),
-    auth=Depends(get_current_user),
-    bot_service: BotService = Depends(get_bot_service)
+  req: BotIdRequest = Depends(),
+  bot_service: BotService = Depends(get_bot_service),
+  auth=Depends(get_current_user)
 ):
-  tenant_id = auth["tenant_id"]
-  try:
-    access_token = auth.get("token")
-    deleted = await bot_service.delete_bot(str(req.bot_id), tenant_id, access_token)
-    if not deleted:
-      raise HTTPException(
-        status_code=404, detail="Bot not found or not owned by tenant")
-
-    # Clear cache
-    await FastAPICache.clear(namespace="bots")
-
-    return {"message": "Bot deleted successfully"}
-  except Exception as e:
-    raise HTTPException(status_code=500, detail=str(e))
+  success = await bot_service.delete_bot(str(req.bot_id), auth["tenant_id"], auth.get("token"))
+  if not success:
+    raise HTTPException(
+      status_code=404, detail="Bot not found or could not be deleted")
+  return MessageResponse(message="Bot deleted successfully")
 
 
 @router.post("/bots/{bot_id}/ask", response_model=BotAskResponse, dependencies=[Depends(RateLimiter(times=50, seconds=60))])
@@ -116,7 +81,7 @@ async def delete_bot(
 async def ask_bot(
     req: BotAskIdRequest = Depends(),
     request: BotAskRequest = None,
-    bot_service: BotService = Depends(get_bot_service),
+    chat_service: ChatService = Depends(get_chat_service),
     auth=Depends(get_current_user)
 ):
   tenant_id = auth["tenant_id"]
@@ -125,14 +90,14 @@ async def ask_bot(
   try:
     if request.streaming:
       # Prepare stream immediately to catch initialization errors (e.g. 404 Session Not Found)
-      stream_generator, new_session_id = await bot_service.ask_bot_stream(
+      stream_generator, new_session_id = await chat_service.ask_bot_stream(
           bot_id=str(req.bot_id),
           query=request.message,
           tenant_id=tenant_id,
           user_id=user_id,
           session_id=req.session_id,
           access_token=auth.get("token"),
-          quiz_mode=request.quiz_mode
+          quiz_mode=request.quiz_mode,
       )
 
       async def token_stream():
@@ -146,14 +111,14 @@ async def ask_bot(
 
       return StreamingResponse(token_stream(), media_type="text/event-stream")
     else:
-      response, new_session_id = await bot_service.ask_bot(
+      response, new_session_id = await chat_service.ask_bot(
           bot_id=str(req.bot_id),
           query=request.message,
           tenant_id=tenant_id,
           user_id=user_id,
           session_id=req.session_id,
           access_token=auth.get("token"),
-          quiz_mode=request.quiz_mode
+          quiz_mode=request.quiz_mode,
       )
       return BotAskResponse(answer=response, session_id=new_session_id)
 
