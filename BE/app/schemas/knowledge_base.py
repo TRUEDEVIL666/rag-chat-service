@@ -34,13 +34,8 @@ class KnowledgeBaseListResponse(BaseModel):
 
 
 class RetrievalModel(BaseModel):
-  search_method: str
-  reranking_enable: bool
-  reranking_mode: Optional[Dict[str, Any]] = None
-  top_k: int
-  score_threshold_enabled: bool
-  score_threshold: Optional[float] = None
-  weights: Optional[float] = None
+  search_method: str = "semantic"
+  auto_merging: bool = False
 
 
 class KnowledgeBaseInput(BaseModel):
@@ -61,18 +56,9 @@ class KnowledgeBaseResponse(BaseModel):
   retrieval_model: Optional[RetrievalModel] = None
 
 
-class RetrievalModeSchema(BaseModel):
-  reranking_model: Optional[str] = None
-
-
 class RetrievalModelSchema(BaseModel):
   search_method: str
-  reranking_enable: bool
-  reranking_mode: Optional[RetrievalModeSchema] = None
-  top_k: int
-  score_threshold_enabled: bool
-  score_threshold: Optional[float] = None
-  weights: Optional[float] = None
+  auto_merging: bool
 
 
 class KnowledgeBaseDetail(BaseModel):
@@ -91,18 +77,9 @@ class KnowledgeBaseDetail(BaseModel):
   doc_form: Optional[str] = None
 
 
-class UpdateRerankingMode(BaseModel):
-  reranking_model: Optional[str] = None
-
-
 class UpdateRetrievalModel(BaseModel):
   search_method: Optional[str] = None
-  reranking_enable: Optional[bool] = None
-  reranking_mode: Optional[UpdateRerankingMode] = None
-  top_k: Optional[int] = None
-  score_threshold_enabled: Optional[bool] = None
-  score_threshold: Optional[float] = None
-  weights: Optional[float] = None
+  auto_merging: Optional[bool] = None
 
 
 class UpdateKnowledgeBaseRequest(BaseModel):

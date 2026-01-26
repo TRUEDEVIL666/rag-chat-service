@@ -57,6 +57,7 @@ class BotResponse(BaseModel):
   tenant_id: UUID
   provider: Optional[AiProviderResponse] = None
   model: Optional[AiModelResponse] = None
+  knowledge_bases: Optional[List[Dict[str, Any]]] = None
 
 
 class BotUpdateConfigRequest(BaseModel):

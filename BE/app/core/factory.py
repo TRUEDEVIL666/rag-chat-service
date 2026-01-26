@@ -1,57 +1,80 @@
-from app.services.supabase.quiz_repository import QuizRepository
 import logging
+
 from app.config.config import settings
-from app.services.auth.auth_service import AuthService
+from app.services.ai_model.ai_model_service import AiModelService
 from app.services.analytics.analytics_service import AnalyticsService
+from app.services.auth.auth_service import AuthService
+from app.services.bot.bot_service import BotService
+from app.services.course.class_service import ClassService
+from app.services.course.course_service import CourseService
+from app.services.course.semester_service import SemesterService
 from app.services.data_processor.file_processor import FileProcessor
+from app.services.document.document_service import DocumentService
 from app.services.indexer.embedding_service import EmbeddingService
 from app.services.indexer.vector_store import VectorRepository
-from app.services.supabase.metadata_repository import MetadataRepository
-from app.services.minio.minio_storage import MinioStorage
-from app.services.bot.bot_service import BotService
+from app.services.knowledge_base.knowledge_base_service import KnowledgeBaseService
 from app.services.llm.llm_service import LLMService
+from app.services.minio.minio_storage import MinioStorage
+from app.services.session.session_service import SessionService
+from app.services.supabase.ai_model_repository import AiModelRepository
 from app.services.supabase.bot_repository import BotRepository
-from app.services.supabase.session_repository import SessionRepository
-from app.services.supabase.knowledge_base_repository import KnowledgeBaseRepository
-from app.services.supabase.user_repository import UserRepository
-from app.services.supabase.document_repository import DocumentRepository
 from app.services.supabase.chat_message_repository import ChatMessageRepository
+from app.services.supabase.class_repository import ClassRepository
+from app.services.supabase.course_repository import CourseRepository
+from app.services.supabase.document_repository import DocumentRepository
+from app.services.supabase.knowledge_base_repository import KnowledgeBaseRepository
+from app.services.supabase.metadata_repository import MetadataRepository
+from app.services.supabase.quiz_repository import QuizRepository
+from app.services.supabase.semester_repository import SemesterRepository
+from app.services.supabase.session_repository import SessionRepository
 from app.services.supabase.session_summary_repository import SessionSummaryRepository
 from app.services.supabase.tenant_repository import TenantRepository
-from app.services.supabase.ai_model_repository import AiModelRepository
-from app.services.session.session_service import SessionService
+from app.services.supabase.user_repository import UserRepository
+from app.services.tools.tool_service import ToolService
 from app.services.users.user_service import UserService
-from app.services.knowledge_base.knowledge_base_service import KnowledgeBaseService
-from app.services.ai_model.ai_model_service import AiModelService
-from app.services.document.document_service import DocumentService
 
 logger = logging.getLogger("service_factory")
 
+# ----------------------------------------------------------------
+# SINGLETON INSTANCES
+# ----------------------------------------------------------------
 _analytics_service_instance: AnalyticsService | None = None
-_user_repository_instance: UserRepository | None = None
-_auth_service_instance: AuthService | None = None
-_file_service_instance: FileProcessor | None = None
-_embedding_service_instance: EmbeddingService | None = None
-_vector_repo_instance: VectorRepository | None = None
-_minio_storage_instance: MinioStorage | None = None
-_metadata_repo_instance: MetadataRepository | None = None
-_kb_repo_instance: KnowledgeBaseRepository | None = None
-_bot_service_instance: BotService | None = None
-_session_service_instance: SessionService | None = None
-_user_service_instance: UserService | None = None
-_knowledge_base_service_instance: KnowledgeBaseService | None = None
+_ai_model_repo_instance: AiModelRepository | None = None
 _ai_model_service_instance: AiModelService | None = None
-_document_repo_instance: DocumentRepository | None = None
+_auth_service_instance: AuthService | None = None
+_bot_repo_instance: BotRepository | None = None
+_bot_service_instance: BotService | None = None
 _chat_message_repo_instance: ChatMessageRepository | None = None
+_chat_service_instance: "ChatService | None" = None
+_class_repo_instance: ClassRepository | None = None
+_class_service_instance: ClassService | None = None
+_course_repo_instance: CourseRepository | None = None
+_course_service_instance: CourseService | None = None
+_document_repo_instance: DocumentRepository | None = None
+_document_service_instance: DocumentService | None = None
+_embedding_service_instance: EmbeddingService | None = None
+_file_service_instance: FileProcessor | None = None
+_kb_repo_instance: KnowledgeBaseRepository | None = None
+_knowledge_base_service_instance: KnowledgeBaseService | None = None
+_metadata_repo_instance: MetadataRepository | None = None
+_minio_storage_instance: MinioStorage | None = None
+_quiz_repo_instance: QuizRepository | None = None
+_semester_repo_instance: SemesterRepository | None = None
+_semester_service_instance: SemesterService | None = None
+_session_repo_instance: SessionRepository | None = None
+_session_service_instance: SessionService | None = None
 _session_summary_repo_instance: SessionSummaryRepository | None = None
 _tenant_repo_instance: TenantRepository | None = None
-_ai_model_repo_instance: AiModelRepository | None = None
-_bot_repo_instance: BotRepository | None = None
-_session_repo_instance: SessionRepository | None = None
-_document_service_instance: DocumentService | None = None
+_tool_service_instance: ToolService | None = None
+_user_repository_instance: UserRepository | None = None
+_user_service_instance: UserService | None = None
+_vector_repo_instance: VectorRepository | None = None
 
 
-def get_embedding_service(provider: str = None, model: str = None) -> EmbeddingService:
+# ----------------------------------------------------------------
+# CORE SERVICES
+# ----------------------------------------------------------------
+async def get_embedding_service(provider: str = None, model: str = None) -> EmbeddingService:
   global _embedding_service_instance
 
   # If specific provider/model requested, return a new instance (don't use singleton)
@@ -73,7 +96,7 @@ def get_embedding_service(provider: str = None, model: str = None) -> EmbeddingS
         # Note: We likely don't have user access_token here in factory/background tasks.
         # This relies on Service Role or public access if configured, or no RLS.
         # Assuming internal call for now.
-        resolved_key, resolved_url, _ = repo.resolve_model_config(
+        resolved_key, resolved_url, _ = await repo.resolve_model_config(
           provider_name=provider, model_name=target_model
         )
 
@@ -223,8 +246,6 @@ def get_file_processor_service() -> FileProcessor:
   global _file_service_instance
   if _file_service_instance is None:
     _file_service_instance = FileProcessor(
-        # embedding_service=get_embedding_service(),
-        # vector_repository=get_vector_store(),
         original_file_store=get_minio_storage(),
         meta_data_store=get_metadata_repository(),
         document_repository=get_document_repository(),
@@ -238,14 +259,40 @@ def get_bot_service() -> BotService:
   if _bot_service_instance is None:
     _bot_service_instance = BotService(
         bot_repo=get_bot_repository(),
+        session_repo=get_session_repository()
+    )
+  return _bot_service_instance
+
+
+_tool_service_instance: ToolService | None = None
+
+
+def get_tool_service() -> ToolService:
+  global _tool_service_instance
+  if _tool_service_instance is None:
+    try:
+      _tool_service_instance = ToolService()
+      logger.info("Initialized ToolService")
+    except Exception as e:
+      logger.exception("Failed to initialize ToolService")
+      raise
+  return _tool_service_instance
+
+
+def get_chat_service():
+  global _chat_service_instance
+  if _chat_service_instance is None:
+    from app.services.chat.chat_service import ChatService
+    _chat_service_instance = ChatService(
+        bot_repo=get_bot_repository(),
         session_repo=get_session_repository(),
-        # vector_repo=get_vector_store(),
         llm_service=LLMService(),
         message_repo=get_chat_message_repository(),
         kb_repo=get_knowledge_base_repository(),
         ai_model_service=get_ai_model_service(),
+        tool_service=get_tool_service()
     )
-  return _bot_service_instance
+  return _chat_service_instance
 
 
 def get_session_service() -> SessionService:
@@ -378,18 +425,76 @@ def get_quiz_repository() -> QuizRepository:
   global _quiz_repo_instance
   if _quiz_repo_instance is None:
     try:
-      # Assuming we just need the supabase client which is usually handled inside the repo by creating a new client or reusing?
-      # Wait, other repos like BotRepository instantiate with (), they must use internal logic or standard client.
-      # Let's check BotRepository __init__ method to be sure.
-      # But based on my QuizRepository code: def __init__(self, supabase_client: Client):
-      # I need to pass the client.
-      # Where do I get the client?
-      # `app/core/database.py`? or settings?
-      # Ah, I should check how other repos are instantiated.
-      # BotRepository() has no args in factory.
       _quiz_repo_instance = QuizRepository()
       logger.info("Initialized QuizRepository")
     except Exception as e:
       logger.exception("Failed to initialize QuizRepository")
       raise
   return _quiz_repo_instance
+
+
+# ----------------------------------------------------------------
+# LMS MODULES (Semester, Course, Class)
+# ----------------------------------------------------------------
+
+# --- REPOSITORIES ---
+_semester_repo_instance: SemesterRepository | None = None
+_course_repo_instance: CourseRepository | None = None
+_class_repo_instance: ClassRepository | None = None
+
+# --- SERVICES ---
+_semester_service_instance: SemesterService | None = None
+_course_service_instance: CourseService | None = None
+_class_service_instance: ClassService | None = None
+
+# --- SEMESTERS ---
+
+
+def get_semester_repository() -> SemesterRepository:
+  global _semester_repo_instance
+  if _semester_repo_instance is None:
+    _semester_repo_instance = SemesterRepository(supabase_client=None)
+  return _semester_repo_instance
+
+
+def get_semester_service() -> SemesterService:
+  global _semester_service_instance
+  if _semester_service_instance is None:
+    _semester_service_instance = SemesterService(
+      repo=get_semester_repository())
+  return _semester_service_instance
+
+# --- COURSES ---
+
+
+def get_course_repository() -> CourseRepository:
+  global _course_repo_instance
+  if _course_repo_instance is None:
+    _course_repo_instance = CourseRepository(supabase_client=None)
+  return _course_repo_instance
+
+
+def get_course_service() -> CourseService:
+  global _course_service_instance
+  if _course_service_instance is None:
+    _course_service_instance = CourseService(repo=get_course_repository())
+  return _course_service_instance
+
+# --- CLASSES ---
+
+
+def get_class_repository() -> ClassRepository:
+  global _class_repo_instance
+  if _class_repo_instance is None:
+    _class_repo_instance = ClassRepository(supabase_client=None)
+  return _class_repo_instance
+
+
+def get_class_service() -> ClassService:
+  global _class_service_instance
+  if _class_service_instance is None:
+    _class_service_instance = ClassService(
+      repo=get_class_repository(),
+      doc_repo=get_document_repository()
+    )
+  return _class_service_instance

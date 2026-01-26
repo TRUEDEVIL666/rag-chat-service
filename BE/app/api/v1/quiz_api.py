@@ -55,7 +55,7 @@ async def submit_quiz_attempt(
         user_id=user_id
     )
 
-    result = repo.create_attempt(attempt, access_token=token)
+    result = await repo.create_attempt(attempt, access_token=token)
     if result:
       return QuizLogResponse(id=UUID(result["id"]), status="saved")
     else:
@@ -90,7 +90,7 @@ async def get_quiz_history(
     else:
       raise HTTPException(status_code=400, detail="Tenant ID not found")
 
-    history = repo.get_history(user_id, tenant_id, limit, access_token=token)
+    history = await repo.get_history(user_id, tenant_id, limit, access_token=token)
     return history
   except Exception as e:
     print(f"Error getting history: {e}")

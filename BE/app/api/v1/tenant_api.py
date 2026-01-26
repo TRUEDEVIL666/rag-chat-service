@@ -18,7 +18,7 @@ async def get_all_tenants(current_user: dict = Depends(get_current_user)):
     raise HTTPException(status_code=403, detail="Not authorized")
 
   try:
-    tenants = tenant_repo.get_all_tenants(
+    tenants = await tenant_repo.get_all_tenants(
       access_token=current_user.get("token"))
     return tenants
   except Exception as e:

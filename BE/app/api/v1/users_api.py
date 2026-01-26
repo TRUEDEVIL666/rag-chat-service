@@ -24,7 +24,7 @@ async def create_user(
     raise HTTPException(status_code=400, detail="Missing required fields")
 
   try:
-    auth_service.sign_up(
+    await auth_service.sign_up(
       email=data.email,
       password=data.password,
       name=data.name,
@@ -53,7 +53,7 @@ async def create_users_batch(
 
   try:
     users_list = [user.dict() for user in data.users]
-    result = auth_service.sign_up_batch(users_list)
+    result = await auth_service.sign_up_batch(users_list)
     return result
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
@@ -68,7 +68,7 @@ async def delete_user(
   if current_user.get("role") != "admin":
     raise HTTPException(status_code=403, detail="Not authorized")
   try:
-    user_service.delete_user(str(req.user_id), current_user.get("token"))
+    await user_service.delete_user(str(req.user_id), current_user.get("token"))
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
 
@@ -82,7 +82,7 @@ async def delete_users(
   if current_user.get("role") != "admin":
     raise HTTPException(status_code=403, detail="Not authorized")
   try:
-    user_service.delete_users(user_ids, current_user.get("token"))
+    await user_service.delete_users(user_ids, current_user.get("token"))
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
 
@@ -98,14 +98,14 @@ async def get_all_users(
   if current_user.get("role") != "admin":
     raise HTTPException(status_code=403, detail="Not authorized")
   try:
-    users = user_service.get_all_users(
+    users = await user_service.get_all_users(
         limit=pagination.limit,
         cursor_timestamp=pagination.cursor_timestamp,
         search_params=search_params,
         access_token=current_user.get("token")
     )
 
-    total_users = user_service.get_total_users(
+    total_users = await user_service.get_total_users(
       access_token=current_user.get("token"))
 
     next_cursor = None

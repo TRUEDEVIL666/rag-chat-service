@@ -26,7 +26,7 @@ async def list_sessions(
   tenant_id = auth["tenant_id"]
   access_token = auth.get("token")
   try:
-    sessions = session_service.list_sessions(
+    sessions = await session_service.list_sessions(
       user_id=user_id,
       tenant_id=tenant_id,
       limit=req.limit,
@@ -50,7 +50,7 @@ async def get_messages(
     auth: dict = Depends(get_current_user)
 ):
   try:
-    messages = session_service.get_chat_messages(
+    messages = await session_service.get_chat_messages(
         session_id=str(req.session_id),
         limit=pagination.limit,
         cursor_timestamp=pagination.cursor_timestamp,
@@ -84,7 +84,7 @@ async def get_session_details(
     auth=Depends(get_current_user)
 ):
   try:
-    session = session_service.get_session(
+    session = await session_service.get_session(
       str(req.session_id), access_token=auth.get("token"))
     if not session:
       raise HTTPException(status_code=404, detail="Session not found")
@@ -101,7 +101,7 @@ async def delete_session(
 ):
   user_id = auth["user_id"]
   try:
-    success = session_service.delete_session(
+    success = await session_service.delete_session(
       str(req.session_id), user_id, access_token=auth.get("token"))
     if not success:
       raise HTTPException(
