@@ -81,7 +81,7 @@ class VectorRepository:
       self.qdrant_collection = collection
 
     logger.info(
-      f"[VectorRepo] Using dynamic collection name: {self.qdrant_collection}")
+      f"[VectorStore]: Using dynamic collection name: {self.qdrant_collection}")
 
     # Settings.embed_model = CustomEmbedding(
     #   self.embedding_service, embed_batch_size=64
@@ -102,7 +102,7 @@ class VectorRepository:
       self.create_collection(self.qdrant_collection)
     else:
       logger.info(
-        "[VectorRepo] Lazy initialization: Skipping eager collection creation (using default name waiting for runtime override).")
+        "[VectorStore]: Lazy initialization: Skipping eager collection creation (using default name waiting for runtime override).")
 
     self.vector_store = QdrantVectorStore(
         client=self.qdrant_client,
@@ -118,7 +118,7 @@ class VectorRepository:
     device = "cuda" if torch.cuda.is_available() else "cpu"
     if target_model not in self._rerankers:
       logger.info(
-        f"[VectorRepo] Initializing CrossEncoder reranker: {target_model} on device: {device}")
+        f"[VectorStore]: Initializing CrossEncoder reranker: {target_model} on device: {device}")
       self._rerankers[target_model] = CrossEncoder(target_model, device=device)
     return self._rerankers[target_model]
 
@@ -126,7 +126,7 @@ class VectorRepository:
     target_collection = collection_name or "test_documents"
     if not self.qdrant_client.collection_exists(target_collection):
       logger.info(
-        f"[VectorRepo] Creating Qdrant collection '{target_collection}'")
+        f"[VectorStore]: Creating Qdrant collection '{target_collection}'")
       self.qdrant_client.create_collection(
           collection_name=target_collection,
           vectors_config=VectorParams(
@@ -148,10 +148,10 @@ class VectorRepository:
           }
       )
       logger.info(
-        f"[VectorRepo] Collection '{target_collection}' created successfully.")
+        f"[VectorStore]: Collection '{target_collection}' created successfully.")
     else:
       logger.info(
-        f"[VectorRepo] Collection '{target_collection}' already exists.")
+        f"[VectorStore]: Collection '{target_collection}' already exists.")
 
     # Ensure indices exist (safe to run repeatedly)
     self.create_payload_index(target_collection)
@@ -167,10 +167,10 @@ class VectorRepository:
       except Exception as e:
         if "already exists" in str(e):
           logger.info(
-            f"[VectorRepo] Payload index for '{field}' already exists in {collection_name}")
+            f"[VectorStore]: Payload index for '{field}' already exists in {collection_name}")
         else:
           logger.error(
-            f"[VectorRepo] Failed to create payload index for '{field}' in {collection_name}: {e}")
+            f"[VectorStore]: Failed to create payload index for '{field}' in {collection_name}: {e}")
 
   def upsert_documents(self, documents: List[Document], embed_model: Optional[BaseEmbedding] = None, use_sparse: bool = False):
     if embed_model:
@@ -181,7 +181,7 @@ class VectorRepository:
       target_collection = f"vec_{model_name_safe}"
 
       logger.info(
-        f"[VectorRepo] Upserting into dynamic collection: {target_collection}")
+        f"[VectorStore]: Upserting into dynamic collection: {target_collection}")
 
       # 1. Prepare Nodes (Convert Documents if needed)
       nodes = []
@@ -199,7 +199,7 @@ class VectorRepository:
 
       if not embeddings:
         logger.warning(
-          "[VectorRepo] No embeddings generated. Skipping upsert.")
+          "[VectorStore]: No embeddings generated. Skipping upsert.")
         return
 
       # 3. Create Collection with CORRECT Dimension
@@ -242,11 +242,11 @@ class VectorRepository:
         )
       except Exception as e:
         logger.error(
-          f"[VectorRepo] Qdrant upsert failed. Collection: {target_collection}")
+          f"[VectorStore]: Qdrant upsert failed. Collection: {target_collection}")
         if hasattr(e, "body"):
-          logger.error(f"[VectorRepo] Qdrant Error Body: {e.body}")
+          logger.error(f"[VectorStore]: Qdrant Error Body: {e.body}")
         if hasattr(e, "reason"):
-          logger.error(f"[VectorRepo] Qdrant Error Reason: {e.reason}")
+          logger.error(f"[VectorStore]: Qdrant Error Reason: {e.reason}")
         raise e
 
       # 5. Manual Sparse Vector Update for Custom Collection (CONDITIONAL)
@@ -272,10 +272,10 @@ class VectorRepository:
               ]
           )
         logger.info(
-            f"[VectorRepo] Enriched {len(documents)} documents with BM25 sparse vectors in {target_collection}.")
+            f"[VectorStore]: Enriched {len(documents)} documents with BM25 sparse vectors in {target_collection}.")
       else:
         logger.info(
-          f"[VectorRepo] Skipped sparse vector generation for {target_collection} (use_sparse=False)")
+          f"[VectorStore]: Skipped sparse vector generation for {target_collection} (use_sparse=False)")
 
       return
 
@@ -333,7 +333,7 @@ class VectorRepository:
             ]
         )
       logger.info(
-          f"[VectorRepo] Enriched {len(documents)} documents with BM25 sparse vectors.")
+          f"[VectorStore]: Enriched {len(documents)} documents with BM25 sparse vectors.")
 
   async def embed_text(self, text: str, model_name: Optional[str] = None) -> List[float]:
     if not text.strip():
@@ -346,7 +346,7 @@ class VectorRepository:
     if model_name:
       if not self.embedding_service or model_name != self.embedding_service.model_name:
         from app.core.factory import get_embedding_service
-        target_service = get_embedding_service(model=model_name)
+        target_service = await get_embedding_service(model=model_name)
     elif not target_service:
         # No model provided AND no default service
       raise ValueError(
@@ -363,7 +363,8 @@ class VectorRepository:
       score_threshold: float = 0.0,
       model_name: Optional[str] = None,
       search_method: str = "semantic",
-      enable_auto_merging: bool = False
+      enable_auto_merging: bool = False,
+      precomputed_dense_vector: Optional[List[float]] = None
   ) -> List[dict]:
     # 1. Resolve Target Collection
     # Default = global collection
@@ -377,17 +378,20 @@ class VectorRepository:
 
       if self.qdrant_client.collection_exists(possible_collection):
         target_collection = possible_collection
-        logger.info(f"[VectorRepo] Search redirect -> {target_collection}")
+        logger.info(f"[VectorStore]: Search redirect -> {target_collection}")
       else:
         logger.warning(
-          f"[VectorRepo] Requested model collection '{possible_collection}' not found. Fallback to default.")
+          f"[VectorStore]: Requested model collection '{possible_collection}' not found. Fallback to default.")
 
     # 2. Generate Query Vectors AND Perform Search
     # Logic branches based on search_method
 
     # Dense (Embedding Model) - Required for both
-    # CRITICAL: Pass model_name to ensure we generate vector using the Correct Model!
-    dense_vector = await self.embed_text(query, model_name=model_name)
+    if precomputed_dense_vector:
+      dense_vector = precomputed_dense_vector
+    else:
+      # CRITICAL: Pass model_name to ensure we generate vector using the Correct Model!
+      dense_vector = await self.embed_text(query, model_name=model_name)
 
     # Build Filter
     qdrant_filters = None
@@ -405,7 +409,7 @@ class VectorRepository:
 
     if search_method == "semantic":
       # --- SEMANTIC SEARCH ONLY ---
-      logger.info("[VectorRepo] Executing Semantic Search (Dense Only)")
+      logger.info("[VectorStore]: Executing Semantic Search (Dense Only)")
       points_result = await asyncio.to_thread(
           self.qdrant_client.query_points,
           collection_name=target_collection,
@@ -418,7 +422,7 @@ class VectorRepository:
 
     else:
       # --- HYBRID SEARCH (DEFAULT) ---
-      logger.info("[VectorRepo] Executing Hybrid Search (RRF)")
+      logger.info("[VectorStore]: Executing Hybrid Search (RRF)")
 
       # Sparse (BM25) - Only needed for Hybrid
       sparse_gen = list(self.sparse_embedding_model.embed([query]))
@@ -481,7 +485,7 @@ class VectorRepository:
               pp_node, dict) else str(pp_node)
           parent_map[pp.id] = pp_text
       except Exception as e:
-        logger.error(f"[VectorRepo] Failed to fetch parent nodes: {e}")
+        logger.error(f"[VectorStore]: Failed to fetch parent nodes: {e}")
 
     for point in results:
       payload = point.payload or {}
@@ -542,7 +546,7 @@ class VectorRepository:
       return results[:top_k]
 
     except Exception as e:
-      logger.error(f"[VectorRepo] Reranking failed: {e}")
+      logger.error(f"[VectorStore]: Reranking failed: {e}")
       # Fallback to original results if reranking fails
       return results[:top_k]
 
@@ -584,10 +588,10 @@ class VectorRepository:
         total_deleted += len(batch)
 
       logger.info(
-        f"[VectorRepo] Deleted {total_deleted} points from {target_collection}")
+        f"[VectorStore]: Deleted {total_deleted} points from {target_collection}")
       return True
     except Exception as e:
-      logger.exception(f"[VectorRepo] Failed to delete points: {e}")
+      logger.exception(f"[VectorStore]: Failed to delete points: {e}")
       return False
 
   def delete_by_kb(self, kb_id: str, model_name: Optional[str] = None) -> bool:
@@ -597,11 +601,11 @@ class VectorRepository:
     """
     try:
       if not isinstance(kb_id, str):
-        logger.error(f"[VectorRepo] kb_id must be string, got {type(kb_id)}")
+        logger.error(f"[VectorStore]: kb_id must be string, got {type(kb_id)}")
         return False
 
       logger.info(
-        f"[VectorRepo] Deleting vectors for kb_id: {kb_id} (model: {model_name})")
+        f"[VectorStore]: Deleting vectors for kb_id: {kb_id} (model: {model_name})")
 
       # Resolve correct collection
       target_collection = self.qdrant_collection
@@ -624,10 +628,11 @@ class VectorRepository:
           )
       )
       logger.info(
-        f"[VectorRepo] Successfully deleted vectors for kb_id: {kb_id}")
+        f"[VectorStore]: Successfully deleted vectors for kb_id: {kb_id}")
       return True
     except Exception as e:
-      logger.exception(f"[VectorRepo] Failed to delete for kb_id {kb_id}: {e}")
+      logger.exception(
+        f"[VectorStore]: Failed to delete for kb_id {kb_id}: {e}")
       return False
 
   def delete_by_doc_id(self, doc_id: str, model_name: Optional[str] = None) -> bool:
@@ -636,11 +641,12 @@ class VectorRepository:
     """
     try:
       if not isinstance(doc_id, str):
-        logger.error(f"[VectorRepo] doc_id must be string, got {type(doc_id)}")
+        logger.error(
+          f"[VectorStore]: doc_id must be string, got {type(doc_id)}")
         return False
 
       logger.info(
-          f"[VectorRepo] Deleting vectors for doc_id: {doc_id} (model: {model_name})")
+          f"[VectorStore]: Deleting vectors for doc_id: {doc_id} (model: {model_name})")
 
       target_collection = self.qdrant_collection
       if model_name:
@@ -661,9 +667,9 @@ class VectorRepository:
           )
       )
       logger.info(
-          f"[VectorRepo] Successfully deleted vectors for doc_id: {doc_id}")
+          f"[VectorStore]: Successfully deleted vectors for doc_id: {doc_id}")
       return True
     except Exception as e:
       logger.exception(
-          f"[VectorRepo] Failed to delete vectors for doc_id {doc_id}: {e}")
+          f"[VectorStore]: Failed to delete vectors for doc_id {doc_id}: {e}")
       return False

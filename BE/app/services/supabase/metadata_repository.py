@@ -5,7 +5,7 @@ from typing import List, Dict, Optional
 from llama_index.core import Document
 
 from app.core.logger import get_logger
-from app.services.supabase.supabase_client import get_supabase_client
+from app.services.supabase.supabase_client import get_async_supabase_client
 
 logger = get_logger("supabase")
 
@@ -18,29 +18,29 @@ class MetadataRepository:
   def __init__(self, table_name: str = "metadata"):
     self.table_name = table_name
 
-  def store(self, documents: List[Document], access_token: str = None):
+  async def store(self, documents: List[Document], access_token: str = None):
     """
     Store metadata for each document chunk into Supabase (Upsert).
     """
     try:
-      client = get_supabase_client(access_token)
+      client = await get_async_supabase_client(access_token)
       records = [self._build_chunk_metadata(doc) for doc in documents]
       # Upsert to ensure we update existing records or insert new ones
-      response = client.table(self.table_name).upsert(records).execute()
+      response = await client.table(self.table_name).upsert(records).execute()
       if hasattr(response, "error") and response.error:
         logger.error(
-            f"[Supabase] Upsert error: {response.error.get('message')}")
+            f"[MetadataRepo]: Upsert error: {response.error.get('message')}")
       else:
-        logger.info(f"[Supabase] Upserted {len(response.data)} records.")
+        logger.info(f"[MetadataRepo]: Upserted {len(response.data)} records.")
     except Exception as e:
-      logger.exception(f"[Supabase] Failed to upsert metadata: {e}")
+      logger.exception(f"[MetadataRepo]: Failed to upsert metadata: {e}")
 
-  def delete_stale_nodes(self, document_id: str, active_node_ids: List[str], access_token: str = None) -> List[str]:
+  async def delete_stale_nodes(self, document_id: str, active_node_ids: List[str], access_token: str = None) -> List[str]:
     """
     Delete nodes that are no longer active (not present in the current update).
     """
     try:
-      client = get_supabase_client(access_token)
+      client = await get_async_supabase_client(access_token)
 
       query = client.table(self.table_name).delete().eq(
         "document_id", document_id)
@@ -50,12 +50,12 @@ class MetadataRepository:
         ids_param = f"({','.join(str(cid) for cid in active_node_ids)})"
         query = query.filter("node_id", "not.in", ids_param)
 
-      response = query.execute()
+      response = await query.execute()
       deleted_ids = [item['node_id'] for item in (response.data or [])]
 
       if deleted_ids:
         logger.info(
-            f"[Supabase] Deleted {len(deleted_ids)} stale nodes for doc {document_id}")
+            f"[MetadataRepo]: Deleted {len(deleted_ids)} stale nodes for doc {document_id}")
 
       return deleted_ids
 
@@ -64,13 +64,13 @@ class MetadataRepository:
           f"Failed to delete stale chunks for doc {document_id}: {e}")
       return []
 
-  def find_by_filename(self, file_name: str, access_token: str = None) -> Optional[dict]:
+  async def find_by_filename(self, file_name: str, access_token: str = None) -> Optional[dict]:
     """
     Search metadata by document filename in Supabase.
     """
     try:
-      client = get_supabase_client(access_token)
-      result = (
+      client = await get_async_supabase_client(access_token)
+      result = await (
           client.table(self.table_name)
           .select("*")
           .eq("document_id", file_name)
@@ -80,16 +80,16 @@ class MetadataRepository:
       return result.data[0] if result.data else None
     except Exception as e:
       logger.exception(
-          f"[Supabase] Failed to query by filename '{file_name}': {e}")
+          f"[MetadataRepo]: Failed to query by filename '{file_name}': {e}")
       return None
 
-  def get_chunks_by_doc_id(self, document_id: str, access_token: str = None) -> List[Dict]:
+  async def get_chunks_by_doc_id(self, document_id: str, access_token: str = None) -> List[Dict]:
     """
     Get all chunks for a document.
     """
     try:
-      client = get_supabase_client(access_token)
-      result = (
+      client = await get_async_supabase_client(access_token)
+      result = await (
           client.table(self.table_name)
           .select("*")
           .eq("document_id", document_id)
@@ -97,16 +97,17 @@ class MetadataRepository:
       )
       return result.data or []
     except Exception as e:
-      logger.exception(f"Failed to get chunks for doc {document_id}: {e}")
+      logger.exception(
+        f"[MetadataRepo]: Failed to get chunks for doc {document_id}: {e}")
       return []
 
-  def get_hashes_by_document(self, document_id: str, access_token: str = None) -> List[Dict[str, str]]:
+  async def get_hashes_by_document(self, document_id: str, access_token: str = None) -> List[Dict[str, str]]:
     """
     Get all node_ids and chunk_hashes for a given document.
     """
     try:
-      client = get_supabase_client(access_token)
-      result = (
+      client = await get_async_supabase_client(access_token)
+      result = await (
           client.table(self.table_name)
           .select("node_id, chunk_hash")
           .eq("document_id", document_id)
@@ -114,36 +115,39 @@ class MetadataRepository:
       )
       return result.data or []
     except Exception as e:
-      logger.exception(f"Failed to fetch hashes for doc {document_id}: {e}")
+      logger.exception(
+        f"[MetadataRepo]: Failed to fetch hashes for doc {document_id}: {e}")
       return []
 
-  def delete_by_document_id(self, document_id: str, access_token: str = None) -> bool:
+  async def delete_by_document_id(self, document_id: str, access_token: str = None) -> bool:
     """
     Delete all chunks associated with a document_id.
     """
     try:
-      client = get_supabase_client(access_token)
-      client.table(self.table_name).delete().eq(
+      client = await get_async_supabase_client(access_token)
+      await client.table(self.table_name).delete().eq(
           "document_id", document_id).execute()
-      logger.info(f"[Supabase] Deleted metadata for document {document_id}")
+      logger.info(
+        f"[MetadataRepo]: Deleted metadata for document {document_id}")
       return True
     except Exception as e:
-      logger.exception(f"Failed to delete metadata for doc {document_id}: {e}")
+      logger.exception(
+        f"[MetadataRepo]: Failed to delete metadata for doc {document_id}: {e}")
       return False
 
-  def delete_nodes_by_ids(self, node_ids: List[str], access_token: str = None) -> bool:
+  async def delete_nodes_by_ids(self, node_ids: List[str], access_token: str = None) -> bool:
     """
     Delete specific nodes by their IDs.
     """
     if not node_ids:
       return True
     try:
-      client = get_supabase_client(access_token)
-      client.table(self.table_name).delete().in_(
+      client = await get_async_supabase_client(access_token)
+      await client.table(self.table_name).delete().in_(
           "node_id", node_ids).execute()
       return True
     except Exception as e:
-      logger.exception(f"Failed to delete chunks: {e}")
+      logger.exception(f"[MetadataRepo]: Failed to delete chunks: {e}")
       return False
 
   def _build_chunk_metadata(self, doc: Document) -> Dict:

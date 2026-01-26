@@ -45,7 +45,7 @@ def validate_token(token: str) -> dict:
         "token": token
     }
   except JWTError as e:
-    logger.warning(f"[Auth] JWT decoding failed: {str(e)}")
+    logger.warning(f"[Auth]: JWT decoding failed: {str(e)}")
     raise HTTPException(status_code=401, detail="Invalid or expired token")
   except Exception as e:
     print(f"CRITICAL AUTH ERROR: {e}")
