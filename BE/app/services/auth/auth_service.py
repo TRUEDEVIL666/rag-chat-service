@@ -6,7 +6,7 @@ from app.services.supabase.tenant_repository import TenantRepository
 from app.services.supabase.user_repository import UserRepository
 from app.config.config import settings
 from app.core.logger import get_logger
-from app.services.supabase.supabase_client import supabase
+from app.services.supabase.supabase_client import get_async_supabase_client
 
 logger = get_logger("auth_service")
 
@@ -16,21 +16,23 @@ user_repo = UserRepository()
 
 class AuthService:
   @staticmethod
-  def sign_up(email: str, password: str, name: str, tenant_id: UUID | None = None, role: str | None = None) -> dict:
+  async def sign_up(email: str, password: str, name: str, tenant_id: UUID | None = None, role: str | None = None) -> dict:
     try:
-      response = supabase.auth.sign_up({
+      client = await get_async_supabase_client()
+      response = await client.auth.sign_up({
         "email": email,
         "password": password,
       })
 
       if response.user:
         user_id = response.user.id
+
         if tenant_id:
-          user_repo.update_user_param(user_id, "tenant_id", str(tenant_id))
+          await user_repo.update_user_param(user_id, "tenant_id", str(tenant_id))
         if name:
-          user_repo.update_user_param(user_id, "name", name)
+          await user_repo.update_user_param(user_id, "name", name)
         if role:
-          user_repo.update_user_param(user_id, "role", role)
+          await user_repo.update_user_param(user_id, "role", role)
 
         return {"message": "User registered successfully", "user_id": user_id}
       else:
@@ -40,14 +42,14 @@ class AuthService:
       raise RuntimeError(f"Failed to register user: {str(e)}")
 
   @staticmethod
-  def sign_up_batch(users: list[dict]) -> dict:
+  async def sign_up_batch(users: list[dict]) -> dict:
     created_count = 0
     skipped_count = 0
     errors = []
 
     for user in users:
       try:
-        AuthService.sign_up(
+        await AuthService.sign_up(
           email=user.get("email"),
           password=user.get("password"),
           name=user.get("name"),
@@ -71,16 +73,18 @@ class AuthService:
     }
 
   @staticmethod
-  def sign_in_with_password(email: str, password: str) -> dict:
+  async def sign_in_with_password(email: str, password: str) -> dict:
     try:
-      response = supabase.auth.sign_in_with_password({
+      client = await get_async_supabase_client()
+      response = await client.auth.sign_in_with_password({
         "email": email,
         "password": password,
       })
 
       if response.user and response.session:
         user_id = response.user.id
-        user_details = user_repo.get_user_details(user_id)
+        # user_repo has been converted to async, so use await
+        user_details = await user_repo.get_user_details(user_id)
         if not user_details or "tenant_id" not in user_details or not user_details["tenant_id"]:
           raise LookupError("Tenant ID not found for user in public.users")
         tenant_id = user_details["tenant_id"]
@@ -106,6 +110,14 @@ class AuthService:
 
         custom_token = jwt.encode(
           payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+        # Update last_sign_in_at
+        try:
+          await user_repo.update_user_param(
+            user_id, "last_sign_in_at", datetime.now().isoformat())
+        except Exception as e:
+          logger.warning(
+            f"Failed to update last_sign_in_at for {user_id}: {e}")
 
         return {
           "token": custom_token,
