@@ -110,11 +110,28 @@ class FileProcessor:
         if not provider or not model:
           return None
 
+        import asyncio
         from app.core.factory import get_embedding_service
-        specific_service = get_embedding_service(
-            provider=provider,
-            model=model
-        )
+
+        # Helper to run async factory in sync context
+        async def _fetch_service():
+          return await get_embedding_service(
+              provider=provider,
+              model=model
+          )
+
+        try:
+          loop = asyncio.get_event_loop()
+        except RuntimeError:
+          loop = None
+
+        if loop and loop.is_running():
+          # Fallback if nest_asyncio is present, or error out
+          import nest_asyncio
+          nest_asyncio.apply(loop)
+          specific_service = loop.run_until_complete(_fetch_service())
+        else:
+          specific_service = asyncio.run(_fetch_service())
         return CustomEmbedding(specific_service, embed_batch_size=64)
       except Exception as e:
         logger.exception(
