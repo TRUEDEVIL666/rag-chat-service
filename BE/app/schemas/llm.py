@@ -9,3 +9,13 @@ class LLMConfig(BaseModel):
   api_key: Optional[str] = None
   base_url: Optional[str] = None
   provider: str
+  tool_choice: Optional[str] = None
+
+
+class QueryRefinement(BaseModel):
+  rewritten_query: str
+  decomposed_queries: list[str] = []
+
+
+class KbRoutingOutput(BaseModel):
+  kb_ids: list[str]
