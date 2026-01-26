@@ -4,6 +4,7 @@ import uuid
 from typing import List, Dict, Any, Optional
 from fastapi import HTTPException, UploadFile
 from celery.result import AsyncResult
+import asyncio
 
 from app.core.logger import get_logger
 from app.config.celery import celery_app
@@ -48,7 +49,6 @@ class DocumentService:
     Orchestrates the upload of multiple documents concurrently.
     Streams files to MinIO using a Semaphore to limit concurrency.
     """
-    import asyncio
     import os
     from app.config.config import settings
 
@@ -110,7 +110,6 @@ class DocumentService:
     - Updates DB.
     - Dispatches Celery task.
     """
-    import asyncio
     from functools import partial
     from datetime import datetime
 
@@ -118,7 +117,7 @@ class DocumentService:
 
     try:
       # Check Existence First
-      existing_doc = self.doc_repo.get_document_by_name(
+      existing_doc = await self.doc_repo.get_document_by_name(
           kb_id,
           file.filename,
           tenant_id,
@@ -148,7 +147,7 @@ class DocumentService:
         )
 
         # 2. Trigger Task (Immediate Status Update)
-        self.doc_repo.update_document_status(
+        await self.doc_repo.update_document_status(
           existing_doc["id"], "learning", access_token)
         task = process_update_file_celery.delay(
             document_id=existing_doc["id"],
@@ -185,7 +184,7 @@ class DocumentService:
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat()
         }
-        created_doc = self.doc_repo.create_document(
+        created_doc = await self.doc_repo.create_document(
             doc_payload, access_token)
 
         if not created_doc:
@@ -211,7 +210,7 @@ class DocumentService:
           )
 
           # 3. Commit (Update DB with real path)
-          self.doc_repo.update_document_upload_success(
+          await self.doc_repo.update_document_upload_success(
               new_doc_id, file_path, access_token)
 
           # 4. Dispatch Task
@@ -238,7 +237,7 @@ class DocumentService:
           # Rollback
           logger.error(
             f"Upload failed for {file.filename}, rolling back DB: {e}")
-          self.doc_repo.delete_document(new_doc_id)
+          await self.doc_repo.delete_document(new_doc_id, access_token)
           return {
               "filename": file.filename,
               "status": "failed",
@@ -268,10 +267,9 @@ class DocumentService:
     Updates a specific document by ID.
     Validates ownership before triggering incremental sync.
     """
-    import asyncio
     from functools import partial
 
-    doc = self.doc_repo.get_document_by_id(document_id, access_token)
+    doc = await self.doc_repo.get_document_by_id(document_id, access_token)
 
     if not doc:
       raise HTTPException(status_code=404, detail="Document not found")
@@ -303,7 +301,7 @@ class DocumentService:
 
       # IMMEDIATE STATUS UPDATE:
       # Set status to 'learning' immediately so UI reflects the change right away.
-      self.doc_repo.update_document_status(
+      await self.doc_repo.update_document_status(
         document_id, "learning", access_token)
 
       task = process_update_file_celery.delay(
@@ -330,7 +328,7 @@ class DocumentService:
       logger.exception(f"Failed to initiate document update for {document_id}")
       raise HTTPException(status_code=500, detail=str(e))
 
-  def get_task_status(self, task_id: str) -> Dict[str, Any]:
+  async def get_task_status(self, task_id: str) -> Dict[str, Any]:
     """
     Checks the status of a Celery processing task.
     """
@@ -357,12 +355,12 @@ class DocumentService:
           "message": "Processing..."
       }
 
-  def delete_document(self, document_id: str, tenant_id: str, user_id: str, access_token: str = None) -> dict:
+  async def delete_document(self, document_id: str, tenant_id: str, user_id: str, access_token: str = None) -> dict:
     """
     Deletes a document and all associated data (File, Vectors, Metadata).
     """
     # 1. Fetch Request
-    doc = self.doc_repo.get_document_by_id(document_id, access_token)
+    doc = await self.doc_repo.get_document_by_id(document_id, access_token)
     if not doc:
       raise HTTPException(status_code=404, detail="Document not found")
 
@@ -371,7 +369,7 @@ class DocumentService:
           status_code=403, detail="Not authorized to delete this document")
 
     # 2. Soft Delete (Mark as trashed)
-    self.doc_repo.update_document_status(document_id, "trashed", access_token)
+    await self.doc_repo.update_document_status(document_id, "trashed", access_token)
 
     # 3. Trigger Background Cleanup
     from app.task.document_cleanup_worker import delete_document_background
@@ -384,7 +382,7 @@ class DocumentService:
 
     return {"id": document_id, "status": "accepted_for_deletion"}
 
-  def batch_delete_documents(self, doc_ids: List[str], tenant_id: str, user_id: str, access_token: str = None) -> dict:
+  async def batch_delete_documents(self, doc_ids: List[str], tenant_id: str, user_id: str, access_token: str = None) -> dict:
     """
     Deletes multiple documents efficiently.
     Verifies ownership and triggers background cleanup tasks for current flow.
@@ -398,7 +396,7 @@ class DocumentService:
     for doc_id in doc_ids:
       try:
         doc_id_str = str(doc_id)
-        doc = self.doc_repo.get_document_by_id(doc_id_str, access_token)
+        doc = await self.doc_repo.get_document_by_id(doc_id_str, access_token)
         if not doc:
           results["failed"].append({"id": doc_id_str, "reason": "Not found"})
           continue
@@ -409,7 +407,7 @@ class DocumentService:
           continue
 
         # 2. Soft Delete (Mark as trashed)
-        self.doc_repo.update_document_status(
+        await self.doc_repo.update_document_status(
           doc_id_str, "trashed", access_token)
 
         # 3. Trigger Background Cleanup (Async)
@@ -439,7 +437,7 @@ class DocumentService:
     Retry processing a failed document.
     """
     # 1. Fetch Request
-    document = self.doc_repo.get_document_by_id(document_id, access_token)
+    document = await self.doc_repo.get_document_by_id(document_id, access_token)
     if not document:
       raise HTTPException(status_code=404, detail="Document not found")
 
@@ -468,7 +466,7 @@ class DocumentService:
     )
 
     # 4. Update Status
-    self.doc_repo.update_document_status(document_id, "learning", access_token)
+    await self.doc_repo.update_document_status(document_id, "learning", access_token)
 
     return {
         "document_id": document_id,
@@ -476,11 +474,11 @@ class DocumentService:
         "status": "retrying"
     }
 
-  def get_document_file_url(self, document_id: str, tenant_id: str, access_token: str = None) -> str:
+  async def get_document_file_url(self, document_id: str, tenant_id: str, access_token: str = None) -> str:
     """
     Get a presigned URL for the document file from MinIO.
     """
-    doc = self.doc_repo.get_document_by_id(document_id, access_token)
+    doc = await self.doc_repo.get_document_by_id(document_id, access_token)
     if not doc:
       raise HTTPException(status_code=404, detail="Document not found")
 
@@ -495,11 +493,11 @@ class DocumentService:
 
     return self.minio_storage.get_presigned_url(file_path)
 
-  def get_document_stream(self, document_id: str, tenant_id: str, access_token: str = None):
+  async def get_document_stream(self, document_id: str, tenant_id: str, access_token: str = None):
     """
     Get the file stream for a document.
     """
-    doc = self.doc_repo.get_document_by_id(document_id, access_token)
+    doc = await self.doc_repo.get_document_by_id(document_id, access_token)
     if not doc:
       raise HTTPException(status_code=404, detail="Document not found")
 
