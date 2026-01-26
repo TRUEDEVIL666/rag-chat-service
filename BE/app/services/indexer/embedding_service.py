@@ -127,8 +127,6 @@ class EmbeddingService:
         response = await client.models.embed_content(
             model=self.model_name,
             contents=batch,
-            # TODO: Ask for consultation on this particular part
-            config=types.EmbedContentConfig(output_dimensionality=768)
         )
         if response.embeddings:
           results.extend([emb.values for emb in response.embeddings])
