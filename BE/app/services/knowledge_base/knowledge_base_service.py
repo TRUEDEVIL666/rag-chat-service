@@ -3,7 +3,7 @@ from datetime import datetime
 from app.services.supabase.knowledge_base_repository import KnowledgeBaseRepository
 from app.schemas.knowledge_base import (
     KnowledgeBaseInput, UpdateKnowledgeBaseRequest, KnowledgeBaseDetail,
-    RetrievalModelSchema, RetrievalModeSchema
+    RetrievalModelSchema
 )
 from app.helper.utils_kb import (
     INDEX_MAP, PERM_MAP, api_to_db_retrieval, db_to_api_retrieval, to_epoch
@@ -26,10 +26,10 @@ class KnowledgeBaseService:
     self.doc_repo = doc_repo
     self.tenant_repo = tenant_repo
 
-  def list_knowledge_bases(self, tenant_id: str, access_token: str = None) -> Tuple[List[dict], int]:
-    return self.kb_repo.list_knowledge_bases(tenant_id, access_token)
+  async def list_knowledge_bases(self, tenant_id: str, access_token: str = None) -> Tuple[List[dict], int]:
+    return await self.kb_repo.list_knowledge_bases(tenant_id, access_token)
 
-  def create_knowledge_base(
+  async def create_knowledge_base(
       self,
       tenant_id: str,
       user_id: str,
@@ -73,36 +73,23 @@ class KnowledgeBaseService:
         "created_at": datetime.utcnow().isoformat(),
         "retrieval_model": api_to_db_retrieval(kb_dict.get("retrieval_model").dict() if hasattr(kb_dict.get("retrieval_model"), "dict") else (kb_dict.get("retrieval_model") or {
             "search_method": "semantic",
-            "reranking_enable": False,
-            "top_k": 10,
-            "score_threshold_enabled": False
+            "auto_merging": False
         })),
     }
 
-    return self.kb_repo.create(payload, access_token=access_token)
+    return await self.kb_repo.create(payload, access_token=access_token)
 
-  def get_knowledge_base_details(self, knowledge_base_id: str, tenant_id: str, access_token: str = None) -> Optional[KnowledgeBaseDetail]:
-    row = self.kb_repo.get_one(
+  async def get_knowledge_base_details(self, knowledge_base_id: str, tenant_id: str, access_token: str = None) -> Optional[KnowledgeBaseDetail]:
+    row = await self.kb_repo.get_one(
       knowledge_base_id, tenant_id, access_token=access_token)
     if not row:
       return None
 
     rm = row.get("retrieval_model") or {}
-    rm_mode = rm.get("reranking_mode") or {}
-    if "provider" in rm_mode or "model" in rm_mode:
-      rm_mode = {
-          "reranking_provider_name": rm_mode.get("provider"),
-          "reranking_model_name": rm_mode.get("model"),
-      }
 
     retrieval_model_dict = RetrievalModelSchema(
         search_method=str(rm.get("search_method", "semantic")),
-        reranking_enable=bool(rm.get("reranking_enable", False)),
-        reranking_mode=RetrievalModeSchema(**rm_mode) if rm_mode else None,
-        top_k=int(rm.get("top_k", 0)),
-        score_threshold_enabled=bool(rm.get("score_threshold_enabled", False)),
-        score_threshold=rm.get("score_threshold", 0.4),
-        weights=rm.get("weights"),
+        auto_merging=bool(rm.get("auto_merging", False))
     )
 
     return KnowledgeBaseDetail(
@@ -119,7 +106,7 @@ class KnowledgeBaseService:
         doc_form=row.get("doc_form"),
     )
 
-  def update_knowledge_base(self, kb_id: str, tenant_id: str, body: UpdateKnowledgeBaseRequest, access_token: str = None) -> Optional[dict]:
+  async def update_knowledge_base(self, kb_id: str, tenant_id: str, body: UpdateKnowledgeBaseRequest, access_token: str = None) -> Optional[dict]:
     upd: Dict[str, Any] = {}
 
     if body.name is not None:
@@ -127,7 +114,7 @@ class KnowledgeBaseService:
       if not new_name:
         raise ValueError("Name cannot be empty.")
 
-      if self.kb_repo.name_conflict(tenant_id, new_name, exclude_id=kb_id):
+      if await self.kb_repo.name_conflict(tenant_id, new_name, exclude_id=kb_id):
         raise ValueError("Knowledge base name already exists.")
       upd["name"] = new_name
 
@@ -159,7 +146,7 @@ class KnowledgeBaseService:
       upd["embedding_model_id"] = str(body.embedding_model_id)
 
     if body.partial_member_list is not None:
-      row = self.kb_repo.get_knowledge_base_detail(
+      row = await self.kb_repo.get_knowledge_base_detail(
         kb_id, tenant_id, access_token=access_token)
       if not row:
         return None
@@ -170,12 +157,12 @@ class KnowledgeBaseService:
           "partial_member_list allowed only when permission=partial_members.")
       upd["partial_member_list"] = body.partial_member_list
 
-    return self.kb_repo.patch(kb_id, tenant_id, upd, access_token=access_token)
+    return await self.kb_repo.patch(kb_id, tenant_id, upd, access_token=access_token)
 
-  def check_name_conflict(self, tenant_id: str, name: str, exclude_id: str, access_token: str = None) -> bool:
-    return self.kb_repo.name_conflict(tenant_id, name, exclude_id, access_token=access_token)
+  async def check_name_conflict(self, tenant_id: str, name: str, exclude_id: str, access_token: str = None) -> bool:
+    return await self.kb_repo.name_conflict(tenant_id, name, exclude_id, access_token=access_token)
 
-  def delete_knowledge_base(self, kb_id: str, tenant_id: str, access_token: str = None) -> bool:
+  async def delete_knowledge_base(self, kb_id: str, tenant_id: str, access_token: str = None) -> bool:
     """
     Delete a KB (Cascade: Files -> Vectors -> DB Rows).
     """
@@ -183,31 +170,31 @@ class KnowledgeBaseService:
     from app.core.factory import get_minio_storage
     minio_storage = get_minio_storage()
 
-    documents = self.doc_repo.get_documents_by_kb(
+    documents = await self.doc_repo.get_documents_by_kb(
       kb_id, tenant_id, access_token=access_token)
     for doc in documents:
       file_path = doc.get("path")
       if file_path:
         minio_storage.delete_file(file_path)
 
-    kb_detail = self.kb_repo.get_knowledge_base_detail(
+    kb_detail = await self.kb_repo.get_knowledge_base_detail(
       kb_id, tenant_id, access_token=access_token)
     model_name = kb_detail.get("embedding_model") if kb_detail else None
 
     from app.core.factory import get_vector_store
-    vector_deleted = get_vector_store().delete_by_kb(
+    vector_deleted = await get_vector_store().delete_by_kb(
       kb_id, model_name=model_name)
     if not vector_deleted:
       pass
 
     # 2. Delete DB Row (Cascade handles children)
-    return self.kb_repo.delete_kb(kb_id, tenant_id, access_token=access_token)
+    return await self.kb_repo.delete_kb(kb_id, tenant_id, access_token=access_token)
 
-  def get_total_kbs(self, tenant_id: str = None, access_token: str = None) -> int:
-    return self.kb_repo.get_total_kbs(tenant_id, access_token)
+  async def get_total_kbs(self, tenant_id: str = None, access_token: str = None) -> int:
+    return await self.kb_repo.get_total_kbs(tenant_id, access_token)
 
-  def list_documents(self, kb_id: str, tenant_id: str, access_token: str = None) -> List[dict]:
+  async def list_documents(self, kb_id: str, tenant_id: str, access_token: str = None) -> List[dict]:
     """
     List all documents in a knowledge base.
     """
-    return self.doc_repo.get_documents_by_kb(kb_id, tenant_id, access_token)
+    return await self.doc_repo.get_documents_by_kb(kb_id, tenant_id, access_token)
