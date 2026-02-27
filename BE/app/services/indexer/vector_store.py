@@ -1,117 +1,61 @@
+# app/services/indexer/vector_store.py
 import re
 from typing import List, Optional
-import asyncio
-import json
 
-from llama_index.core import Document, Settings, StorageContext, VectorStoreIndex
+from llama_index.core import Document
 from llama_index.core.base.embeddings.base import BaseEmbedding
-from llama_index.core.schema import TextNode, BaseNode
-from llama_index.core.vector_stores import FilterOperator, MetadataFilter, MetadataFilters
-from llama_index.vector_stores.qdrant import QdrantVectorStore
-from qdrant_client import QdrantClient, models
-from qdrant_client.http.models import Distance, PayloadSchemaType, VectorParams, SparseVectorParams, SparseIndexParams
+from llama_index.core.schema import BaseNode, TextNode
 from sentence_transformers import CrossEncoder
-from fastembed import SparseTextEmbedding
 
 from app.config.config import settings
 from app.core.logger import get_logger
-from app.services.indexer.embedding_service import CustomEmbedding, EmbeddingService
 
-logger = get_logger("vector_repository")
+from app.services.supabase.supabase_client import get_async_supabase_client
+
+logger = get_logger(__name__)
 
 
 # ----------------------------------------------------------------------
 # HELPER FUNCTIONS
 # ----------------------------------------------------------------------
-def to_qdrant_payload(node: TextNode) -> dict:
-  return {
-      "_node_content": node.to_dict(),
-      **node.metadata,
-  }
-
-
-def sanitize_collection_name(name: str) -> str:
+def sanitize_table_name(name: str) -> str:
   """
-  Sanitize text to be a valid Qdrant collection name.
-  Replaces non-alphanumeric characters with underscores.
+  Convert a model name to a valid Supabase table name in the vectors schema.
+  E.g. "ollama/bge-m3" -> "bge_m3", "nomic-embed-text" -> "nomic_embed_text"
   """
   # Strip provider prefix if present (e.g. "ollama/gemma" -> "gemma")
   if "/" in name:
     name = name.split("/")[-1]
-  # Replace slashes, colons, dots, spaces with underscores
+  # Replace non-alphanumeric characters with underscores
   sanitized = re.sub(r'[^a-zA-Z0-9]', '_', name).lower()
-  # Ensure it doesn't start with numbers or special chars if Qdrant requires (optional but safer)
+  # Prefix with "vec_" if starts with a digit
   if sanitized and sanitized[0].isdigit():
     sanitized = "vec_" + sanitized
   return sanitized
 
 
 # ----------------------------------------------------------------------
-# VECTOR REPOSITORY
+# VECTOR REPOSITORY (Supabase-backed)
 # ----------------------------------------------------------------------
 class VectorRepository:
   """
-  Handles document indexing and semantic search using Qdrant + LlamaIndex.
+  Handles document vector indexing and semantic search using Supabase pgvector.
+  Replaces the previous Qdrant-based implementation.
   """
 
   def __init__(
       self,
-      host: str,
-      port: int,
-      collection: str,
-      embedding_service: Optional[EmbeddingService] = None,
-      vector_size: int = 768
+      embedding_service: Optional[BaseEmbedding] = None,
   ):
-    self.host = settings.QDRANT_HOST
-    self.port = settings.QDRANT_PORT
     self.embedding_service = embedding_service
-    self.vector_size = vector_size
     self._rerankers = {}  # Cache for reranker models: {model_name: CrossEncoder}
+    self._ensured_tables = set()  # Cache of tables confirmed to exist
 
-    # Dynamic Collection Name Logic
-    # 1. Start with the model name from embedding service
-    model_name_raw = self.embedding_service.model_name if self.embedding_service else None
+    logger.info("[VectorStore]: Initialized with Supabase backend")
 
-    if model_name_raw:
-      # 2. Sanitize it
-      model_name_safe = sanitize_collection_name(model_name_raw)
-      # 3. Formulate collection name (e.g., "vec_ollama_gemma3_4b")
-      self.qdrant_collection = f"vec_{model_name_safe}"
-    else:
-      self.qdrant_collection = collection
-
-    logger.info(
-      f"[VectorStore]: Using dynamic collection name: {self.qdrant_collection}")
-
-    # Settings.embed_model = CustomEmbedding(
-    #   self.embedding_service, embed_batch_size=64
-    # )
-    # Avoid modifying global settings to prevent concurrency issues
-
-    # Initialize Sparse Embedding Model (BM25 / SPLADE)
-    # This runs locally on CPU
-    self.sparse_embedding_model = SparseTextEmbedding(model_name="Qdrant/bm25")
-
-    self.qdrant_client = QdrantClient(
-        host=self.host,
-        port=self.port
-    )
-
-    # Ensure collection exists ONLY if we have a concrete model
-    if model_name_raw:
-      self.create_collection(self.qdrant_collection)
-    else:
-      logger.info(
-        "[VectorStore]: Lazy initialization: Skipping eager collection creation (using default name waiting for runtime override).")
-
-    self.vector_store = QdrantVectorStore(
-        client=self.qdrant_client,
-        collection_name=self.qdrant_collection
-    )
-    self.storage_context = StorageContext.from_defaults(
-      vector_store=self.vector_store)
-    self.index: Optional[VectorStoreIndex] = None
-
+  # ------------------------------------------------------------------
+  # RERANKER (unchanged - CrossEncoder is storage-independent)
+  # ------------------------------------------------------------------
   def _get_reranker(self, model_name: str = None):
     target_model = model_name or settings.RERANKER_MODEL
     import torch
@@ -122,239 +66,156 @@ class VectorRepository:
       self._rerankers[target_model] = CrossEncoder(target_model, device=device)
     return self._rerankers[target_model]
 
-  def create_collection(self, collection_name: Optional[str] = None, vector_size: Optional[int] = None):
-    target_collection = collection_name or "test_documents"
-    if not self.qdrant_client.collection_exists(target_collection):
-      logger.info(
-        f"[VectorStore]: Creating Qdrant collection '{target_collection}'")
-      self.qdrant_client.create_collection(
-          collection_name=target_collection,
-          vectors_config=VectorParams(
-              size=vector_size or self.vector_size,
-              distance=Distance.COSINE,
-              quantization_config=models.ScalarQuantization(
-                  scalar=models.ScalarQuantizationConfig(
-                      type=models.ScalarType.INT8,
-                      always_ram=True
-                  )
-              )
-          ),
-          sparse_vectors_config={
-              "bm25": SparseVectorParams(
-                  index=SparseIndexParams(
-                      on_disk=False,
-                  )
-              )
-          }
-      )
-      logger.info(
-        f"[VectorStore]: Collection '{target_collection}' created successfully.")
-    else:
-      logger.info(
-        f"[VectorStore]: Collection '{target_collection}' already exists.")
-
-    # Ensure indices exist (safe to run repeatedly)
-    self.create_payload_index(target_collection)
-
-  def create_payload_index(self, collection_name: str = "test_documents"):
-    for field in ["kb_id", "parent_id", "tenant_id"]:
-      try:
-        self.qdrant_client.create_payload_index(
-            collection_name=collection_name,
-            field_name=field,
-            field_schema=PayloadSchemaType.KEYWORD
-        )
-      except Exception as e:
-        if "already exists" in str(e):
-          logger.info(
-            f"[VectorStore]: Payload index for '{field}' already exists in {collection_name}")
-        else:
-          logger.error(
-            f"[VectorStore]: Failed to create payload index for '{field}' in {collection_name}: {e}")
-
-  def upsert_documents(self, documents: List[Document], embed_model: Optional[BaseEmbedding] = None, use_sparse: bool = False):
-    if embed_model:
-      # CRITICAL: Isolate keys by Collection/Model
-      # 1. Determine collection name from model
-      model_name_raw = embed_model.model_name
-      model_name_safe = sanitize_collection_name(model_name_raw)
-      target_collection = f"vec_{model_name_safe}"
-
-      logger.info(
-        f"[VectorStore]: Upserting into dynamic collection: {target_collection}")
-
-      # 1. Prepare Nodes (Convert Documents if needed)
-      nodes = []
-      for doc in documents:
-        # If the input is already a Node, use it. If it's a Document, convert to TextNode keeping the ID.
-        if isinstance(doc, (TextNode, BaseNode)):
-          nodes.append(doc)
-        else:
-          nodes.append(
-            TextNode(text=doc.text, metadata=doc.metadata, id_=doc.doc_id))
-
-      # 2. Generate Dense Embeddings
-      embeddings = embed_model.get_text_embedding_batch(
-        [n.text for n in nodes])
-
-      if not embeddings:
-        logger.warning(
-          "[VectorStore]: No embeddings generated. Skipping upsert.")
-        return
-
-      # 3. Create Collection with CORRECT Dimension
-      current_dim = len(embeddings[0])
-      self.create_collection(target_collection, vector_size=current_dim)
-
-      points = []
-      for node, emb in zip(nodes, embeddings):
-        # 1. Get Node Dictionary
-        node_dict = node.dict()
-
-        # 2. STRIP METADATA from internal dict to save storage
-        # The metadata is already stored as top-level fields in 'payload'
-        node_dict["metadata"] = {}
-
-        # 3. Construct Payload
-        # Filter metadata to remove redundant/internal keys
-        excluded_keys = {
-            "chunk_size", "source", "source_file", "node_id"
-        }
-        filtered_metadata = {
-          k: v for k, v in node.metadata.items() if k not in excluded_keys}
-
-        payload = {
-            # Minimized content (Text + Relationships + Empty Metadata)
-            "_node_content": json.dumps(node_dict),
-            "_node_type": node.class_name(),
-            "document_id": node.metadata.get("document_id"),
-            **filtered_metadata
-        }
-
-        points.append(models.PointStruct(
-          id=node.node_id, vector=emb, payload=payload))
-
-      # 5. Upsert Dense Points
-      try:
-        self.qdrant_client.upsert(
-            collection_name=target_collection,
-            points=points
-        )
-      except Exception as e:
-        logger.error(
-          f"[VectorStore]: Qdrant upsert failed. Collection: {target_collection}")
-        if hasattr(e, "body"):
-          logger.error(f"[VectorStore]: Qdrant Error Body: {e.body}")
-        if hasattr(e, "reason"):
-          logger.error(f"[VectorStore]: Qdrant Error Reason: {e.reason}")
-        raise e
-
-      # 5. Manual Sparse Vector Update for Custom Collection (CONDITIONAL)
-      if use_sparse:
-        # Generate Sparse Embeddings (BM25)
-        texts = [n.text for n in nodes]
-        sparse_gen = self.sparse_embedding_model.embed(texts)
-
-        for i, sparse_vec in enumerate(sparse_gen):
-          node = nodes[i]
-          qdrant_sparse = models.SparseVector(
-              indices=sparse_vec.indices.tolist(),
-              values=sparse_vec.values.tolist()
-          )
-
-          self.qdrant_client.update_vectors(
-              collection_name=target_collection,
-              points=[
-                  models.PointVectors(
-                      id=node.node_id,
-                      vector={"bm25": qdrant_sparse}
-                  )
-              ]
-          )
-        logger.info(
-            f"[VectorStore]: Enriched {len(documents)} documents with BM25 sparse vectors in {target_collection}.")
-      else:
-        logger.info(
-          f"[VectorStore]: Skipped sparse vector generation for {target_collection} (use_sparse=False)")
-
+  # ------------------------------------------------------------------
+  # DYNAMIC TABLE CREATION
+  # ------------------------------------------------------------------
+  async def ensure_vector_table(self, table_name: str, vector_dim: int):
+    """
+    Create vectors.<table_name> if it doesn't exist, with HNSW index + CASCADE FK.
+    Uses the create_vector_table_if_not_exists RPC (SECURITY DEFINER).
+    Results are cached to avoid redundant checks.
+    """
+    if table_name in self._ensured_tables:
       return
 
-      if self.index is None:
-        self.index = VectorStoreIndex.from_documents(
-            documents=documents,
-            storage_context=self.storage_context,
-            embed_model=CustomEmbedding(
-              self.embedding_service, embed_batch_size=64)
-        )
-    else:
-      document_nodes = [
-          TextNode(text=doc.text, metadata=doc.metadata)
-          for doc in documents
-      ]
-      self.index.insert_nodes(
-        document_nodes,
-        embed_model=CustomEmbedding(
-          self.embedding_service, embed_batch_size=64)
-      )
-
-      # --- HYBRID UPDATE: UPSERT SPARSE VECTORS ---
-      # LlamaIndex's insert_nodes doesn't easily support named sparse vectors yet in this version without complex config.
-      # So we will MANUALLY update the points with their sparse vectors immediately after insertion.
-      # This is a robust "Patch" approach.
-
-      # 1. Get the texts
-      texts = [doc.text for doc in documents]
-
-      # 2. Generate Sparse Vectors (Generator)
-      sparse_vectors_gen = self.sparse_embedding_model.embed(texts)
-
-      # 3. Create Update Operations
-      # We need the IDs that LlamaIndex assigned.
-      # Fortunately, the 'document_nodes' we created above have the IDs.
-      points = []
-      for i, sparse_vec in enumerate(sparse_vectors_gen):
-        node = document_nodes[i]
-        # Convert FastEmbed sparse format to Qdrant format
-        qdrant_sparse = models.SparseVector(
-            indices=sparse_vec.indices.tolist(),
-        )
-
-        # We prefer to use the PointStruct update or just Update Vectors
-        # But since we just inserted, we can just "Update Vectors"
-        self.qdrant_client.update_vectors(
-            collection_name=self.qdrant_collection,
-            points=[
-                models.PointVectors(
-                    id=node.node_id,
-                    vector={
-                        "bm25": qdrant_sparse
-                    }
-                )
-            ]
-        )
+    try:
+      client = await get_async_supabase_client()
+      await client.rpc("create_vector_table_if_not_exists", {
+          "p_table_name": table_name,
+          "p_vector_dim": vector_dim
+      }).execute()
+      self._ensured_tables.add(table_name)
       logger.info(
-          f"[VectorStore]: Enriched {len(documents)} documents with BM25 sparse vectors.")
+        f"[VectorStore]: Ensured vector table exists: vectors.{table_name} (dim={vector_dim})")
+    except Exception as e:
+      logger.error(
+        f"[VectorStore]: Failed to ensure vector table {table_name}: {e}")
+      raise
 
-  async def embed_text(self, text: str, model_name: Optional[str] = None) -> List[float]:
+  # ------------------------------------------------------------------
+  # UPSERT
+  # ------------------------------------------------------------------
+  def upsert_documents(
+      self,
+      documents: List[Document],
+      embed_model: Optional[BaseEmbedding] = None,
+  ):
+    """
+    Generate embeddings and upsert vectors into Supabase vectors.<model> table.
+    The graph_chunks metadata is handled separately by GraphChunkRepository.
+    """
+    if not embed_model:
+      logger.warning(
+        "[VectorStore]: No embed_model provided. Skipping upsert.")
+      return
+
+    import asyncio
+    try:
+      loop = asyncio.get_event_loop()
+    except RuntimeError:
+      loop = asyncio.new_event_loop()
+      asyncio.set_event_loop(loop)
+
+    if loop.is_running():
+      import nest_asyncio
+      nest_asyncio.apply(loop)
+      loop.run_until_complete(
+        self._upsert_documents_async(documents, embed_model))
+    else:
+      loop.run_until_complete(
+        self._upsert_documents_async(documents, embed_model))
+
+  async def _upsert_documents_async(
+      self,
+      documents: List[Document],
+      embed_model: BaseEmbedding,
+  ):
+    """Async implementation of upsert_documents."""
+    # 1. Resolve table name from model
+    model_name_raw = embed_model.model_name
+    table_name = sanitize_table_name(model_name_raw)
+
+    logger.info(
+      f"[VectorStore]: Upserting {len(documents)} documents into vectors.{table_name}")
+
+    # 2. Prepare Nodes
+    nodes = []
+    for doc in documents:
+      if isinstance(doc, (TextNode, BaseNode)):
+        nodes.append(doc)
+      else:
+        nodes.append(
+          TextNode(text=doc.text, metadata=doc.metadata, id_=doc.doc_id))
+
+    # 3. Generate Dense Embeddings
+    texts = [n.text for n in nodes]
+    embeddings = await embed_model.aget_text_embedding_batch(texts)
+
+    if not embeddings:
+      logger.warning(
+        "[VectorStore]: No embeddings generated. Skipping upsert.")
+      return
+
+    # 4. Ensure vector table exists with correct dimensions
+    vector_dim = len(embeddings[0])
+    await self.ensure_vector_table(table_name, vector_dim)
+
+    # 5. Build records for upsert
+    records = []
+    for node, emb in zip(nodes, embeddings):
+      records.append({
+          "id": node.node_id,
+          "embedding": emb,
+      })
+
+    # 6. Batch upsert into Supabase (batch size 100 to avoid payload limits)
+    client = await get_async_supabase_client()
+    batch_size = 100
+    total_upserted = 0
+
+    for i in range(0, len(records), batch_size):
+      batch = records[i:i + batch_size]
+      try:
+        response = await client.schema("vectors").table(table_name).upsert(batch).execute()
+        total_upserted += len(batch)
+      except Exception as e:
+        logger.error(
+          f"[VectorStore]: Supabase upsert failed for batch {i // batch_size + 1}: {e}")
+        raise e
+
+    logger.info(
+      f"[VectorStore]: Successfully upserted {total_upserted} vectors into vectors.{table_name}")
+
+  # ------------------------------------------------------------------
+  # EMBEDDING
+  # ------------------------------------------------------------------
+  async def embed_text(self, text: str, model_name: Optional[str] = None, provider: Optional[str] = None) -> List[float]:
+    """Generate embedding for a single text using the specified or default model."""
     if not text.strip():
       return []
 
-    # Resolve correct embedding service
-    target_service = self.embedding_service
+    target_service: Optional[BaseEmbedding] = self.embedding_service
 
-    # If explicit model requested, or if we have no default service
     if model_name:
+      # If model requested differs, or we have no service, fetch new one
       if not self.embedding_service or model_name != self.embedding_service.model_name:
-        from app.core.factory import get_embedding_service
-        target_service = await get_embedding_service(model=model_name)
+        from app.core.factory import get_embedding_model
+        try:
+          target_service = await get_embedding_model(provider=provider, model=model_name)
+        except ValueError:
+          # Fallback logic if provider is missing but model might be a slug?
+          # We'll rely on factory throwing if it can't resolve.
+          raise
     elif not target_service:
-        # No model provided AND no default service
       raise ValueError(
         "No embedding model specified and no default service available.")
 
-    embeddings = await target_service.embed_texts([text])
+    embeddings = await target_service.aget_text_embedding_batch([text])
     return embeddings[0] if embeddings else []
 
+  # ------------------------------------------------------------------
+  # SEARCH (via search_chunks RPC)
+  # ------------------------------------------------------------------
   async def search(
       self,
       query: str,
@@ -362,163 +223,98 @@ class VectorRepository:
       kb_id: Optional[str] = None,
       score_threshold: float = 0.0,
       model_name: Optional[str] = None,
-      search_method: str = "semantic",
+      provider: Optional[str] = None,
+      search_method: str = "hybrid",
       enable_auto_merging: bool = False,
       precomputed_dense_vector: Optional[List[float]] = None
   ) -> List[dict]:
-    # 1. Resolve Target Collection
-    # Default = global collection
-    target_collection = self.qdrant_collection
-
-    if model_name:
-      # If model specified, dynamic resolution
-      raw_name = model_name
-      safe_name = sanitize_collection_name(raw_name)
-      possible_collection = f"vec_{safe_name}"
-
-      if self.qdrant_client.collection_exists(possible_collection):
-        target_collection = possible_collection
-        logger.info(f"[VectorStore]: Search redirect -> {target_collection}")
-      else:
-        logger.warning(
-          f"[VectorStore]: Requested model collection '{possible_collection}' not found. Fallback to default.")
-
-    # 2. Generate Query Vectors AND Perform Search
-    # Logic branches based on search_method
-
-    # Dense (Embedding Model) - Required for both
-    if precomputed_dense_vector:
-      dense_vector = precomputed_dense_vector
-    else:
-      # CRITICAL: Pass model_name to ensure we generate vector using the Correct Model!
-      dense_vector = await self.embed_text(query, model_name=model_name)
-
-    # Build Filter
-    qdrant_filters = None
-    if kb_id:
-      qdrant_filters = models.Filter(
-          must=[
-              models.FieldCondition(
-                  key="kb_id",
-                  match=models.MatchValue(value=kb_id)
-              )
-          ]
-      )
-
-    results = []
-
+    """
+    Search for relevant chunks using the search_chunks RPC.
+    Supports 'dense', 'keyword', and 'hybrid' modes.
+    """
+    # 1. Map search_method names for backward compatibility
+    search_mode = search_method
     if search_method == "semantic":
-      # --- SEMANTIC SEARCH ONLY ---
-      logger.info("[VectorStore]: Executing Semantic Search (Dense Only)")
-      points_result = await asyncio.to_thread(
-          self.qdrant_client.query_points,
-          collection_name=target_collection,
-          query=dense_vector,
-          query_filter=qdrant_filters,
-          limit=k,
-          with_payload=True
-      )
-      results = points_result.points
+      search_mode = "dense"
 
+    # 2. Generate query embedding (required for dense/hybrid)
+    if search_mode in ("dense", "hybrid"):
+      if precomputed_dense_vector:
+        dense_vector = precomputed_dense_vector
+      else:
+        dense_vector = await self.embed_text(query, model_name=model_name, provider=provider)
     else:
-      # --- HYBRID SEARCH (DEFAULT) ---
-      logger.info("[VectorStore]: Executing Hybrid Search (RRF)")
+      # For keyword-only search, we still need to pass a vector (RPC requires it)
+      # Use a zero vector as placeholder
+      dense_vector = [0.0] * 768  # Will be ignored by keyword mode
 
-      # Sparse (BM25) - Only needed for Hybrid
-      sparse_gen = list(self.sparse_embedding_model.embed([query]))
-      sparse_vec = sparse_gen[0] if sparse_gen else None
+    # 3. Call search_chunks RPC
+    rpc_params = {
+        "query_text": query,
+        "query_embedding": dense_vector,
+        "match_count": k,
+        "filter_kb_id": kb_id,
+        "embedding_model": model_name or (
+          self.embedding_service.model_name if self.embedding_service else "bge-m3"),
+        "search_mode": search_mode,
+        "match_threshold": score_threshold,
+    }
 
-      qdrant_sparse_query = models.SparseVector(
-          indices=sparse_vec.indices.tolist(),
-          values=sparse_vec.values.tolist()
-      )
+    try:
+      client = await get_async_supabase_client()
+      response = await client.rpc("search_chunks", rpc_params).execute()
+      results = response.data or []
+    except Exception as e:
+      logger.error(f"[VectorStore]: search_chunks RPC failed: {e}")
+      return []
 
-      prefetch = [
-          models.Prefetch(
-              query=dense_vector,
-              filter=qdrant_filters,
-              limit=k,
-          ),
-          models.Prefetch(
-              query=qdrant_sparse_query,
-              using="bm25",
-              filter=qdrant_filters,
-              limit=k,
-          ),
-      ]
-
-      points_result = await asyncio.to_thread(
-          self.qdrant_client.query_points,
-          collection_name=target_collection,
-          prefetch=prefetch,
-          query=models.FusionQuery(fusion=models.Fusion.RRF),
-          with_payload=True,
-          limit=k,
-      )
-      results = points_result.points
-
-    # 5. Format Results
+    # 4. Format results
     formatted_results = []
 
-    # Auto-Merging: Collect Parent IDs to fetch
+    # Auto-Merging: Collect parent IDs to fetch
     parent_ids_to_fetch = set()
     if enable_auto_merging:
-      for point in results:
-        payload = point.payload or {}
-        if "parent_id" in payload:
-          parent_ids_to_fetch.add(payload["parent_id"])
+      for row in results:
+        meta = row.get("metadata") or {}
+        if "parent_id" in meta:
+          parent_ids_to_fetch.add(meta["parent_id"])
 
-    # Fetch Parents if any
+    # Fetch parent chunk texts if auto-merging
     parent_map = {}
     if parent_ids_to_fetch:
       try:
-        parent_points = await asyncio.to_thread(
-            self.qdrant_client.retrieve,
-            collection_name=target_collection,
-            ids=list(parent_ids_to_fetch),
-            with_payload=True
-        )
-        for pp in parent_points:
-          pp_payload = pp.payload or {}
-          pp_node = pp_payload.get("_node_content", {})
-          pp_text = pp_node.get("text", "") if isinstance(
-              pp_node, dict) else str(pp_node)
-          parent_map[pp.id] = pp_text
+        parent_response = await client.table("graph_chunks").select(
+            "id, chunk_text"
+        ).in_("id", list(parent_ids_to_fetch)).execute()
+        for p in (parent_response.data or []):
+          parent_map[p["id"]] = p["chunk_text"]
       except Exception as e:
         logger.error(f"[VectorStore]: Failed to fetch parent nodes: {e}")
 
-    for point in results:
-      payload = point.payload or {}
-      node_content = payload.get("_node_content", {})
-      text = node_content.get("text", "") if isinstance(
-        node_content, dict) else str(node_content)
+    for row in results:
+      text = row.get("chunk_text", "")
+      metadata = row.get("metadata") or {}
 
-      # --- Metadata Replacement (Sliding Window) ---
-      if "window" in payload:
-        text = payload["window"]
-
-      # --- Auto-Merging (Hierarchical) ---
-      if "parent_id" in payload:
-        pid = payload["parent_id"]
-        # If we successfully fetched the parent text, use it
+      # Auto-Merging: Replace with parent text if available
+      if enable_auto_merging and "parent_id" in metadata:
+        pid = metadata["parent_id"]
         if pid in parent_map:
           text = parent_map[pid]
-          # Optional: You might want to indicate this was swapped
-          payload["_is_parent_context"] = True
-
-      metadata = payload
-      if "_node_content" in metadata:
-        metadata = {k: v for k, v in metadata.items() if k != "_node_content"}
+          metadata["_is_parent_context"] = True
 
       formatted_results.append({
-          "id": point.id,
+          "id": str(row.get("id", "")),
           "text": text,
           "metadata": metadata,
-          "score": point.score
+          "score": row.get("similarity", 0.0),
+          "kb_id": metadata.get("kb_id"),
       })
 
     return formatted_results
 
+  # ------------------------------------------------------------------
+  # RERANKING
+  # ------------------------------------------------------------------
   def rerank_results(
       self,
       results: List[dict],
@@ -526,150 +322,126 @@ class VectorRepository:
       top_k: int,
       model_name: str
   ) -> List[dict]:
+    """Rerank search results using CrossEncoder."""
     if not results:
       return []
 
     try:
       reranker = self._get_reranker(model_name)
-      # Prepare pairs for CrossEncoder: (query, document_text)
       pairs = [[query, r["text"]] for r in results]
       scores = reranker.predict(pairs)
 
-      # Update scores
       for i, r in enumerate(results):
         r["score"] = float(scores[i])
 
-      # Re-sort by new score
       results.sort(key=lambda x: x["score"], reverse=True)
-
-      # Take top k
       return results[:top_k]
 
     except Exception as e:
       logger.error(f"[VectorStore]: Reranking failed: {e}")
-      # Fallback to original results if reranking fails
       return results[:top_k]
 
-  def build_kb_filter(self, kb_id: Optional[str]) -> MetadataFilters:
-    filters = []
-    if kb_id:
-      filters.append(MetadataFilter(
-          key="kb_id",
-          value=kb_id,
-          operator=FilterOperator.EQ
-      ))
-    return MetadataFilters(filters=filters)
-
-  def delete_points_by_ids(self, point_ids: List[str], model_name: Optional[str] = None) -> bool:
+  # ------------------------------------------------------------------
+  # DELETE (via CASCADE from graph_chunks)
+  # ------------------------------------------------------------------
+  async def delete_by_kb(self, kb_id: str, model_name: Optional[str] = None) -> bool:
     """
-    Batch delete specific points from Qdrant.
+    Delete all vectors for a KB. CASCADE from graph_chunks handles vector cleanup.
+    NOTE: This only deletes vectors. graph_chunks deletion should be handled separately.
     """
-    if not point_ids:
-      return True
-    try:
-      # Resolve correct collection
-      target_collection = self.qdrant_collection
-      if model_name:
-        safe_name = sanitize_collection_name(model_name)
-        # FORCE usage of derived name. Do not fallback.
-        target_collection = f"vec_{safe_name}"
-
-      # Batch delete to avoid payload limits
-      batch_size = 500
-      total_deleted = 0
-      for i in range(0, len(point_ids), batch_size):
-        batch = point_ids[i:i + batch_size]
-        self.qdrant_client.delete(
-            collection_name=target_collection,
-            points_selector=models.PointIdsList(
-                points=batch,
-            )
-        )
-        total_deleted += len(batch)
-
-      logger.info(
-        f"[VectorStore]: Deleted {total_deleted} points from {target_collection}")
-      return True
-    except Exception as e:
-      logger.exception(f"[VectorStore]: Failed to delete points: {e}")
+    if not kb_id:
       return False
 
-  def delete_by_kb(self, kb_id: str, model_name: Optional[str] = None) -> bool:
-    """
-    Delete all points associated with a specific Knowledge Base ID.
-    Using Qdrant's delete API with a filter.
-    """
     try:
-      if not isinstance(kb_id, str):
-        logger.error(f"[VectorStore]: kb_id must be string, got {type(kb_id)}")
-        return False
+      table_name = sanitize_table_name(model_name) if model_name else None
+      if not table_name:
+        logger.warning(
+          "[VectorStore]: No model_name for delete_by_kb, skipping vector-specific deletion (CASCADE will handle it)")
+        return True
+
+      # Delete from the specific vector table by joining with graph_chunks
+      client = await get_async_supabase_client()
+      # Get all chunk IDs for this KB
+      chunks_resp = await client.table("graph_chunks").select(
+          "id"
+      ).eq("kb_id", kb_id).execute()
+
+      chunk_ids = [c["id"] for c in (chunks_resp.data or [])]
+      if chunk_ids:
+        # Delete from vector table
+        batch_size = 500
+        for i in range(0, len(chunk_ids), batch_size):
+          batch = chunk_ids[i:i + batch_size]
+          await client.schema("vectors").table(table_name).delete().in_(
+              "id", batch
+          ).execute()
 
       logger.info(
-        f"[VectorStore]: Deleting vectors for kb_id: {kb_id} (model: {model_name})")
-
-      # Resolve correct collection
-      target_collection = self.qdrant_collection
-      if model_name:
-        safe_name = sanitize_collection_name(model_name)
-        target_collection = f"vec_{safe_name}"
-
-      # Use qdrant_client specific delete method with Qdrant Filter
-      self.qdrant_client.delete(
-          collection_name=target_collection,
-          points_selector=models.FilterSelector(
-              filter=models.Filter(
-                  must=[
-                      models.FieldCondition(
-                          key="kb_id",
-                          match=models.MatchValue(value=kb_id)
-                      )
-                  ]
-              )
-          )
-      )
-      logger.info(
-        f"[VectorStore]: Successfully deleted vectors for kb_id: {kb_id}")
+        f"[VectorStore]: Deleted {len(chunk_ids)} vectors for kb_id: {kb_id}")
       return True
     except Exception as e:
       logger.exception(
-        f"[VectorStore]: Failed to delete for kb_id {kb_id}: {e}")
+        f"[VectorStore]: Failed to delete vectors for kb_id {kb_id}: {e}")
+      return False
+
+  def delete_points_by_ids(self, point_ids: List[str], model_name: Optional[str] = None) -> bool:
+    """
+    Delete specific vectors by their IDs.
+    With CASCADE, deleting graph_chunks rows auto-deletes vectors.
+    This method is kept for backward compatibility but is now largely unnecessary.
+    """
+    if not point_ids:
+      return True
+
+    import asyncio
+    try:
+      loop = asyncio.get_event_loop()
+    except RuntimeError:
+      loop = asyncio.new_event_loop()
+      asyncio.set_event_loop(loop)
+
+    if loop.is_running():
+      import nest_asyncio
+      nest_asyncio.apply(loop)
+      return loop.run_until_complete(
+        self._delete_points_async(point_ids, model_name))
+    else:
+      return loop.run_until_complete(
+        self._delete_points_async(point_ids, model_name))
+
+  async def _delete_points_async(self, point_ids: List[str], model_name: Optional[str] = None) -> bool:
+    """Async implementation of delete_points_by_ids."""
+    try:
+      table_name = sanitize_table_name(model_name) if model_name else None
+      if not table_name:
+        logger.warning(
+          "[VectorStore]: No model_name for delete, relying on CASCADE")
+        return True
+
+      client = await get_async_supabase_client()
+      batch_size = 500
+      total_deleted = 0
+
+      for i in range(0, len(point_ids), batch_size):
+        batch = point_ids[i:i + batch_size]
+        await client.schema("vectors").table(table_name).delete().in_(
+            "id", batch
+        ).execute()
+        total_deleted += len(batch)
+
+      logger.info(
+        f"[VectorStore]: Deleted {total_deleted} vectors from vectors.{table_name}")
+      return True
+    except Exception as e:
+      logger.exception(f"[VectorStore]: Failed to delete vectors: {e}")
       return False
 
   def delete_by_doc_id(self, doc_id: str, model_name: Optional[str] = None) -> bool:
     """
-    Delete all points for a specific document ID.
+    Delete all vectors for a document.
+    With CASCADE from graph_chunks, this is handled automatically when
+    graph_chunks rows are deleted. Kept for backward compatibility.
     """
-    try:
-      if not isinstance(doc_id, str):
-        logger.error(
-          f"[VectorStore]: doc_id must be string, got {type(doc_id)}")
-        return False
-
-      logger.info(
-          f"[VectorStore]: Deleting vectors for doc_id: {doc_id} (model: {model_name})")
-
-      target_collection = self.qdrant_collection
-      if model_name:
-        safe_name = sanitize_collection_name(model_name)
-        target_collection = f"vec_{safe_name}"
-
-      self.qdrant_client.delete(
-          collection_name=target_collection,
-          points_selector=models.FilterSelector(
-              filter=models.Filter(
-                  must=[
-                      models.FieldCondition(
-                          key="document_id",
-                          match=models.MatchValue(value=doc_id)
-                      )
-                  ]
-              )
-          )
-      )
-      logger.info(
-          f"[VectorStore]: Successfully deleted vectors for doc_id: {doc_id}")
-      return True
-    except Exception as e:
-      logger.exception(
-          f"[VectorStore]: Failed to delete vectors for doc_id {doc_id}: {e}")
-      return False
+    logger.info(
+      f"[VectorStore]: delete_by_doc_id called for {doc_id} - CASCADE handles this automatically")
+    return True

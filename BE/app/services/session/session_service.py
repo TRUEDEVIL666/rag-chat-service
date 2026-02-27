@@ -1,5 +1,7 @@
-from app.services.supabase.session_repository import SessionRepository
+from typing import Optional
+
 from app.services.supabase.chat_message_repository import ChatMessageRepository
+from app.services.supabase.session_repository import SessionRepository
 
 
 class SessionService:
@@ -35,3 +37,6 @@ class SessionService:
 
   async def get_chat_messages(self, session_id: str, limit: int = 50, cursor_timestamp: int = None, sort_column: str = "created_at", sort_desc: bool = True, access_token: str = None) -> list[dict]:
     return await self.chat_message_repo.get_messages_by_session(session_id, limit, cursor_timestamp, sort_column, sort_desc, access_token)
+
+  async def update_message_rating(self, message_id: str, rating: Optional[str], access_token: str = None) -> bool:
+    return await self.chat_message_repo.update_message_rating(message_id, rating, access_token)

@@ -11,7 +11,6 @@ def process_uploaded_file_celery(
     document_id: str,
     access_token: str,
     chunking_method: str = "sentence",
-    use_sparse: bool = False,
     **kwargs
 ):
   from app.core.factory import get_file_processor_service
@@ -26,7 +25,6 @@ def process_uploaded_file_celery(
       document_id=document_id,
       chunking_method=chunking_method,
       access_token=access_token,
-      use_sparse=use_sparse,
       **kwargs
   )
 
@@ -41,7 +39,6 @@ def process_update_file_celery(
     created_by: str,
     access_token: str,
     chunking_method: str = "sentence",
-    use_sparse: bool = False,
     **kwargs
 ):
   from app.core.factory import get_file_processor_service
@@ -55,6 +52,5 @@ def process_update_file_celery(
       created_by=created_by,
       chunking_method=chunking_method,
       access_token=access_token,
-      use_sparse=use_sparse,
       **kwargs
   )

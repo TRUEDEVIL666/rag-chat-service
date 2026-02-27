@@ -1,10 +1,10 @@
 
-import logging
+from app.core.logger import get_logger
 from typing import List, Optional
 from app.services.supabase.semester_repository import SemesterRepository
 from app.schemas.course import SemesterCreateRequest, SemesterResponse
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class SemesterService:

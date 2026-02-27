@@ -20,7 +20,7 @@ from app.schemas.knowledge_base import (
 )
 from app.schemas.document import DocumentListResponse, DocumentItem
 
-logger = get_logger("kb_api")
+logger = get_logger(__name__)
 router = APIRouter()
 
 
@@ -43,7 +43,7 @@ def _to_epoch(ts) -> int:
     summary="Get Knowledge Base List",
     description="Retrieves a list of knowledge bases, with options for pagination and filtering."
 )
-@cache(expire=60)
+
 async def list_knowledge_bases(
     # keyword: Optional[str] = Query(None, description="Search keyword to filter by name"),
     # tag_ids: Optional[List[str]] = Query(None, description="List of tag IDs (ALL-of filtering)"),

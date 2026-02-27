@@ -10,7 +10,6 @@ from app.helper.utils_kb import (
 )
 
 
-from app.services.indexer.vector_store import VectorRepository
 from app.services.supabase.document_repository import DocumentRepository
 from app.services.supabase.tenant_repository import TenantRepository
 
@@ -177,17 +176,7 @@ class KnowledgeBaseService:
       if file_path:
         minio_storage.delete_file(file_path)
 
-    kb_detail = await self.kb_repo.get_knowledge_base_detail(
-      kb_id, tenant_id, access_token=access_token)
-    model_name = kb_detail.get("embedding_model") if kb_detail else None
-
-    from app.core.factory import get_vector_store
-    vector_deleted = await get_vector_store().delete_by_kb(
-      kb_id, model_name=model_name)
-    if not vector_deleted:
-      pass
-
-    # 2. Delete DB Row (Cascade handles children)
+    # 1. Delete DB Row (Cascade handles graph_chunks → vectors)
     return await self.kb_repo.delete_kb(kb_id, tenant_id, access_token=access_token)
 
   async def get_total_kbs(self, tenant_id: str = None, access_token: str = None) -> int:

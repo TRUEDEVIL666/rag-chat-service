@@ -14,14 +14,14 @@ from bs4 import BeautifulSoup
 
 from llama_index.core import Document
 from docling.document_converter import DocumentConverter, PdfFormatOption
-from docling.datamodel.pipeline_options import PdfPipelineOptions, AcceleratorOptions, AcceleratorDevice
+from docling.datamodel.pipeline_options import PdfPipelineOptions, AcceleratorOptions, AcceleratorDevice, EasyOcrOptions
 from docling.datamodel.base_models import InputFormat
 
 from app.core.enums.file import FileExtension, EncodingType, ParsingConstants
 from app.core.enums.http import ErrorMessage, HttpStatus
 from app.core.logger import get_logger
 
-logger = get_logger("extractor")
+logger = get_logger(__name__)
 
 # Global singleton for DocumentConverter to avoid re-initializing models
 _docling_converter: Optional[DocumentConverter] = None
@@ -32,8 +32,8 @@ def get_docling_converter() -> DocumentConverter:
   if _docling_converter is None:
     try:
       import torch
-      # device = AcceleratorDevice.CUDA if torch.cuda.is_available() else AcceleratorDevice.CPU
-      device = AcceleratorDevice.CPU
+      device = AcceleratorDevice.CUDA if torch.cuda.is_available() else AcceleratorDevice.CPU
+      # device = AcceleratorDevice.CPU
       logger.info(f"Initializing DocumentConverter with device: {device}...")
     except ImportError:
       logger.warning("Torch not found, defaulting to CPU for Docling.")
@@ -43,6 +43,10 @@ def get_docling_converter() -> DocumentConverter:
     pipeline_options.accelerator_options = AcceleratorOptions(
         num_threads=4, device=device
     )
+    # Force EasyOCR engine and specify English and Vietnamese languages
+    pipeline_options.do_ocr = True
+    pipeline_options.ocr_options = EasyOcrOptions(lang=["en", "vi"])
+
     _docling_converter = DocumentConverter(
         format_options={
             InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
@@ -79,19 +83,26 @@ def extract_documents(file_bytes: bytes, filename: str, reader_map: dict, arg_ma
     if use_docling:
       try:
         logger.info(f"Attempting Docling extraction for {filename}")
-        converter = get_docling_converter()
-        # Docling supports file path directly
-        conv_res = converter.convert(tmp_path)
-        md_text = conv_res.document.export_to_markdown()
 
-        if md_text:
-          # Create a single document with the full text
-          docs = [Document(text=md_text, metadata={
-              "file_name": filename,
-              "file_type": ext,
-              "processing_method": "docling",
-              "reader_type": "DocumentConverter(CUDA)"
-          })]
+        # receive structural nodes with bounding boxes, headings, and page metadata.
+        from llama_index.readers.docling import DoclingReader
+
+        converter = get_docling_converter()
+        reader = DoclingReader(
+            doc_converter=converter,
+            export_type=DoclingReader.ExportType.MARKDOWN
+        )
+        docs = reader.load_data(file_path=tmp_path)
+
+        if docs:
+          for doc in docs:
+            # We add our custom RAG identifiers on top of Docling's rich structural metadata
+            doc.metadata.update({
+                "file_name": filename,
+                "file_type": ext,
+                "processing_method": "docling_reader",
+                "reader_type": "DoclingReader(CUDA)"
+            })
           _safe_remove(tmp_path)
           return docs
       except Exception as e:
@@ -134,33 +145,42 @@ def extract_documents(file_bytes: bytes, filename: str, reader_map: dict, arg_ma
 # -------------------------------------------------------------------------
 # FALLBACK EXTRACTORS
 # -------------------------------------------------------------------------
-def _extract_text_manual(file_bytes: bytes, filename: str) -> str:
+def _extract_text_manual(file_bytes: bytes, filename: str) -> List[Document]:
   """
   Dispatch manual extraction function based on file extension.
+  Always returns a List[Document] array, converting raw strings as necessary.
   """
   ext = os.path.splitext(filename.lower())[1]
+  result = None
+
   match ext:
     case FileExtension.TXT | FileExtension.MD:
-      return _extract_text_from_txt(file_bytes)
+      result = _extract_text_from_txt(file_bytes)
     case FileExtension.DOCX:
-      return _extract_text_from_docx(file_bytes)
+      result = _extract_text_from_docx(file_bytes)
     case FileExtension.CSV:
-      return _extract_text_from_csv(file_bytes)
+      result = _extract_text_from_csv(file_bytes)
     case FileExtension.JSON:
-      return _extract_text_from_json(file_bytes)
+      result = _extract_text_from_json(file_bytes)
     case FileExtension.PPTX:
-      return _extract_text_from_pptx(file_bytes)
+      result = _extract_text_from_pptx(file_bytes)
     case FileExtension.PDF:
-      return _extract_text_from_pdf(file_bytes)
+      # Native page-by-page document returns
+      return _extract_text_from_pdf(file_bytes, filename)
     case FileExtension.XLSX:
-      return _extract_text_from_xlsx(file_bytes)
+      result = _extract_text_from_xlsx(file_bytes)
     case FileExtension.HTML:
-      return _extract_text_from_html(file_bytes)
+      result = _extract_text_from_html(file_bytes)
     case _:
       raise HTTPException(
           status_code=HttpStatus.UNPROCESSABLE_ENTITY.value,
           detail=f"{ErrorMessage.UNSUPPORTED_FILE_TYPE}: {ext}"
       )
+
+  # Convert legacy string-based extractors to Document format
+  if isinstance(result, str):
+    return [Document(text=result, metadata={"file_name": filename, "processing_method": "manual", "file_type": ext})]
+  return result
 
 
 # -------------------------------------------------------------------------
@@ -279,9 +299,9 @@ def _extract_text_from_pptx(binary_pptx: bytes) -> str:
   return '\n'.join(text_parts)
 
 
-def _extract_text_from_pdf(binary_pdf: bytes) -> str:
+def _extract_text_from_pdf(binary_pdf: bytes, filename: str) -> List[Document]:
   """
-  Extract text from a PDF file using pymupdf4llm (Markdown).
+  Extract text from a PDF file using pymupdf4llm (Markdown), sliced by page to preserve metadata.
   """
   import pymupdf4llm
   import tempfile
@@ -290,8 +310,25 @@ def _extract_text_from_pdf(binary_pdf: bytes) -> str:
     tmp.write(binary_pdf)
     tmp_path = tmp.name
 
+  docs = []
   try:
-    return pymupdf4llm.to_markdown(tmp_path)
+    # to_markdown returns a list of dicts when page_chunks=True
+    pages = pymupdf4llm.to_markdown(tmp_path, page_chunks=True)
+    for page in pages:
+      text = page.get("text", "")
+      metadata = page.get("metadata", {})
+      if text.strip():
+        docs.append(Document(
+            text=text,
+            metadata={
+                "file_name": filename,
+                "file_type": ".pdf",
+                "processing_method": "manual_pymupdf",
+                "page_number": metadata.get("page", 0) + 1,  # 1-indexed
+                "source": metadata.get("title", filename)
+            }
+        ))
+    return docs
   except Exception as e:
     raise e
   finally:

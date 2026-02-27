@@ -24,6 +24,7 @@ def setup_logging():
 
   # Quiet down some noisy libraries if needed
   logging.getLogger("httpx").setLevel(logging.WARNING)
+  logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 
 def get_logger(name: str = "rag_app") -> logging.Logger:

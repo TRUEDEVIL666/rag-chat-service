@@ -12,7 +12,7 @@ from app.schemas.document import (
 
 
 router = APIRouter()
-logger = get_logger("document_api")
+logger = get_logger(__name__)
 
 
 @router.post("/", response_model=FileUploadResponse, summary="Upload New Document(s)")
@@ -34,7 +34,7 @@ async def upload_documents(
       user_id=auth["user_id"],
       access_token=auth.get("token"),
       chunking_method=request.chunking_method,
-      use_sparse=request.use_sparse,
+      enable_extraction=request.enable_extraction,
       **chunk_params
   )
 
@@ -58,7 +58,7 @@ async def update_document(
       user_id=auth["user_id"],
       access_token=auth.get("token"),
       chunking_method=request.chunking_method,
-      use_sparse=request.use_sparse,
+      enable_extraction=request.enable_extraction,
       **chunk_params
   )
 

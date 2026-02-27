@@ -6,7 +6,7 @@ from app.schemas.analytics import AnalyticsSummaryResponse
 from app.core.logger import get_logger
 from typing import Any
 
-logger = get_logger("analytics_service")
+logger = get_logger(__name__)
 
 
 class AnalyticsService:
@@ -15,14 +15,16 @@ class AnalyticsService:
       user_service: UserService,
       session_service: SessionService,
       kb_service: KnowledgeBaseService,
-      doc_repo: Any,  # Avoid circular import type hint if possible, or use simplified type
-      chat_repo: Any  # Added chat message repo
+      doc_repo: Any,
+      chat_repo: Any,
+      class_repo: Any = None
   ):
     self.user_service = user_service
     self.session_service = session_service
     self.kb_service = kb_service
     self.doc_repo = doc_repo
     self.chat_repo = chat_repo
+    self.class_repo = class_repo
 
   async def get_summary_stats(self, auth_context: dict) -> dict:
     role = auth_context.get("role")
@@ -198,15 +200,44 @@ class AnalyticsService:
           "last_active": "7+ days ago"  # formatting simplified
       })
 
-    # Active Classes - Placeholder for now until ClassRepository has analytics
-    # Returning a static "Top Classes" if real data unavailable, or empty
-    active_classes = [
-        {"name": "Physics 101", "students": 45, "queries": 120},
-        {"name": "History 202", "students": 30, "queries": 85},
-    ]
+    # Most Engaging Users - Real Data Implementation
+    top_users = []
+
+    # 1. Get Top Active User IDs from Chat Repo
+    # We fetch top 5 users based on message volume
+    active_user_stats = await self.chat_repo.get_top_active_user_ids(limit_messages=2000, access_token=access_token)
+
+    if active_user_stats:
+      user_ids = [u["user_id"] for u in active_user_stats]
+
+      # 2. Fetch User Details
+      users_details = await self.user_service.get_users_by_ids(user_ids, access_token=access_token)
+      users_map = {u["id"]: u for u in users_details}
+
+      # 3. Combine Data
+      for stat in active_user_stats:
+        uid = stat["user_id"]
+        user = users_map.get(uid)
+
+        # Fallback if user not in public.users
+        if not user:
+          user = {"id": uid, "email": None, "full_name": "Unknown Student"}
+
+        # Use name or email or fallback
+        name = user.get("full_name") or user.get("email") or "Unknown Student"
+        # Strip email domain for privacy/brevity if it's an email
+        if name and "@" in name and not user.get("full_name"):
+          name = name.split("@")[0]
+
+        top_users.append({
+            "name": name,
+            "email": user.get("email") or "No Email",
+            "queries": stat["count"],
+            "avatar": user.get("avatar_url")
+        })
 
     return {
-        "active_classes": active_classes,
+        "top_users": top_users,
         "at_risk_students": at_risk_list
     }
 

@@ -3,7 +3,7 @@ import pymupdf4llm
 from typing import Any, Dict, List, Optional, Generator
 
 from llama_index.core import Document
-from llama_index.core.schema import BaseNode, NodeRelationship
+from llama_index.core.schema import BaseNode, NodeRelationship, TextNode
 from llama_index.readers.file import (
     CSVReader, DocxReader, PDFReader, PptxReader,
     MarkdownReader, HTMLTagReader, ImageReader
@@ -14,14 +14,15 @@ from app.core.enums.file import FileExtension
 from app.core.logger import get_logger
 from app.helper.chunker import process_chunks
 from app.helper.document_extractor import extract_documents
-from app.services.indexer.embedding_service import CustomEmbedding, EmbeddingService
+from llama_index.core.base.embeddings.base import BaseEmbedding
 from app.services.indexer.vector_store import VectorRepository
 from app.services.minio.minio_storage import MinioStorage
 from app.services.supabase.document_repository import DocumentRepository
 from app.services.supabase.knowledge_base_repository import KnowledgeBaseRepository
-from app.services.supabase.metadata_repository import MetadataRepository
+from app.services.supabase.graph_chunk_repository import GraphChunkRepository
+from app.services.supabase.graph_edge_repository import GraphEdgeRepository
 
-logger = get_logger("File Processor Log")
+logger = get_logger(__name__)
 
 
 class PyMuPDFReader:
@@ -39,15 +40,17 @@ class PyMuPDFReader:
 class FileProcessor:
   def __init__(
       self,
-      meta_data_store: MetadataRepository,
+      meta_data_store: GraphChunkRepository,
       original_file_store: MinioStorage,
       document_repository: DocumentRepository,
       kb_repository: KnowledgeBaseRepository,
+      graph_edge_repository: GraphEdgeRepository = None,
   ):
-    self.meta_data_store = meta_data_store
+    self.graph_chunk_store = meta_data_store
     self.original_file_store = original_file_store
     self.document_repository = document_repository
     self.kb_repository = kb_repository
+    self.graph_edge_store = graph_edge_repository
 
     # Readers will be initialized lazily
     self._readers = {}
@@ -93,9 +96,25 @@ class FileProcessor:
 
     return reader
 
-  def _get_embedding_model(self, kb_id: str, tenant_id: str, access_token: Optional[str]) -> Optional[CustomEmbedding]:
+  def _run_async(self, coro):
+    """Helper to run async coroutines in a synchronous context."""
+    import asyncio
+    try:
+      loop = asyncio.get_event_loop()
+    except RuntimeError:
+      loop = asyncio.new_event_loop()
+      asyncio.set_event_loop(loop)
+
+    if loop.is_running():
+      import nest_asyncio
+      nest_asyncio.apply(loop)
+      return loop.run_until_complete(coro)
+    else:
+      return loop.run_until_complete(coro)
+
+  async def _get_embedding_model(self, kb_id: str, tenant_id: str, access_token: Optional[str]) -> Optional[BaseEmbedding]:
     """Resolves the correct embedding model for the Knowledge Base."""
-    kb_data = self.kb_repository.get_one(kb_id, tenant_id, access_token)
+    kb_data = await self.kb_repository.get_one(kb_id, tenant_id, access_token)
     if kb_data and kb_data.get("embedding_provider") and kb_data.get("embedding_model"):
       try:
         provider_data = kb_data["embedding_provider"]
@@ -108,36 +127,19 @@ class FileProcessor:
             model_data, list) and model_data else model_data.get("model_id")
 
         if not provider or not model:
-          return None
+          # No provider found -> default
+          from app.core.factory import get_embedding_model
+          return await get_embedding_model()
 
-        import asyncio
-        from app.core.factory import get_embedding_service
-
-        # Helper to run async factory in sync context
-        async def _fetch_service():
-          return await get_embedding_service(
-              provider=provider,
-              model=model
-          )
-
-        try:
-          loop = asyncio.get_event_loop()
-        except RuntimeError:
-          loop = None
-
-        if loop and loop.is_running():
-          # Fallback if nest_asyncio is present, or error out
-          import nest_asyncio
-          nest_asyncio.apply(loop)
-          specific_service = loop.run_until_complete(_fetch_service())
-        else:
-          specific_service = asyncio.run(_fetch_service())
-        return CustomEmbedding(specific_service, embed_batch_size=64)
+        from app.core.factory import get_embedding_model
+        return await get_embedding_model(
+            provider=provider,
+            model=model
+        )
       except Exception as e:
         logger.exception(
             f"[_get_embedding_model] Failed to parse provider/model: {e}")
         return None
-
     return None
 
   def process_file(
@@ -150,17 +152,18 @@ class FileProcessor:
       document_id: str,
       access_token: str = None,
       chunking_method: str = "sentence",
-      use_sparse: bool = False,
+      enable_extraction: bool = True,
       **kwargs
   ) -> Dict[str, Any]:
     # Create initial document record
     # Update status to learning (Document created synchronously in DocumentService)
-    self.document_repository.update_document_status(
-        document_id, "learning", access_token)
+    self._run_async(self.document_repository.update_document_status(
+        document_id, "learning", access_token))
 
     stream_response = None
     try:
-      embed_model = self._get_embedding_model(kb_id, tenant_id, access_token)
+      embed_model = self._run_async(self._get_embedding_model(
+          kb_id, tenant_id, access_token))
 
       logger.info(
           f"Starting bulk processing for {file_name} from MinIO key: {file_path}")
@@ -187,8 +190,8 @@ class FileProcessor:
 
       if not documents:
         logger.warning(f"No content extracted for {file_name}")
-        self.document_repository.update_document_status(
-            document_id, "learned", access_token)
+        self._run_async(self.document_repository.update_document_status(
+            document_id, "learned", access_token))
         return {
             "status": "success",
             "chunks_inserted": 0,
@@ -204,26 +207,48 @@ class FileProcessor:
           **kwargs
       )
 
+      # Entity Extraction
+      # TODO: We currently run this on the first few pages to avoid excessive LLM costs
+      # This can be made configurable via kwargs later
+      extracted_edges = []
+      try:
+        from app.core.factory import get_extractor_service
+        if enable_extraction:
+          entity_nodes, extracted_edges = self._extract_and_create_entity_nodes(
+            documents)
+          if entity_nodes:
+            logger.info(
+              f"Extracted {len(entity_nodes)} entity nodes and {len(extracted_edges)} edges for {file_name}")
+            chunks.extend(entity_nodes)
+      except Exception as e:
+        logger.warning(f"Entity extraction skipped/failed: {e}")
+
       if not chunks:
         logger.warning(f"No chunks generated for {file_name}")
-        self.document_repository.update_document_status(
-           document_id, "learned", access_token)
+        self._run_async(self.document_repository.update_document_status(
+           document_id, "learned", access_token))
         return {
            "status": "success",
            "chunks_inserted": 0,
            "document_id": document_id
             }
 
-      # 3. Wrap with Metadata (Bulk)
+      # 4. Wrap Chunks
       wrapped_chunks = self._wrap_chunks(
           chunks, document_id, file_path, kb_id, tenant_id)
 
-      # 4. Upsert Metadata & Vectors (Bulk)
-      self.meta_data_store.store(wrapped_chunks, access_token)
-      self._insert_to_qdrant(wrapped_chunks, embed_model, use_sparse)
+      # 5. Upsert Metadata & Vectors (Bulk)
+      self._run_async(self.graph_chunk_store.store(
+        wrapped_chunks, access_token))
+      self._upsert_vectors(wrapped_chunks, embed_model)
 
-      self.document_repository.update_document_status(
-          document_id, "learned", access_token)
+      # 5. Upsert Edges
+      if extracted_edges and self.graph_edge_store:
+        self._run_async(self.graph_edge_store.store(
+          extracted_edges, access_token))
+
+      self._run_async(self.document_repository.update_document_status(
+          document_id, "learned", access_token))
 
       return {
           "status": "success",
@@ -233,8 +258,8 @@ class FileProcessor:
       }
     except Exception as e:
       logger.exception(f"Failed to process file {file_name}: {e}")
-      self.document_repository.update_document_status(
-          document_id, "error", access_token)
+      self._run_async(self.document_repository.update_document_status(
+          document_id, "error", access_token))
       raise e
     finally:
       if stream_response:
@@ -251,19 +276,20 @@ class FileProcessor:
       created_by: str,
       access_token: str = None,
       chunking_method: str = "sentence",
-      use_sparse: bool = False,
+      enable_extraction: bool = True,
       **kwargs
   ) -> Dict[str, Any]:
     """Bulk update: process full stream, then calc diff logic."""
-    self.document_repository.update_document_status(
-        document_id, "learning", access_token)
+    self._run_async(self.document_repository.update_document_status(
+        document_id, "learning", access_token))
 
     from datetime import datetime
     # sync_start_time = datetime.utcnow().isoformat() # REMOVED: using ID-based sync
     stream_response = None
 
     try:
-      embed_model = self._get_embedding_model(kb_id, tenant_id, access_token)
+      embed_model = self._run_async(self._get_embedding_model(
+          kb_id, tenant_id, access_token))
 
       logger.info(
           f"Starting bulk update for {file_name} from MinIO key: {file_path}")
@@ -274,9 +300,9 @@ class FileProcessor:
 
       # OPTIMIZATION: Do NOT delete all existing chunks upfront.
       # We will perform a differential update using hashes.
-      existing_hashes_data = self.meta_data_store.get_hashes_by_document(
-        document_id, access_token)
-      existing_hash_map = {item['chunk_hash']: item['node_id']
+      existing_hashes_data = self._run_async(self.graph_chunk_store.get_hashes_by_document(
+        document_id, access_token))
+      existing_hash_map = {item['chunk_hash']: item['id']
                            for item in existing_hashes_data if item.get('chunk_hash')}
 
       # 2. Extract ALL
@@ -301,6 +327,19 @@ class FileProcessor:
           embed_model=embed_model,
           **kwargs
       )
+
+      # [NEW] Entity Extraction for Update
+      extracted_edges = []
+      try:
+        if enable_extraction:
+          entity_nodes, extracted_edges = self._extract_and_create_entity_nodes(
+            documents)
+          if entity_nodes:
+            logger.info(
+              f"Extracted {len(entity_nodes)} entity nodes and {len(extracted_edges)} edges for {file_name} (Update)")
+            chunks.extend(entity_nodes)
+      except Exception as e:
+        logger.warning(f"Entity extraction skipped/failed during update: {e}")
 
       wrapped_chunks = []
       chunks_to_vectorize = []
@@ -329,56 +368,53 @@ class FileProcessor:
           wc for wc in wrapped_chunks if wc.node_id in vectorize_ids]
 
         # 5. Upsert Metadata (ALL - guarantees timestamps are updated)
-        self.meta_data_store.store(wrapped_chunks, access_token)
+        self._run_async(self.graph_chunk_store.store(
+          wrapped_chunks, access_token))
 
         # 6. Upsert Vectors (ONLY NEW)
         if wrapped_chunks_to_vectorize:
           logger.info(
             f"Vectorizing {len(wrapped_chunks_to_vectorize)} new/changed chunks.")
-          self._insert_to_qdrant(
-            wrapped_chunks_to_vectorize, embed_model, use_sparse)
+          self._upsert_vectors(
+            wrapped_chunks_to_vectorize, embed_model)
         else:
           logger.info("No new chunks to vectorize.")
+
+        # Upsert Edges
+        if extracted_edges and self.graph_edge_store:
+          self._run_async(self.graph_edge_store.store(
+            extracted_edges, access_token))
 
       # 7. Sweep (Cleanup Stale)
       # This deletes anything in Supabase that wasn't included in 'wrapped_chunks' ( upserted above)
       # Robust fix using ID set difference
-      active_node_ids = [c.node_id for c in wrapped_chunks]
-      deleted_node_ids = self.meta_data_store.delete_stale_nodes(
+      active_ids = [c.node_id for c in wrapped_chunks]
+      deleted_ids = self._run_async(self.graph_chunk_store.delete_stale_nodes(
           document_id=document_id,
-          active_node_ids=active_node_ids,
+          active_ids=active_ids,
           access_token=access_token
-      )
+      ))
 
-      # 8. Sync Vector Deletion
-      logger.info(f"Deleted IDs returned from Supabase: {deleted_node_ids}")
-      if deleted_node_ids:
+      # 8. Sync Vector Deletion (CASCADE handles this automatically)
+      # Deleting from graph_chunks cascades to vectors.* tables
+      if deleted_ids:
         logger.info(
-          f"Syncing deletion of {len(deleted_node_ids)} stale vectors.")
-        # Get model name for vector deletion
-        kb_data = self.kb_repository.get_one(kb_id, tenant_id, access_token)
-        model_data = kb_data.get("embedding_model") if kb_data else None
-        model_name = model_data.get("model_id") if isinstance(
-            model_data, dict) else model_data
+          f"Deleted {len(deleted_ids)} stale chunks (CASCADE auto-deleted vectors)")
 
-        from app.core.factory import get_vector_store
-        # Use FAST O(1) delete_points_by_ids since IDs now match
-        get_vector_store().delete_points_by_ids(deleted_node_ids, model_name)
-
-      self.document_repository.update_document_status(
-          document_id, "learned", access_token)
+      self._run_async(self.document_repository.update_document_status(
+          document_id, "learned", access_token))
 
       return {
           "status": "success",
-          "chunks_deleted": len(deleted_node_ids),
+          "chunks_deleted": len(deleted_ids),
           "chunks_added": len(wrapped_chunks),  # Total active chunks
           "chunks_vectorized": len(chunks_to_vectorize),
           "document_id": document_id
       }
     except Exception as e:
       logger.exception(f"Failed to update document {document_id}: {e}")
-      self.document_repository.update_document_status(
-          document_id, "error", access_token)
+      self._run_async(self.document_repository.update_document_status(
+          document_id, "error", access_token))
       raise e
     finally:
       if stream_response:
@@ -411,7 +447,6 @@ class FileProcessor:
           "file_path": file_path,
           "kb_id": kb_id,
           "tenant_id": tenant_id,
-          "node_id": node_id,
       }
 
       if parent_id:
@@ -426,12 +461,89 @@ class FileProcessor:
 
     return wrapped_chunks
 
-  def _insert_to_qdrant(self, documents: List[Document], embed_model: CustomEmbedding = None, use_sparse: bool = True):
-    """Insert documents (chunks) into Qdrant vector store."""
+  def _upsert_vectors(self, documents: List[Document], embed_model: BaseEmbedding = None):
+    """Upsert document vectors into Supabase vector store."""
     from app.core.factory import get_vector_store
-    get_vector_store().upsert_documents(
-      documents, embed_model, use_sparse)
+    get_vector_store().upsert_documents(documents, embed_model)
 
-  def _upload_original_file(self, file_bytes: bytes, filename: str) -> str:
-    """Upload the original document to MinIO and return its storage path."""
-    return self.original_file_store.upload_file(file_bytes, filename)
+  def _extract_and_create_entity_nodes(self, documents: List[Document]) -> tuple[List[TextNode], List[Dict]]:
+    """
+    Extracts entities and relationships from the documents using ExtractorService.
+    Currently processes a subset of text to avoid context limits.
+    Returns (entity_nodes, edges)
+    """
+    from app.core.factory import get_extractor_service
+
+    extractor = get_extractor_service()
+    entity_nodes = []
+    edges = []
+
+    # Simple strategy: Join first few pages (approx 5)
+    subset_docs = documents[:5]
+    full_text = "\n\n".join([d.text for d in subset_docs])
+
+    if not full_text.strip():
+      return [], []
+
+    try:
+      extractions = extractor.extract(full_text)
+
+      entity_map = {}
+
+      # 1. Process Entities
+      if extractions:
+        for entity in extractions:
+          name = entity.extraction_text
+          etype = entity.extraction_class
+
+          if etype == "Relationship":
+            continue
+
+          # Create a meaningful text representation for embedding/search
+          node_text = f"{name} ({etype})"
+
+          node = TextNode(
+              text=node_text,
+              metadata={
+                  "type": "entity",
+                  "entity_name": name,
+                  "entity_type": etype,
+                  "extraction_source": "llm",
+                  "included_in_graph": True
+              }
+          )
+          entity_nodes.append(node)
+          entity_map[name.lower()] = node
+
+        # 2. Process Relationships
+        for entity in extractions:
+          etype = entity.extraction_class
+
+          if etype == "Relationship":
+            rel_text = entity.extraction_text
+            parts = [p.strip() for p in rel_text.split("||")]
+
+            if len(parts) == 3:
+              source, relation, target = parts
+              source_lower = source.lower()
+              target_lower = target.lower()
+
+              if source_lower in entity_map and target_lower in entity_map:
+                source_node = entity_map[source_lower]
+                target_node = entity_map[target_lower]
+
+                edge = {
+                    "source_chunk_id": source_node.node_id,
+                    "target_chunk_id": target_node.node_id,
+                    "relationship_type": relation,
+                    "properties": {
+                        "source_text": rel_text,
+                        "extraction_source": "llm"
+                    }
+                }
+                edges.append(edge)
+
+    except Exception as e:
+      logger.error(f"Detailed extraction failed: {e}")
+
+    return entity_nodes, edges

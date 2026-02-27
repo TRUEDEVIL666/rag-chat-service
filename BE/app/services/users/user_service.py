@@ -18,3 +18,6 @@ class UserService:
 
   async def get_total_users(self, access_token: str = None) -> int:
     return await self.user_repo.get_total_users(access_token)
+
+  async def get_users_by_ids(self, user_ids: list[str], access_token: str = None) -> list[dict]:
+    return await self.user_repo.get_users_by_ids(user_ids, access_token)

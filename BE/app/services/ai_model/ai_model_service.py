@@ -2,13 +2,13 @@ from typing import List, Dict, Any, Optional
 from app.schemas.ai_model import AiModelCreate, AiModelUpdate
 from app.config.config import settings
 from app.services.supabase.ai_model_repository import AiModelRepository
-import logging
+from app.core.logger import get_logger
 import httpx
 import json
 import openai
 from google import genai
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class AiModelService:

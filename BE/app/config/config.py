@@ -15,10 +15,6 @@ class Settings(BaseSettings):
   SUPABASE_URL: str = ""
   SUPABASE_KEY: str = ""
 
-  QDRANT_HOST: str = "localhost"
-  QDRANT_PORT: int = 6333
-  QDRANT_COLLECTION: str = "rag_collection"
-
   # ------------------
   # STORAGE
   # ------------------
@@ -42,8 +38,14 @@ class Settings(BaseSettings):
   # ------------------
   # OLLAMA DEFAULTS
   # ------------------
-  OLLAMA_URL: str = "http://localhost:11434/api"
-  OLLAMA_EMBEDDING_API_URL: str = "http://localhost:11434/api/embed"
+  OLLAMA_EMBEDDING_API_URL: str = "http://localhost:11434"
+
+  # ------------------
+  # EXTRACTION LLM
+  # ------------------
+  EXTRACTION_LLM_HOST: str = "http://localhost:11434"
+  # Requires tool calling support if using tools, but langextract handles json mode too
+  EXTRACTION_LLM_MODEL: str = "gemma3:4b"
 
   # ------------------
   # APP SETTINGS

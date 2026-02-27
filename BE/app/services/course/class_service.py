@@ -1,11 +1,11 @@
-import logging
+from app.core.logger import get_logger
 from typing import List, Optional
 
 from app.schemas.course import ClassCreateRequest, ClassResponse
 from app.services.supabase.class_repository import ClassRepository
 from app.services.supabase.document_repository import DocumentRepository
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class ClassService:

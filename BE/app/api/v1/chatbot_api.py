@@ -88,39 +88,32 @@ async def ask_bot(
   user_id = auth["user_id"]
 
   try:
-    if request.streaming:
-      # Prepare stream immediately to catch initialization errors (e.g. 404 Session Not Found)
-      stream_generator, new_session_id = await chat_service.ask_bot_stream(
-          bot_id=str(req.bot_id),
-          query=request.message,
-          tenant_id=tenant_id,
-          user_id=user_id,
-          session_id=req.session_id,
-          access_token=auth.get("token"),
-          quiz_mode=request.quiz_mode,
-      )
+    # Use unified ask_bot method with stream parameter
+    result, new_session_id = await chat_service.ask_bot(
+        bot_id=str(req.bot_id),
+        query=request.message,
+        tenant_id=tenant_id,
+        user_id=user_id,
+        session_id=req.session_id,
+        access_token=auth.get("token"),
+        quiz_mode=request.quiz_mode,
+        stream=request.streaming  # ← New parameter
+    )
 
+    if request.streaming:
+      # result is an AsyncGenerator
       async def token_stream():
         # Yield session_id event first so client knows the session
         yield f"data: {json.dumps({'session_id': new_session_id})}\n\n"
 
-        async for chunk in stream_generator:
+        async for chunk in result:
           if chunk:
             yield f"data: {json.dumps({'response': chunk})}\n\n"
         yield "data: [DONE]\n\n"
 
       return StreamingResponse(token_stream(), media_type="text/event-stream")
     else:
-      response, new_session_id = await chat_service.ask_bot(
-          bot_id=str(req.bot_id),
-          query=request.message,
-          tenant_id=tenant_id,
-          user_id=user_id,
-          session_id=req.session_id,
-          access_token=auth.get("token"),
-          quiz_mode=request.quiz_mode,
-      )
-      return BotAskResponse(answer=response, session_id=new_session_id)
+      return BotAskResponse(answer=result, session_id=new_session_id)
 
   except ValueError as ve:
     raise HTTPException(status_code=404, detail=str(ve))

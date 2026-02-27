@@ -1,6 +1,6 @@
 
 import asyncio
-import logging
+from app.core.logger import get_logger
 from datetime import datetime
 from typing import AsyncGenerator, Dict, List, Optional, Tuple, Any, Union
 from enum import Enum
@@ -15,7 +15,7 @@ from app.schemas.llm import LLMConfig
 from app.services.supabase.bot_repository import BotRepository
 from app.services.supabase.session_repository import SessionRepository
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class BotService:

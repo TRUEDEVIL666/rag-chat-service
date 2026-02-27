@@ -2,7 +2,7 @@ from app.schemas.common import MessageResponse
 from app.schemas.common_params import PaginationParams
 from app.schemas.session import (
     SessionResponse, SessionListRequest, SessionIdRequest,
-    ChatMessageListResponse, SessionMessagesRequest
+    ChatMessageListResponse, SessionMessagesRequest, MessageRatingRequest
 )
 from fastapi_cache import FastAPICache
 from fastapi_cache.decorator import cache
@@ -108,5 +108,27 @@ async def delete_session(
         status_code=404, detail="Session not found or failed to delete")
 
     return {"message": "Session deleted successfully"}
+  except Exception as e:
+    raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/messages/{message_id}/rate", summary="Rate a chat message", response_model=MessageResponse)
+async def rate_message(
+    message_id: str,
+    req: MessageRatingRequest,
+    session_service: SessionService = Depends(get_session_service),
+    auth: dict = Depends(get_current_user)
+):
+  try:
+    success = await session_service.update_message_rating(
+        message_id,
+        req.rating,
+        access_token=auth["token"]
+    )
+    if not success:
+      raise HTTPException(
+          status_code=404, detail="Message not found or failed to update rating")
+
+    return MessageResponse(message="Rating updated successfully")
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))

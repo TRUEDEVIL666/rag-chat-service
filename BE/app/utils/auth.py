@@ -6,7 +6,7 @@ from app.config.config import settings
 from app.core.logger import get_logger
 
 
-logger = get_logger("auth")
+logger = get_logger(__name__)
 security = HTTPBearer()
 
 

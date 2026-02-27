@@ -9,7 +9,7 @@ from minio.error import S3Error
 from app.services.minio.minio_client import minio_client
 from app.core.logger import get_logger
 
-logger = get_logger("minio")
+logger = get_logger(__name__)
 
 
 class MinioStorage:
@@ -24,26 +24,7 @@ class MinioStorage:
     else:
       logger.debug(f"MinIO bucket already exists: {self.bucket_name}")
 
-  def upload_file(self, file_bytes: bytes, filename: str, custom_path: str = None) -> str:
-    file_ext = Path(filename).suffix
-    if custom_path:
-      unique_key = custom_path
-    else:
-      unique_key = f"{datetime.utcnow().strftime('%Y%m%d')}/{uuid4().hex}{file_ext}"
-
-    minio_client.put_object(
-        bucket_name=self.bucket_name,
-        object_name=unique_key,
-        data=io.BytesIO(file_bytes),
-        length=len(file_bytes),
-        content_type="application/octet-stream"
-    )
-
-    logger.info(
-      f"Uploaded file '{filename}' to MinIO at: {self.bucket_name}/{unique_key}")
-    return f"{self.bucket_name}/{unique_key}"
-
-  def upload_stream(self, file_stream, length: int, filename: str, content_type: str = "application/octet-stream", custom_path: str = None) -> str:
+  def stream_upload(self, file_stream, length: int, filename: str, content_type: str = "application/octet-stream", custom_path: str = None) -> str:
     """Upload a file stream to MinIO."""
     file_ext = Path(filename).suffix
     if custom_path:

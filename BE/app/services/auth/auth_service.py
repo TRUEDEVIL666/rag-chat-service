@@ -8,7 +8,7 @@ from app.config.config import settings
 from app.core.logger import get_logger
 from app.services.supabase.supabase_client import get_async_supabase_client
 
-logger = get_logger("auth_service")
+logger = get_logger(__name__)
 
 tenant_repo = TenantRepository()
 user_repo = UserRepository()

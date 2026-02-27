@@ -9,7 +9,7 @@ import asyncio
 from app.core.logger import get_logger
 from app.config.celery import celery_app
 from app.services.supabase.document_repository import DocumentRepository
-from app.services.supabase.metadata_repository import MetadataRepository
+from app.services.supabase.graph_chunk_repository import GraphChunkRepository
 from app.services.supabase.knowledge_base_repository import KnowledgeBaseRepository
 from app.services.indexer.vector_store import VectorRepository
 from app.services.minio.minio_storage import MinioStorage
@@ -18,7 +18,7 @@ from app.task.file_processor_worker import (
     process_update_file_celery
 )
 
-logger = get_logger("document_service")
+logger = get_logger(__name__)
 
 
 class DocumentService:
@@ -26,12 +26,12 @@ class DocumentService:
       self,
       doc_repo: DocumentRepository,
       minio_storage: MinioStorage,
-      metadata_repo: MetadataRepository,
+      graph_chunk_repo: GraphChunkRepository,
       kb_repo: KnowledgeBaseRepository
   ):
     self.doc_repo = doc_repo
     self.minio_storage = minio_storage
-    self.metadata_repo = metadata_repo
+    self.graph_chunk_repo = graph_chunk_repo
     self.kb_repo = kb_repo
 
   async def upload_documents(
@@ -42,7 +42,7 @@ class DocumentService:
       user_id: str,
       access_token: str = None,
       chunking_method: str = "sentence",
-      use_sparse: bool = False,
+      enable_extraction: bool = True,
       **kwargs
   ) -> Dict[str, Any]:
     """
@@ -82,7 +82,7 @@ class DocumentService:
       async with semaphore:
         return await self._process_single_upload(
             file, kb_id, tenant_id, user_id, access_token,
-            chunking_method, use_sparse, **kwargs
+            chunking_method, enable_extraction=enable_extraction, **kwargs
         )
 
     results = await asyncio.gather(*[_bounded_process(file) for file in files])
@@ -100,7 +100,7 @@ class DocumentService:
       user_id: str,
       access_token: str,
       chunking_method: str,
-      use_sparse: bool = False,
+      enable_extraction: bool = True,
       **kwargs
   ) -> Dict[str, Any]:
     """
@@ -137,7 +137,7 @@ class DocumentService:
         file_path = await loop.run_in_executor(
             None,
             partial(
-                self.minio_storage.upload_stream,
+                self.minio_storage.stream_upload,
                 file.file,
                 file_size,
                 file.filename,
@@ -158,7 +158,7 @@ class DocumentService:
             created_by=user_id,
             access_token=access_token,
             chunking_method=chunking_method,
-            use_sparse=use_sparse,
+            enable_extraction=enable_extraction,
             **kwargs
         )
         return {
@@ -200,7 +200,7 @@ class DocumentService:
           file_path = await loop.run_in_executor(
               None,
               partial(
-                  self.minio_storage.upload_stream,
+                  self.minio_storage.stream_upload,
                   file.file,
                   file_size,
                   file.filename,
@@ -223,7 +223,7 @@ class DocumentService:
               new_doc_id,
               access_token,
               chunking_method,
-              use_sparse,
+              enable_extraction=enable_extraction,
               **kwargs
           )
 
@@ -260,7 +260,7 @@ class DocumentService:
       user_id: str,
       access_token: str = None,
       chunking_method: str = "sentence",
-      use_sparse: bool = False,
+      enable_extraction: bool = True,
       **kwargs
   ) -> Dict[str, Any]:
     """
@@ -290,7 +290,7 @@ class DocumentService:
       file_path = await loop.run_in_executor(
           None,
           partial(
-              self.minio_storage.upload_stream,
+              self.minio_storage.stream_upload,
               file.file,
               file_size,
               file.filename,
@@ -313,7 +313,7 @@ class DocumentService:
           created_by=user_id,
           access_token=access_token,
           chunking_method=chunking_method,
-          use_sparse=use_sparse,
+          enable_extraction=enable_extraction,
           **kwargs
       )
 
@@ -460,8 +460,7 @@ class DocumentService:
         created_by=document.get("created_by"),
         document_id=document_id,
         access_token=access_token,
-        chunking_method="sentence",  # Default or generic
-        use_sparse=False,  # Default
+        chunking_method="sentence",  # Default
         # **kwargs # We might be missing original kwargs
     )
 
