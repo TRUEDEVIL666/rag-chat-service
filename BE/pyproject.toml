@@ -15,7 +15,6 @@ dependencies = [
     "llama-index-readers-docling==0.3.3",
     "llama-index-readers-file==0.4.9",
     "llama-index-readers-json==0.3.0",
-    "llama-index-vector-stores-qdrant==0.6.1",
     "minio==7.2.15",
     "passlib==1.7.4",
     "pydantic-settings==2.11.0",
@@ -24,7 +23,6 @@ dependencies = [
     "supabase==2.16.0",
     "uvicorn==0.35.0",
     "langchain-text-splitters>=1.0.0",
-    "qdrant-client>=1.11.0",
     "python-pptx>=1.0.2",
     "cachetools>=6.2.2",
     "tiktoken>=0.12.0",
@@ -41,7 +39,6 @@ dependencies = [
     "fastapi-limiter>=0.1.6",
     "redis>=5.0.0",
     "sentence-transformers>=5.2.0",
-    "fastembed>=0.7.4",
     "tenacity>=8.5.0",
     "ijson>=3.4.0.post0",
     "torch==2.6.0",
@@ -61,6 +58,12 @@ dependencies = [
     "langchain-community>=0.4.1",
     "duckduckgo-search<7.0.0",
     "ddgs>=9.10.0",
+    "langgraph>=1.0.7",
+    "langextract>=1.1.1",
+    "llama-index-embeddings-langchain>=0.3.0",
+    "pymupdf-layout>=1.27.1",
+    "onnxruntime-gpu>=1.24.2",
+    "easyocr>=1.7.2",
 ]
 
 [tool.setuptools]

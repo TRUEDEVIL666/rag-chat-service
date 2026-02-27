@@ -6,6 +6,14 @@ If you just downloaded this project, follow the steps below to get it running.
 
 ---
 
+| Service                          | URL                                                                | Default Creds               |
+| :------------------------------- | :----------------------------------------------------------------- | :-------------------------- |
+| **Frontend UI**                  | [http://localhost:3000](http://localhost:3000)                     | -                           |
+| **Backend API Docs**             | [http://localhost:8000/docs](http://localhost:8000/docs)           | -                           |
+| **MinIO Console** (Storage)      | [http://localhost:9001](http://localhost:9001)                     | `minioadmin` / `minioadmin` |
+| **Qdrant Dashboard** (Vector DB) | [http://localhost:6333/dashboard](http://localhost:6333/dashboard) | -                           |
+| **RabbitMQ** (Queue)             | [http://localhost:15672](http://localhost:15672)                   | `guest` / `guest`           |
+
 ## 🚀 Quick Start Guide
 
 ### 1. Prerequisites
