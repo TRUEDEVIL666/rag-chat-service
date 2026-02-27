@@ -2,9 +2,9 @@ from app.services.supabase.supabase_client import get_async_supabase_client
 from app.schemas.bot import BotCreateRequest, BotUpdateConfigRequest
 from datetime import datetime
 from uuid import uuid4
-import logging
+from app.core.logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class BotRepository:

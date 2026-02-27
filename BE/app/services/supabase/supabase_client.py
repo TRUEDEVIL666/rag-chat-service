@@ -1,12 +1,12 @@
 from app.config.config import settings
 from supabase import create_async_client, AsyncClient
-from supabase.lib.client_options import ClientOptions
+from supabase.lib.client_options import AsyncClientOptions
 
 if not settings.SUPABASE_URL or not settings.SUPABASE_KEY:
   raise Exception("Supabase credentials not found in environment variables.")
 
 # Set a long timeout for Edge Functions (5 minutes) to handle batch operations
-client_options = ClientOptions(function_client_timeout=300)
+client_options = AsyncClientOptions(function_client_timeout=300)
 
 _async_supabase: AsyncClient = None
 

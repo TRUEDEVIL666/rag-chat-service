@@ -1,9 +1,9 @@
 from typing import Optional, List, Any, Dict
 from app.services.supabase.supabase_client import get_async_supabase_client
 from app.schemas.course import SemesterCreateRequest
-import logging
+from app.core.logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class SemesterRepository:

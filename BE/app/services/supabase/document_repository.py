@@ -3,7 +3,7 @@ from uuid import UUID
 from app.services.supabase.supabase_client import get_async_supabase_client
 from app.core.logger import get_logger
 
-logger = get_logger("document_repository")
+logger = get_logger(__name__)
 
 
 class DocumentRepository:

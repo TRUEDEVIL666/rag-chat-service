@@ -98,4 +98,4 @@ class BotUpdateConfigIdRequest(BaseModel):
 
 class BotAskIdRequest(BaseModel):
   bot_id: Annotated[UUID, Path(description="Bot ID")]
-  session_id: Optional[str] = None
+  session_id: Annotated[Optional[str], Path(description="Session ID")] = None

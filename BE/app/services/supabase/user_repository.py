@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional, TYPE_CHECKING
 if TYPE_CHECKING:
   from app.schemas.common_params import UserSearchParams
 
-logger = get_logger("user_repository")
+logger = get_logger(__name__)
 
 
 class UserRepository:
@@ -111,6 +111,17 @@ class UserRepository:
       raise RuntimeError(
         f"Failed to get user details from public.users for user_id: {user_id}")
 
+  async def get_users_by_ids(self, user_ids: list[str], access_token: str = None) -> list[dict]:
+    try:
+      if not user_ids:
+        return []
+      client = await get_async_supabase_client(access_token)
+      response = await client.table(self.table_name).select("*").in_("id", user_ids).execute()
+      return response.data or []
+    except Exception as e:
+      logger.error(f"Failed to get users by ids: {e}")
+      return []
+
   async def get_total_users(self, access_token: str = None) -> int:
     try:
       client = await get_async_supabase_client(access_token)
@@ -127,15 +138,6 @@ class UserRepository:
       from datetime import datetime, timedelta, timezone
 
       cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_threshold)
-
-      # Assuming 'last_sign_in_at' or 'updated_at' is used for activity tracking
-      # If last_sign_in_at is in auth.users and not public.users, we might need a different approach
-      # or rely on updated_at/created_at if last_sign_in_at is not synced.
-      # For now, we'll try to query 'last_sign_in_at' if it exists, or fallback to 'created_at' for demo
-
-      # ideally public.users should have last_sign_in_at synced from auth.users traces
-      # Query: "active" means they logged in recently. "At risk" means last_login < cutoff
-
       response = await client.table(self.table_name).select(
         "*").lt("last_sign_in_at", cutoff_date.isoformat()).limit(10).execute()
 

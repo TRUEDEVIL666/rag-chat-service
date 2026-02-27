@@ -1,7 +1,7 @@
 from app.services.supabase.supabase_client import get_async_supabase_client
-import logging
+from app.core.logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class AiModelRepository:

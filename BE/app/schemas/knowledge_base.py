@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from uuid import UUID
 
@@ -40,7 +40,7 @@ class RetrievalModel(BaseModel):
 
 class KnowledgeBaseInput(BaseModel):
   name: str
-  description: str
+  description: str = Field(..., min_length=1)
   indexing_technique: Optional[str] = None
   permission: Optional[str] = None
   embedding_provider_id: Optional[UUID] = None

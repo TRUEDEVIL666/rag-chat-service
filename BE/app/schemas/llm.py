@@ -9,7 +9,6 @@ class LLMConfig(BaseModel):
   api_key: Optional[str] = None
   base_url: Optional[str] = None
   provider: str
-  tool_choice: Optional[str] = None
 
 
 class QueryRefinement(BaseModel):
@@ -19,3 +18,7 @@ class QueryRefinement(BaseModel):
 
 class KbRoutingOutput(BaseModel):
   kb_ids: list[str]
+
+
+class HallucinationGrade(BaseModel):
+  score: bool

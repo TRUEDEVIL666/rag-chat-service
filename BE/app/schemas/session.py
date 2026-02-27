@@ -64,6 +64,7 @@ class ChatMessageResponse(BaseModel):
   role: str
   created_at: datetime
   sender_id: Optional[UUID] = None
+  rating: Optional[str] = None
 
 
 class ChatMessageListResponse(BaseModel):
@@ -75,3 +76,8 @@ class ChatMessageListResponse(BaseModel):
 
 class SessionMessagesRequest(BaseModel):
   session_id: Annotated[UUID, Path(description="Session ID")]
+
+
+class MessageRatingRequest(BaseModel):
+  rating: Optional[str] = Field(
+    None, description="Rating type: 'thumbs_up', 'thumbs_down', or None to clear")

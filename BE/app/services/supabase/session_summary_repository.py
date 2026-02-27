@@ -2,7 +2,7 @@ from typing import Optional
 from app.services.supabase.supabase_client import get_async_supabase_client
 from app.core.logger import get_logger
 
-logger = get_logger("session_summary_repository")
+logger = get_logger(__name__)
 
 
 class SessionSummaryRepository:

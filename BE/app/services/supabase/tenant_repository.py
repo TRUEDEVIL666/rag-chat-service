@@ -4,7 +4,7 @@ from app.services.supabase.supabase_client import get_async_supabase_client
 from app.core.logger import get_logger
 from datetime import datetime
 
-logger = get_logger("tenant_repository")
+logger = get_logger(__name__)
 
 
 class TenantRepository:

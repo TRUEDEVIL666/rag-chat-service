@@ -5,7 +5,7 @@ from app.services.supabase.supabase_client import get_async_supabase_client
 from app.core.logger import get_logger
 from typing import Any, Dict, Optional, List, Tuple
 
-logger = get_logger("knowledge_base_repository")
+logger = get_logger(__name__)
 
 
 class KnowledgeBaseRepository:
