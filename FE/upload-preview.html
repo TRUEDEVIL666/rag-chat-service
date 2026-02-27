@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Upload Document - Existing UI Match</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            primary: {
+              50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd',
+              400: '#60a5fa', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8',
+              800: '#1e40af', 900: '#1e3a8a', 950: '#172554',
+            },
+            amber: {
+              50: '#fffbeb', 100: '#fef3c7', 200: '#fde68a', 300: '#fcd34d',
+              400: '#fbbf24', 500: '#f59e0b', 600: '#d97706', 700: '#b45309',
+              800: '#92400e', 900: '#78350f', 950: '#451a03',
+            },
+            dark: {
+              bg: '#111827', surface: '#1f2937', border: '#374151',
+            }
+          },
+          fontFamily: {
+            sans: ['"Be Vietnam Pro"', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap');
+
+    body {
+      font-family: 'Be Vietnam Pro', sans-serif;
+    }
+
+    /* Toggle Switch */
+    .toggle-checkbox:checked {
+      right: 0;
+      border-color: #2563eb;
+    }
+
+    .toggle-checkbox:checked+.toggle-label {
+      background-color: #2563eb;
+    }
+
+    .toggle-checkbox:checked+.toggle-label:after {
+      transform: translateX(100%);
+      border-color: white;
+    }
+  </style>
+</head>
+
+<body class="bg-slate-50 dark:bg-dark-bg text-gray-900 dark:text-gray-100 min-h-screen">
+
+  <!-- Mock Admin Sidebar & Topbar Context (Simplified for visual context) -->
+  <div class="flex h-screen overflow-hidden">
+    <!-- Sidebar -->
+    <aside
+      class="w-64 bg-white dark:bg-dark-surface border-r border-gray-200 dark:border-dark-border hidden md:flex flex-col">
+      <div
+        class="h-16 flex items-center px-6 border-b border-gray-200 dark:border-dark-border font-bold text-lg text-primary-600">
+        RAG Admin
+      </div>
+      <div class="p-4 space-y-2">
+        <div class="px-4 py-2 text-sm text-gray-500 font-semibold">MENU</div>
+        <div
+          class="px-4 py-2 bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 font-medium rounded-lg">
+          Knowledge Bases
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <div class="flex-1 flex flex-col relative">
+      <!-- Topbar -->
+      <header
+        class="h-16 bg-white dark:bg-dark-surface border-b border-gray-200 dark:border-dark-border flex items-center justify-between px-6 z-10 w-full">
+        <h2 class="font-semibold text-lg">Upload Documents</h2>
+        <div class="flex items-center gap-4">
+          <button onclick="document.documentElement.classList.toggle('dark')"
+            class="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700">
+            Toggle Dark Mode
+          </button>
+        </div>
+      </header>
+
+      <!-- Page Content -->
+      <main class="flex-1 overflow-y-auto p-6 lg:p-10">
+
+        <div class="max-w-5xl mx-auto">
+
+          <!-- Back button & Header context -->
+          <div class="mb-8 flex items-center gap-4">
+            <button
+              class="p-2 border border-gray-200 dark:border-dark-border rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors bg-white dark:bg-dark-surface">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18">
+                </path>
+              </svg>
+            </button>
+            <div>
+              <h1 class="text-2xl font-bold">New Data Ingestion</h1>
+              <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Upload files to extract text and configure
+                chunking methods.</p>
+            </div>
+          </div>
+
+          <!-- Main Form Card -->
+          <div
+            class="bg-white dark:bg-dark-surface rounded-2xl shadow-sm border border-gray-200 dark:border-dark-border overflow-hidden p-8 space-y-10">
+
+            <!-- SECTION 1: Target Knowledge Base -->
+            <div>
+              <label
+                class="block text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-3">Target
+                Knowledge Base</label>
+              <div class="flex flex-col sm:flex-row gap-4">
+                <select
+                  class="flex-1 p-3.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:ring-2 focus:ring-primary-500/50 appearance-none font-medium text-gray-800 dark:text-gray-100 cursor-pointer">
+                  <option>Default Knowledge Base</option>
+                  <option>HR Policy Engine Docs</option>
+                  <option>Project Apollo Internal</option>
+                </select>
+                <div
+                  class="flex items-center gap-2 px-4 py-3 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/50 rounded-xl text-amber-700 dark:text-amber-500 text-sm font-medium">
+                  <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                  </svg>
+                  Model: text-embedding-3-small
+                </div>
+              </div>
+            </div>
+
+            <hr class="border-gray-100 dark:border-gray-800">
+
+            <!-- SECTION 2: Processing Settings (Side by Side) -->
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
+
+              <!-- Left: Entity Extraction -->
+              <div
+                class="md:col-span-5 bg-gray-50 dark:bg-gray-800/50 p-5 border border-gray-200 dark:border-gray-700 rounded-xl h-full">
+                <div class="flex items-start justify-between mb-2">
+                  <label class="text-sm font-bold text-gray-800 dark:text-gray-200 uppercase tracking-wide">Entity
+                    Extraction</label>
+
+                  <!-- CSS Toggle Switch -->
+                  <div
+                    class="relative inline-block w-12 align-middle select-none transition duration-200 ease-in mt-0.5">
+                    <input type="checkbox" name="toggle" id="toggle"
+                      class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer z-10 top-0 left-0 border-gray-300 dark:border-gray-500 transition-all duration-300" />
+                    <label for="toggle"
+                      class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 dark:bg-gray-600 cursor-pointer transition-colors duration-300"></label>
+                  </div>
+                </div>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-2 leading-relaxed">
+                  Run the document through the LangExtract pipeline to automatically index Named Entities (Locations,
+                  Persons, Organizations).
+                </p>
+              </div>
+
+              <!-- Right: Chunking Settings -->
+              <div class="md:col-span-7 space-y-4">
+                <div class="flex justify-between items-center mb-1">
+                  <label
+                    class="block text-sm font-bold text-gray-800 dark:text-gray-200 uppercase tracking-wide">Chunking
+                    Strategy</label>
+                </div>
+
+                <select
+                  class="w-full p-3.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:ring-2 focus:ring-primary-500/50 appearance-none font-medium cursor-pointer">
+                  <option>Sentence Splitter</option>
+                  <option>Recursive Text Splitter</option>
+                  <option>Semantic Text Splitter</option>
+                </select>
+
+                <div class="grid grid-cols-2 gap-4 mt-4">
+                  <div>
+                    <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">Chunk Size</label>
+                    <input type="number" value="1000"
+                      class="w-full p-3 bg-white dark:bg-dark-bg border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-primary-500/50 outline-none transition-colors">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">Chunk
+                      Overlap</label>
+                    <input type="number" value="200"
+                      class="w-full p-3 bg-white dark:bg-dark-bg border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-primary-500/50 outline-none transition-colors">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <hr class="border-gray-100 dark:border-gray-800">
+
+            <!-- SECTION 3: Content Upload & Preview -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+
+              <!-- Upload Dropzone -->
+              <div class="flex flex-col">
+                <label
+                  class="block text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-3">Payload
+                  Files</label>
+                <div
+                  class="flex-1 bg-gray-50 dark:bg-gray-800/30 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-2xl flex flex-col items-center justify-center p-8 text-center cursor-pointer hover:bg-primary-50 dark:hover:bg-primary-900/10 hover:border-primary-400 transition-colors min-h-[350px]">
+                  <div
+                    class="w-16 h-16 bg-white dark:bg-gray-800 shadow-sm rounded-full flex items-center justify-center text-primary-500 mb-4">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12">
+                      </path>
+                    </svg>
+                  </div>
+                  <h3 class="text-base font-bold mb-1">Upload Documents</h3>
+                  <p class="text-xs text-gray-500 px-4">Drag and drop files here, or click to browse. Supported formats:
+                    PDF, DOCX, TXT.</p>
+                </div>
+              </div>
+
+              <!-- Preview Visualization -->
+              <div class="flex flex-col">
+                <label
+                  class="block text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-3 flex justify-between items-center">
+                  Live Preview
+                  <span
+                    class="bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 px-2 py-0.5 rounded text-[10px] font-bold">SENTENCE</span>
+                </label>
+                <div
+                  class="flex-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl overflow-hidden flex flex-col min-h-[350px]">
+
+                  <div class="p-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 flex gap-2">
+                    <div class="w-3 h-3 rounded-full bg-gray-300 dark:bg-gray-600"></div>
+                    <div class="w-3 h-3 rounded-full bg-gray-300 dark:bg-gray-600"></div>
+                    <div class="w-3 h-3 rounded-full bg-gray-300 dark:bg-gray-600"></div>
+                  </div>
+
+                  <div class="p-5 overflow-y-auto max-h-[350px] space-y-4">
+                    <!-- Sample Chunks -->
+                    <div
+                      class="p-4 bg-primary-50 dark:bg-primary-900/10 border border-primary-100 dark:border-primary-800/50 rounded-xl text-sm text-primary-900 dark:text-primary-100 leading-relaxed shadow-sm">
+                      <div class="flex justify-between items-center mb-2">
+                        <span class="text-xs font-bold bg-primary-600 text-white px-2 py-0.5 rounded shadow-sm">CHUNK
+                          1</span>
+                        <span class="text-xs text-gray-500 font-medium">324 chars</span>
+                      </div>
+                      "The architecture consists of three primary modules designed to handle concurrent data ingestion
+                      seamlessly."
+                    </div>
+                    <div
+                      class="p-4 bg-primary-50 dark:bg-primary-900/10 border border-primary-100 dark:border-primary-800/50 rounded-xl text-sm text-primary-900 dark:text-primary-100 leading-relaxed shadow-sm">
+                      <div class="flex justify-between items-center mb-2">
+                        <span class="text-xs font-bold bg-primary-600 text-white px-2 py-0.5 rounded shadow-sm">CHUNK
+                          2</span>
+                        <span class="text-xs text-gray-500 font-medium">188 chars</span>
+                      </div>
+                      "Each module is fully isolated and operates independently, adhering to a strict microservice
+                      boundary. This ensures that failures do not cascade."
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Action Footer -->
+            <div class="pt-6 border-t border-gray-100 dark:border-gray-800 flex justify-end gap-4">
+              <button
+                class="px-6 py-2.5 rounded-xl font-bold bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                Cancel
+              </button>
+              <button
+                class="px-8 py-2.5 rounded-xl font-bold bg-primary-600 hover:bg-primary-700 text-white shadow-lg shadow-primary-500/30 transition-all flex items-center gap-2">
+                Process Upload
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3">
+                  </path>
+                </svg>
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+</body>
+
+</html>

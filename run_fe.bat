@@ -1,5 +1,5 @@
 @echo off
-cd FE_React
+cd FE
 echo Starting React Frontend...
 pnpm run dev
 pause

@@ -1,0 +1,14 @@
+{
+  "common": {
+    "cancel": "",
+    "create": "Create KB"
+  },
+  "list": {
+    "createKbTitle": "Create New Knowledge Base",
+    "kbDescription": "Description",
+    "kbDescriptionPlaceholder": "Briefly describe this knowledge base...",
+    "kbName": "KB Name",
+    "kbNamePlaceholder": "Enter knowledge base name...",
+    "kbWarning": "Note: The embedding model cannot be changed once the KB is created, as it determines the vector space of all documents within."
+  }
+}

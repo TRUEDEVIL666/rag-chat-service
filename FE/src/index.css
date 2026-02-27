@@ -1,0 +1,74 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    body {
+        font-family: 'Inter', sans-serif;
+        @apply bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 antialiased;
+    }
+}
+
+@layer components {
+    /* Glass/Panel Utilities */
+    .panel {
+        @apply bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700;
+    }
+
+    .panel-hover {
+        @apply hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-200;
+    }
+
+    /* Buttons */
+    .btn-primary {
+        @apply bg-primary-600 hover:bg-primary-700 text-white font-medium py-2 px-4 rounded-lg shadow-sm transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed;
+    }
+
+    .btn-ghost {
+        @apply text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white rounded-lg transition-colors p-2;
+    }
+
+    /* Input Fields */
+    .input-field {
+        @apply w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-all shadow-sm;
+    }
+
+    /* Sidebar */
+    .sidebar-item {
+        @apply flex items-center gap-3 px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white rounded-md transition-colors;
+    }
+
+    .sidebar-item-active {
+        @apply bg-gray-100 dark:bg-gray-800 text-primary-600 dark:text-primary-400 font-medium;
+    }
+
+    /* Card Hover Effects */
+    .card-hover {
+        transition: all 0.3s ease;
+    }
+
+    .card-hover:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    }
+
+    /* Status Badges */
+    .status-badge-processing {
+        @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300;
+    }
+
+    .status-badge-processed {
+        @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300;
+    }
+
+    .status-badge-error {
+        @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300;
+    }
+
+    /* Folder Icon */
+    .folder-icon {
+        background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
+    }
+}

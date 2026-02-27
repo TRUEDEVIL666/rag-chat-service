@@ -1,0 +1,25 @@
+export default {
+    contextSeparator: '_',
+    createOldCatalogs: false,
+    defaultNamespace: 'translation',
+    defaultValue: '',
+    indentation: 2,
+    keepRemoved: false,
+    keySeparator: '.',
+    lexers: {
+        js: ['JsxLexer'],
+        jsx: ['JsxLexer'],
+        default: ['JavascriptLexer'],
+    },
+    lineEnding: 'auto',
+    locales: ['en', 'vi'],
+    namespaceSeparator: ':',
+    output: 'public/locales/$LOCALE/$NAMESPACE.json',
+    input: ['src/**/*.{js,jsx}'],
+    reactNamespace: false,
+    sort: true,
+    useKeysAsDefaultValue: true,
+    verbose: true,
+    failOnWarnings: false,
+    customValueTemplate: null
+}
