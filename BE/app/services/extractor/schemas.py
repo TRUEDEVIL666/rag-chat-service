@@ -1,4 +1,3 @@
-import langextract as lx
 try:
   from langextract.core.data import ExampleData, Extraction
 except ImportError:
@@ -14,6 +13,7 @@ Rules:
 - Copy verbatim spans.
 - No paraphrasing.
 - No JSON objects.
+- Every source and target node in a Relationship MUST be extracted as an individual entity first.
 
 Extract:
 

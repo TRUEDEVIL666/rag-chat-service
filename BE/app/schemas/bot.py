@@ -1,8 +1,8 @@
 from datetime import datetime
-from typing import Any, Dict, List, Literal, Optional, Annotated
+from typing import Any, Dict, List, Optional, Annotated
 from uuid import UUID
 
-from fastapi import Path, Query
+from fastapi import Path
 from pydantic import BaseModel, Field
 
 from app.schemas.ai_model import AiModelResponse, AiProviderResponse
@@ -42,6 +42,7 @@ class BotCreateRequest(BaseModel):
   model_id: Optional[UUID] = None
   config_prompt: Optional[str] = None
   config_model: Optional[ModelConfig] = None
+  kb_ids: Optional[List[UUID]] = None
 
 
 class BotResponse(BaseModel):
@@ -73,7 +74,6 @@ class BotUpdateConfigRequest(BaseModel):
 class BotAskRequest(BaseModel):
   message: str
   streaming: bool = False
-  quiz_mode: bool = False
 
 
 class BotAskResponse(BaseModel):

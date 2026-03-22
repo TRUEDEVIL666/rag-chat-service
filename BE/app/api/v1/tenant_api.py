@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from app.utils.auth import get_current_user
 from app.services.supabase.tenant_repository import TenantRepository
-from typing import List
 
 router = APIRouter()
 tenant_repo = TenantRepository()

@@ -1,22 +1,18 @@
 # app/api/v1/knowledge_base.py
 from app.schemas.common import MessageResponse
-from fastapi_cache.decorator import cache
 from uuid import UUID
 from datetime import datetime
-from typing import Dict, Any, List, Optional
-from fastapi import APIRouter, HTTPException, Depends, Path, Query, Body
+from fastapi import APIRouter, HTTPException, Depends, Path, Body
 
 from app.core.logger import get_logger
 from app.core.factory import get_knowledge_base_service
-from fastapi.security import HTTPAuthorizationCredentials
 
-from app.utils.auth import get_current_user, security
+from app.utils.auth import get_current_user
 
-from app.helper.utils_kb import INDEX_MAP, PERM_MAP, api_to_db_retrieval, db_to_api_retrieval, to_epoch
 from app.schemas.knowledge_base import (
     KnowledgeBaseDetail, KnowledgeBaseInput, KnowledgeBaseItem,
     KnowledgeBaseResponse, KnowledgeBaseListResponse,
-    RetrievalModel, RetrievalModelSchema, UpdateKnowledgeBaseRequest
+    RetrievalModel, UpdateKnowledgeBaseRequest
 )
 from app.schemas.document import DocumentListResponse, DocumentItem
 
@@ -55,7 +51,6 @@ async def list_knowledge_bases(
 ):
   try:
     tenant_id = auth["tenant_id"]
-    is_owner = bool(auth.get("is_owner", False))
 
     rows, total = await kb_service.list_knowledge_bases(
         tenant_id=tenant_id,

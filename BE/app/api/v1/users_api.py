@@ -5,7 +5,7 @@ from app.schemas.common import MessageResponse
 from fastapi import APIRouter, Depends, HTTPException, Body
 from fastapi_cache.decorator import cache
 from app.core.factory import get_auth_service, get_user_service
-from app.schemas.auth import RegisterRequest, User, UserIdRequest, BatchRegisterRequest, BatchRegisterResponse
+from app.schemas.auth import RegisterRequest, UserIdRequest, BatchRegisterRequest, BatchRegisterResponse
 from typing import List
 from app.utils.auth import get_current_user
 

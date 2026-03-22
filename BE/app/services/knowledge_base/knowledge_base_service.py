@@ -6,7 +6,7 @@ from app.schemas.knowledge_base import (
     RetrievalModelSchema
 )
 from app.helper.utils_kb import (
-    INDEX_MAP, PERM_MAP, api_to_db_retrieval, db_to_api_retrieval, to_epoch
+    INDEX_MAP, PERM_MAP, api_to_db_retrieval
 )
 
 

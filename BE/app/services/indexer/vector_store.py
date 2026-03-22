@@ -40,7 +40,6 @@ def sanitize_table_name(name: str) -> str:
 class VectorRepository:
   """
   Handles document vector indexing and semantic search using Supabase pgvector.
-  Replaces the previous Qdrant-based implementation.
   """
 
   def __init__(
@@ -176,7 +175,7 @@ class VectorRepository:
     for i in range(0, len(records), batch_size):
       batch = records[i:i + batch_size]
       try:
-        response = await client.schema("vectors").table(table_name).upsert(batch).execute()
+        await client.schema("vectors").table(table_name).upsert(batch).execute()
         total_upserted += len(batch)
       except Exception as e:
         logger.error(

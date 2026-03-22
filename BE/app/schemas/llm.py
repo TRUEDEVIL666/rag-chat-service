@@ -20,5 +20,10 @@ class KbRoutingOutput(BaseModel):
   kb_ids: list[str]
 
 
+class PlannerOutput(BaseModel):
+  use_memori: bool
+  use_rag: bool
+
+
 class HallucinationGrade(BaseModel):
   score: bool

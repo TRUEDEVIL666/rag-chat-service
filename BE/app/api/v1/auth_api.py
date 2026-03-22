@@ -1,5 +1,5 @@
 # app/api/v1/auth.py
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends
 from app.core.factory import get_auth_service
 from app.schemas.auth import RegisterRequest, LoginRequest
 

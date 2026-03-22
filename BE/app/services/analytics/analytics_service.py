@@ -2,7 +2,6 @@ from fastapi import HTTPException
 from app.services.users.user_service import UserService
 from app.services.session.session_service import SessionService
 from app.services.knowledge_base.knowledge_base_service import KnowledgeBaseService
-from app.schemas.analytics import AnalyticsSummaryResponse
 from app.core.logger import get_logger
 from typing import Any
 
@@ -54,7 +53,7 @@ class AnalyticsService:
         "recent_documents": recent_docs
     }
 
-  async def get_chart_data(self, auth_context: dict, time_range: str = "30days") -> list:
+  async def get_chart_data(self, auth_context: dict, time_range: str = "7days") -> list:
     role = auth_context.get("role")
     if role != "admin":
       raise HTTPException(status_code=404, detail="Not Found")
@@ -66,7 +65,7 @@ class AnalyticsService:
 
     now = datetime.datetime.now(datetime.timezone.utc)
     interval = "day"
-    start_date = now - datetime.timedelta(days=30)
+    start_date = now - datetime.timedelta(days=7)
     end_date = now
 
     if time_range == "7days":

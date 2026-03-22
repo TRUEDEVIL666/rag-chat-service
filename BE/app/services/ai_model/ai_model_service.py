@@ -1,10 +1,6 @@
 from typing import List, Dict, Any, Optional
-from app.schemas.ai_model import AiModelCreate, AiModelUpdate
-from app.config.config import settings
 from app.services.supabase.ai_model_repository import AiModelRepository
 from app.core.logger import get_logger
-import httpx
-import json
 import openai
 from google import genai
 

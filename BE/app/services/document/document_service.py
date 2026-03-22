@@ -1,7 +1,6 @@
 # app/services/document/document_service.py
-import base64
 import uuid
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from fastapi import HTTPException, UploadFile
 from celery.result import AsyncResult
 import asyncio
@@ -11,7 +10,6 @@ from app.config.celery import celery_app
 from app.services.supabase.document_repository import DocumentRepository
 from app.services.supabase.graph_chunk_repository import GraphChunkRepository
 from app.services.supabase.knowledge_base_repository import KnowledgeBaseRepository
-from app.services.indexer.vector_store import VectorRepository
 from app.services.minio.minio_storage import MinioStorage
 from app.task.file_processor_worker import (
     process_uploaded_file_celery,

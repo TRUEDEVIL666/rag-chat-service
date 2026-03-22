@@ -1,8 +1,6 @@
 # app/api/v1/chatbot.py
 from app.schemas.common import MessageResponse
 from fastapi_limiter.depends import RateLimiter
-from fastapi_cache import FastAPICache
-from fastapi_cache.decorator import cache
 import json
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException
@@ -19,7 +17,7 @@ from app.schemas.bot import (
 router = APIRouter()
 
 
-@router.post("/bots", response_model=BotResponse, summary="Create new bot")
+@router.post("/bots", response_model=BotResponse, status_code=201, summary="Create new bot")
 async def create_bot(
   request: BotCreateRequest,
   bot_service: BotService = Depends(get_bot_service),
@@ -96,7 +94,6 @@ async def ask_bot(
         user_id=user_id,
         session_id=req.session_id,
         access_token=auth.get("token"),
-        quiz_mode=request.quiz_mode,
         stream=request.streaming  # ← New parameter
     )
 
@@ -108,7 +105,11 @@ async def ask_bot(
 
         async for chunk in result:
           if chunk:
-            yield f"data: {json.dumps({'response': chunk})}\n\n"
+            if chunk.startswith("__ERROR__:"):
+              error_msg = chunk.replace("__ERROR__: ", "").replace("__ERROR__:", "")
+              yield f"data: {json.dumps({'error': error_msg})}\n\n"
+            else:
+              yield f"data: {json.dumps({'response': chunk})}\n\n"
         yield "data: [DONE]\n\n"
 
       return StreamingResponse(token_stream(), media_type="text/event-stream")

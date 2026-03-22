@@ -1,10 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, Body
+from fastapi import APIRouter, Depends, HTTPException
 from typing import List, Dict, Any
 from app.services.supabase.quiz_repository import QuizRepository, QuizAttemptCreate
 from app.core.factory import get_quiz_repository
 from app.utils.auth import get_current_user
-from fastapi import APIRouter, Depends, HTTPException
-from app.schemas.quiz import QuizAttemptRequest, QuizHistoryItem, QuizLogResponse
+from app.schemas.quiz import QuizAttemptRequest, QuizLogResponse
 from uuid import UUID
 
 router = APIRouter()

@@ -1,4 +1,3 @@
-import io
 from datetime import datetime
 from uuid import uuid4
 from pathlib import Path

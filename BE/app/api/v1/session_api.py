@@ -4,8 +4,6 @@ from app.schemas.session import (
     SessionResponse, SessionListRequest, SessionIdRequest,
     ChatMessageListResponse, SessionMessagesRequest, MessageRatingRequest
 )
-from fastapi_cache import FastAPICache
-from fastapi_cache.decorator import cache
 from fastapi import APIRouter, Depends, HTTPException
 from typing import List
 from app.utils.auth import get_current_user

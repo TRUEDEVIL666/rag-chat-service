@@ -127,6 +127,6 @@ class AuthService:
         raise PermissionError("Invalid login credentials")
     except (LookupError, PermissionError):
       raise
-    except Exception as e:
+    except Exception:
       logger.exception("Login user failed")
       raise RuntimeError("Failed to login user")

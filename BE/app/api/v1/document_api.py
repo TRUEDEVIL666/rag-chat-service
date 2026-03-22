@@ -142,7 +142,6 @@ async def get_document_content(
   """
   from app.utils.auth import validate_token
   from fastapi.responses import StreamingResponse
-  from fastapi.security import HTTPBearer
 
   # Manual Auth Check
   user_auth = None

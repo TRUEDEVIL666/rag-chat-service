@@ -1,11 +1,10 @@
-import os
 import pymupdf4llm
-from typing import Any, Dict, List, Optional, Generator
+from typing import Any, Dict, List, Optional
 
 from llama_index.core import Document
-from llama_index.core.schema import BaseNode, NodeRelationship, TextNode
+from llama_index.core.schema import BaseNode, NodeRelationship
 from llama_index.readers.file import (
-    CSVReader, DocxReader, PDFReader, PptxReader,
+    CSVReader, DocxReader, PptxReader,
     MarkdownReader, HTMLTagReader, ImageReader
 )
 from llama_index.readers.json import JSONReader
@@ -15,12 +14,12 @@ from app.core.logger import get_logger
 from app.helper.chunker import process_chunks
 from app.helper.document_extractor import extract_documents
 from llama_index.core.base.embeddings.base import BaseEmbedding
-from app.services.indexer.vector_store import VectorRepository
 from app.services.minio.minio_storage import MinioStorage
 from app.services.supabase.document_repository import DocumentRepository
 from app.services.supabase.knowledge_base_repository import KnowledgeBaseRepository
 from app.services.supabase.graph_chunk_repository import GraphChunkRepository
 from app.services.supabase.graph_edge_repository import GraphEdgeRepository
+from app.services.supabase.graph_entity_repository import GraphEntityRepository
 
 logger = get_logger(__name__)
 
@@ -45,12 +44,14 @@ class FileProcessor:
       document_repository: DocumentRepository,
       kb_repository: KnowledgeBaseRepository,
       graph_edge_repository: GraphEdgeRepository = None,
+      graph_entity_repository: GraphEntityRepository = None,
   ):
     self.graph_chunk_store = meta_data_store
     self.original_file_store = original_file_store
     self.document_repository = document_repository
     self.kb_repository = kb_repository
     self.graph_edge_store = graph_edge_repository
+    self.graph_entity_store = graph_entity_repository
 
     # Readers will be initialized lazily
     self._readers = {}
@@ -211,15 +212,15 @@ class FileProcessor:
       # TODO: We currently run this on the first few pages to avoid excessive LLM costs
       # This can be made configurable via kwargs later
       extracted_edges = []
+      extracted_entities = []
+      extracted_mentions = []
       try:
-        from app.core.factory import get_extractor_service
         if enable_extraction:
-          entity_nodes, extracted_edges = self._extract_and_create_entity_nodes(
-            documents)
-          if entity_nodes:
+          extracted_entities, extracted_mentions, extracted_edges = self._extract_and_create_entity_nodes(
+            chunks, file_name, kb_id, tenant_id, access_token)
+          if extracted_entities:
             logger.info(
-              f"Extracted {len(entity_nodes)} entity nodes and {len(extracted_edges)} edges for {file_name}")
-            chunks.extend(entity_nodes)
+              f"Extracted {len(extracted_entities)} entities, {len(extracted_mentions)} mentions, and {len(extracted_edges)} edges for {file_name}")
       except Exception as e:
         logger.warning(f"Entity extraction skipped/failed: {e}")
 
@@ -242,7 +243,12 @@ class FileProcessor:
         wrapped_chunks, access_token))
       self._upsert_vectors(wrapped_chunks, embed_model)
 
-      # 5. Upsert Edges
+      # 5. Upsert Entities & Mentions
+      if self.graph_entity_store and (extracted_entities or extracted_mentions):
+        self._run_async(self.graph_entity_store.store(
+          extracted_entities, extracted_mentions, access_token))
+
+      # 6. Upsert Edges
       if extracted_edges and self.graph_edge_store:
         self._run_async(self.graph_edge_store.store(
           extracted_edges, access_token))
@@ -283,7 +289,6 @@ class FileProcessor:
     self._run_async(self.document_repository.update_document_status(
         document_id, "learning", access_token))
 
-    from datetime import datetime
     # sync_start_time = datetime.utcnow().isoformat() # REMOVED: using ID-based sync
     stream_response = None
 
@@ -330,14 +335,15 @@ class FileProcessor:
 
       # [NEW] Entity Extraction for Update
       extracted_edges = []
+      extracted_entities = []
+      extracted_mentions = []
       try:
         if enable_extraction:
-          entity_nodes, extracted_edges = self._extract_and_create_entity_nodes(
-            documents)
-          if entity_nodes:
+          extracted_entities, extracted_mentions, extracted_edges = self._extract_and_create_entity_nodes(
+            chunks, file_name, kb_id, tenant_id, access_token)
+          if extracted_entities:
             logger.info(
-              f"Extracted {len(entity_nodes)} entity nodes and {len(extracted_edges)} edges for {file_name} (Update)")
-            chunks.extend(entity_nodes)
+              f"Extracted {len(extracted_entities)} entities, {len(extracted_mentions)} mentions, and {len(extracted_edges)} edges for {file_name} (Update)")
       except Exception as e:
         logger.warning(f"Entity extraction skipped/failed during update: {e}")
 
@@ -379,6 +385,11 @@ class FileProcessor:
             wrapped_chunks_to_vectorize, embed_model)
         else:
           logger.info("No new chunks to vectorize.")
+
+        # Upsert Entities & Mentions
+        if self.graph_entity_store and (extracted_entities or extracted_mentions):
+          self._run_async(self.graph_entity_store.store(
+            extracted_entities, extracted_mentions, access_token))
 
         # Upsert Edges
         if extracted_edges and self.graph_edge_store:
@@ -466,29 +477,53 @@ class FileProcessor:
     from app.core.factory import get_vector_store
     get_vector_store().upsert_documents(documents, embed_model)
 
-  def _extract_and_create_entity_nodes(self, documents: List[Document]) -> tuple[List[TextNode], List[Dict]]:
+  def _extract_and_create_entity_nodes(self, chunks: List[BaseNode], file_name: str, kb_id: str, tenant_id: str, access_token: str = None) -> tuple[List[Dict], List[Dict], List[Dict]]:
     """
-    Extracts entities and relationships from the documents using ExtractorService.
-    Currently processes a subset of text to avoid context limits.
-    Returns (entity_nodes, edges)
+    Extracts entities and relationships from the chunks using ExtractorService.
+    Returns (entities, chunk_mentions, edges)
     """
     from app.core.factory import get_extractor_service
+    import uuid
 
     extractor = get_extractor_service()
-    entity_nodes = []
+    entities = []
+    chunk_mentions = []
     edges = []
 
-    # Simple strategy: Join first few pages (approx 5)
-    subset_docs = documents[:5]
-    full_text = "\n\n".join([d.text for d in subset_docs])
+    # Simple strategy: Join first few chunks (approx 5)
+    subset_chunks = chunks[:5]
+    full_text = "\n\n".join([c.text for c in subset_chunks])
 
     if not full_text.strip():
-      return [], []
+      return [], [], []
 
     try:
       extractions = extractor.extract(full_text)
 
-      entity_map = {}
+      # Pre-fetch existing entities from the database to prevent duplicates
+      existing_entities_map = {}
+      if self.graph_entity_store:
+          # Extract all unique names the LLM found
+        extracted_names = []
+        for entity in extractions:
+          if entity.extraction_class != "Relationship":
+            extracted_names.append(entity.extraction_text)
+          else:
+            parts = [p.strip() for p in entity.extraction_text.split("||")]
+            if len(parts) == 3:
+              extracted_names.extend([parts[0], parts[2]])
+
+        extracted_names = list(set(extracted_names))
+        if extracted_names:
+          # Run synchronous lookup since _extract_and_create_entity_nodes is currently sync,
+          # but wait, we need to use _run_async since it's an async db call.
+          existing_entities_map = self._run_async(self.graph_entity_store.check_existing_entities(
+              names=extracted_names, kb_id=kb_id, access_token=access_token))
+
+      # entity_map will store the mapping of lowercase name -> UUID for this entire run
+      # Initialize it with the existing DB entities to reuse their UUIDs
+      entity_map = {name.lower(): entity_id for name,
+                    entity_id in existing_entities_map.items()}
 
       # 1. Process Entities
       if extractions:
@@ -499,21 +534,29 @@ class FileProcessor:
           if etype == "Relationship":
             continue
 
-          # Create a meaningful text representation for embedding/search
-          node_text = f"{name} ({etype})"
+          name_lower = name.lower()
+          # Determine if we've already tracked this entity in this run
+          if name_lower not in entity_map:
+            entity_id = str(uuid.uuid4())
+            entity_map[name_lower] = entity_id
 
-          node = TextNode(
-              text=node_text,
-              metadata={
-                  "type": "entity",
-                  "entity_name": name,
-                  "entity_type": etype,
-                  "extraction_source": "llm",
-                  "included_in_graph": True
-              }
-          )
-          entity_nodes.append(node)
-          entity_map[name.lower()] = node
+            entity_record = {
+                "id": entity_id,
+                "name": name,
+                "entity_type": etype,
+                # "description": "" # Future: could aggregate descriptions
+                "kb_id": kb_id,
+                "tenant_id": tenant_id
+            }
+            entities.append(entity_record)
+
+          mention_record = {
+              "chunk_id": subset_chunks[0].node_id if subset_chunks else None,
+              "entity_id": entity_map[name_lower],
+              "extraction_source": "llm"
+          }
+          if mention_record["chunk_id"]:
+            chunk_mentions.append(mention_record)
 
         # 2. Process Relationships
         for entity in extractions:
@@ -528,22 +571,54 @@ class FileProcessor:
               source_lower = source.lower()
               target_lower = target.lower()
 
-              if source_lower in entity_map and target_lower in entity_map:
-                source_node = entity_map[source_lower]
-                target_node = entity_map[target_lower]
+              # Auto-create missing source entity
+              if source_lower not in entity_map:
+                source_id = str(uuid.uuid4())
+                entity_map[source_lower] = source_id
+                entities.append({
+                    "id": source_id,
+                    "name": source,
+                    "entity_type": "Concept",  # Default fallback type
+                    "kb_id": kb_id,
+                    "tenant_id": tenant_id
+                })
 
-                edge = {
-                    "source_chunk_id": source_node.node_id,
-                    "target_chunk_id": target_node.node_id,
-                    "relationship_type": relation,
-                    "properties": {
-                        "source_text": rel_text,
-                        "extraction_source": "llm"
-                    }
-                }
-                edges.append(edge)
+              # Auto-create missing target entity
+              if target_lower not in entity_map:
+                target_id = str(uuid.uuid4())
+                entity_map[target_lower] = target_id
+                entities.append({
+                    "id": target_id,
+                    "name": target,
+                    "entity_type": "Concept",  # Default fallback type
+                    "kb_id": kb_id,
+                    "tenant_id": tenant_id
+                })
+
+              source_id = entity_map[source_lower]
+              target_id = entity_map[target_lower]
+
+              edge = {
+                  "source_entity_id": source_id,
+                  "target_entity_id": target_id,
+                  "relationship_type": relation,
+                  "properties": {
+                      "source_text": rel_text,
+                      "extraction_source": "llm"
+                  }
+              }
+              edges.append(edge)
 
     except Exception as e:
       logger.error(f"Detailed extraction failed: {e}")
 
-    return entity_nodes, edges
+    # Remove duplicates from chunk mentions using a set logic
+    unique_mentions = []
+    seen = set()
+    for m in chunk_mentions:
+      key = (m["chunk_id"], m["entity_id"])
+      if key not in seen:
+        seen.add(key)
+        unique_mentions.append(m)
+
+    return entities, unique_mentions, edges
