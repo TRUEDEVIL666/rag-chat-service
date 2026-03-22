@@ -63,7 +63,7 @@ FE/.gitignore
 
 .history/
 node_modules
-# .agent/
+.agent/
 VuDinhHong_522H0036.zip
 test_users.csv
 baocao.docx

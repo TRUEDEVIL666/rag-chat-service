@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 from typing import TYPE_CHECKING
 
 from llama_index.core.base.embeddings.base import BaseEmbedding
@@ -31,12 +33,14 @@ if TYPE_CHECKING:
   from app.services.session.session_service import SessionService
   from app.services.supabase.ai_model_repository import AiModelRepository
   from app.services.supabase.bot_repository import BotRepository
+  from app.services.supabase.bot_kb_repository import BotKnowledgeBaseRepository
   from app.services.supabase.chat_message_repository import ChatMessageRepository
   from app.services.supabase.class_repository import ClassRepository
   from app.services.supabase.course_repository import CourseRepository
   from app.services.supabase.document_repository import DocumentRepository
   from app.services.supabase.graph_chunk_repository import GraphChunkRepository
   from app.services.supabase.graph_edge_repository import GraphEdgeRepository
+  from app.services.supabase.graph_entity_repository import GraphEntityRepository
   from app.services.supabase.knowledge_base_repository import KnowledgeBaseRepository
   from app.services.supabase.quiz_repository import QuizRepository
   from app.services.supabase.semester_repository import SemesterRepository
@@ -55,6 +59,7 @@ _ai_model_repo_instance: AiModelRepository | None = None
 _ai_model_service_instance: AiModelService | None = None
 _auth_service_instance: AuthService | None = None
 _bot_repo_instance: BotRepository | None = None
+_bot_kb_repo_instance: BotKnowledgeBaseRepository | None = None
 _bot_service_instance: BotService | None = None
 _chat_message_repo_instance: ChatMessageRepository | None = None
 _chat_service_instance: ChatService | None = None
@@ -70,6 +75,7 @@ _kb_repo_instance: KnowledgeBaseRepository | None = None
 _knowledge_base_service_instance: KnowledgeBaseService | None = None
 _graph_chunk_repo_instance: GraphChunkRepository | None = None
 _graph_edge_repo_instance: GraphEdgeRepository | None = None
+_graph_entity_repo_instance: GraphEntityRepository | None = None
 _minio_storage_instance: MinioStorage | None = None
 _quiz_repo_instance: QuizRepository | None = None
 _semester_repo_instance: SemesterRepository | None = None
@@ -82,6 +88,8 @@ _tool_service_instance: ToolService | None = None
 _user_repository_instance: UserRepository | None = None
 _user_service_instance: UserService | None = None
 _vector_repo_instance: VectorRepository | None = None
+_embedding_model_cache: dict[str, BaseEmbedding] = {}
+_embedding_model_lock = asyncio.Lock()
 _extractor_service_instance: ExtractorService | None = None
 
 
@@ -89,13 +97,27 @@ _extractor_service_instance: ExtractorService | None = None
 # CORE SERVICES
 # ----------------------------------------------------------------
 async def get_embedding_model(provider: str = None, model: str = None) -> BaseEmbedding:
-  global _embedding_model_instance
+  global _embedding_model_instance, _embedding_model_cache, _embedding_model_lock
 
-  # If specific provider/model requested, return a new instance (don't use singleton)
-  # logic: If model is passed like "ollama/gemma", we need to split it if provider is missing
-  target_model = model
+  # Normalize provider and model for cache key
+  p = provider or settings.DEFAULT_EMBEDDING_PROVIDER
+  m = model or settings.DEFAULT_EMBEDDING_MODEL
+  cache_key = f"{p}:{m}"
 
-  if provider or model:
+  # 1. Quick check outside lock
+  if cache_key in _embedding_model_cache:
+    return _embedding_model_cache[cache_key]
+
+  # 2. Synchronized creation
+  async with _embedding_model_lock:
+    # Double-check inside lock
+    if cache_key in _embedding_model_cache:
+      return _embedding_model_cache[cache_key]
+
+    # If asking for default and it exists (but wasn't in dict cache for some reason)
+    if not provider and not model and _embedding_model_instance is not None:
+      return _embedding_model_instance
+
     api_key = None
     endpoint = None
 
@@ -103,40 +125,37 @@ async def get_embedding_model(provider: str = None, model: str = None) -> BaseEm
       if provider:
         repo = get_ai_model_repository()
         resolved_key, resolved_url, _ = await repo.resolve_model_config(
-          provider_name=provider, model_name=target_model
+          provider_name=provider, model_name=m
         )
+        api_key = resolved_key
+        endpoint = resolved_url
 
-        if resolved_key:
-          api_key = resolved_key
-        if resolved_url:
-          endpoint = resolved_url
-
-        # Defaults if DB resolution failed (e.g. initial setup)
+        # Defaults for Ollama if not in DB
         if not endpoint and provider.lower() == "ollama":
           endpoint = settings.OLLAMA_EMBEDDING_API_URL
 
+      # Fallback for Ollama if DB fail or no provider but model starts with ollama/
+      if provider and provider.lower() == "ollama" and not endpoint:
+        endpoint = settings.OLLAMA_EMBEDDING_API_URL
+
     except Exception as e:
       logger.warning(f"Failed to resolve config for {provider} from DB: {e}")
-      # Fallback for Ollama if DB fail
       if provider and provider.lower() == "ollama":
         endpoint = settings.OLLAMA_EMBEDDING_API_URL
 
-    return create_embedding_model(
-        provider=provider,
-        model_name=target_model,
+    new_model = create_embedding_model(
+        provider=provider or settings.DEFAULT_EMBEDDING_PROVIDER,
+        model_name=m,
         api_key=api_key,
         endpoint=endpoint
     )
+    _embedding_model_cache[cache_key] = new_model
 
-  # Default singleton logic
-  if _embedding_model_instance is None:
-    try:
-      _embedding_model_instance = create_embedding_model()
-      logger.info("Initialized EmbeddingModel (Default)")
-    except Exception as e:
-      logger.exception("Failed to initialize EmbeddingModel")
-      raise
-  return _embedding_model_instance
+    # If this was the default model, also set the main singleton instance
+    if not provider and not model:
+      _embedding_model_instance = new_model
+
+    return new_model
 
 
 def get_vector_store() -> VectorRepository:
@@ -156,7 +175,7 @@ def get_minio_storage() -> MinioStorage:
       from app.services.minio.minio_storage import MinioStorage
       _minio_storage_instance = MinioStorage(bucket_name="rag-file")
       logger.info("Initialized MinioStorage")
-    except Exception as e:
+    except Exception:
       logger.exception("Failed to initialize MinioStorage")
       raise
   return _minio_storage_instance
@@ -170,7 +189,7 @@ def get_graph_chunk_repository() -> GraphChunkRepository:
       from app.services.supabase.graph_chunk_repository import GraphChunkRepository
       _graph_chunk_repo_instance = GraphChunkRepository()
       logger.info("Initialized GraphChunkRepository")
-    except Exception as e:
+    except Exception:
       logger.exception("Failed to initialize GraphChunkRepository")
       raise
   return _graph_chunk_repo_instance
@@ -184,10 +203,24 @@ def get_graph_edge_repository() -> GraphEdgeRepository:
       from app.services.supabase.graph_edge_repository import GraphEdgeRepository
       _graph_edge_repo_instance = GraphEdgeRepository()
       logger.info("Initialized GraphEdgeRepository")
-    except Exception as e:
+    except Exception:
       logger.exception("Failed to initialize GraphEdgeRepository")
       raise
   return _graph_edge_repo_instance
+
+
+def get_graph_entity_repository() -> GraphEntityRepository:
+  """Singleton for GraphEntityRepository - stores graph entities in Supabase."""
+  global _graph_entity_repo_instance
+  if _graph_entity_repo_instance is None:
+    try:
+      from app.services.supabase.graph_entity_repository import GraphEntityRepository
+      _graph_entity_repo_instance = GraphEntityRepository()
+      logger.info("Initialized GraphEntityRepository")
+    except Exception:
+      logger.exception("Failed to initialize GraphEntityRepository")
+      raise
+  return _graph_entity_repo_instance
 
 
 def get_knowledge_base_repository() -> KnowledgeBaseRepository:
@@ -200,7 +233,7 @@ def get_knowledge_base_repository() -> KnowledgeBaseRepository:
       )
       _kb_repo_instance = KnowledgeBaseRepository()
       logger.info("Initialized KnowledgeBaseRepository")
-    except Exception as e:
+    except Exception:
       logger.exception("Failed to initialize KnowledgeBaseRepository")
       raise
   return _kb_repo_instance
@@ -213,10 +246,23 @@ def get_bot_repository() -> BotRepository:
       from app.services.supabase.bot_repository import BotRepository
       _bot_repo_instance = BotRepository()
       logger.info("Initialized BotRepository")
-    except Exception as e:
+    except Exception:
       logger.exception("Failed to initialize BotRepository")
       raise
   return _bot_repo_instance
+
+
+def get_bot_knowledge_base_repository() -> BotKnowledgeBaseRepository:
+  global _bot_kb_repo_instance
+  if _bot_kb_repo_instance is None:
+    try:
+      from app.services.supabase.bot_kb_repository import BotKnowledgeBaseRepository
+      _bot_kb_repo_instance = BotKnowledgeBaseRepository()
+      logger.info("Initialized BotKnowledgeBaseRepository")
+    except Exception:
+      logger.exception("Failed to initialize BotKnowledgeBaseRepository")
+      raise
+  return _bot_kb_repo_instance
 
 
 def get_session_repository() -> SessionRepository:
@@ -226,7 +272,7 @@ def get_session_repository() -> SessionRepository:
       from app.services.supabase.session_repository import SessionRepository
       _session_repo_instance = SessionRepository()
       logger.info("Initialized SessionRepository")
-    except Exception as e:
+    except Exception:
       logger.exception("Failed to initialize SessionRepository")
       raise
   return _session_repo_instance
@@ -239,7 +285,7 @@ def get_user_repository() -> UserRepository:
       from app.services.supabase.user_repository import UserRepository
       _user_repository_instance = UserRepository()
       logger.info("Initialized UserRepository")
-    except Exception as e:
+    except Exception:
       logger.exception("Failed to initialize UserRepository")
       raise
   return _user_repository_instance
@@ -252,7 +298,7 @@ def get_auth_service() -> AuthService:
       from app.services.auth.auth_service import AuthService
       _auth_service_instance = AuthService()
       logger.info("Initialized AuthService")
-    except Exception as e:
+    except Exception:
       logger.exception("Failed to initialize AuthService")
       raise
   return _auth_service_instance
@@ -266,6 +312,7 @@ def get_file_processor_service() -> FileProcessor:
         original_file_store=get_minio_storage(),
         meta_data_store=get_graph_chunk_repository(),
         graph_edge_repository=get_graph_edge_repository(),
+        graph_entity_repository=get_graph_entity_repository(),
         document_repository=get_document_repository(),
         kb_repository=get_knowledge_base_repository()
     )
@@ -278,22 +325,10 @@ def get_bot_service() -> BotService:
     from app.services.bot.bot_service import BotService
     _bot_service_instance = BotService(
         bot_repo=get_bot_repository(),
-        session_repo=get_session_repository()
+        session_repo=get_session_repository(),
+        bot_kb_repo=get_bot_knowledge_base_repository()
     )
   return _bot_service_instance
-
-
-def get_tool_service() -> ToolService:
-  global _tool_service_instance
-  if _tool_service_instance is None:
-    try:
-      from app.services.tool.tool_service import ToolService
-      _tool_service_instance = ToolService()
-      logger.info("Initialized ToolService")
-    except Exception as e:
-      logger.exception("Failed to initialize ToolService")
-      raise
-  return _tool_service_instance
 
 
 def get_chat_service() -> ChatService:
@@ -308,7 +343,7 @@ def get_chat_service() -> ChatService:
         message_repo=get_chat_message_repository(),
         kb_repo=get_knowledge_base_repository(),
         ai_model_service=get_ai_model_service(),
-        tool_service=get_tool_service()
+        doc_repo=get_document_repository()
     )
   return _chat_service_instance
 
@@ -375,7 +410,7 @@ def get_document_repository() -> DocumentRepository:
       from app.services.supabase.document_repository import DocumentRepository
       _document_repo_instance = DocumentRepository()
       logger.info("Initialized DocumentRepository")
-    except Exception as e:
+    except Exception:
       logger.exception("Failed to initialize DocumentRepository")
       raise
   return _document_repo_instance
@@ -388,7 +423,7 @@ def get_chat_message_repository() -> ChatMessageRepository:
       from app.services.supabase.chat_message_repository import ChatMessageRepository
       _chat_message_repo_instance = ChatMessageRepository()
       logger.info("Initialized ChatMessageRepository")
-    except Exception as e:
+    except Exception:
       logger.exception("Failed to initialize ChatMessageRepository")
       raise
   return _chat_message_repo_instance
@@ -403,7 +438,7 @@ def get_session_summary_repository() -> SessionSummaryRepository:
       )
       _session_summary_repo_instance = SessionSummaryRepository()
       logger.info("Initialized SessionSummaryRepository")
-    except Exception as e:
+    except Exception:
       logger.exception("Failed to initialize SessionSummaryRepository")
       raise
   return _session_summary_repo_instance
@@ -416,7 +451,7 @@ def get_tenant_repository() -> TenantRepository:
       from app.services.supabase.tenant_repository import TenantRepository
       _tenant_repo_instance = TenantRepository()
       logger.info("Initialized TenantRepository")
-    except Exception as e:
+    except Exception:
       logger.exception("Failed to initialize TenantRepository")
       raise
   return _tenant_repo_instance
@@ -429,7 +464,7 @@ def get_ai_model_repository() -> AiModelRepository:
       from app.services.supabase.ai_model_repository import AiModelRepository
       _ai_model_repo_instance = AiModelRepository()
       logger.info("Initialized AiModelRepository")
-    except Exception as e:
+    except Exception:
       logger.exception("Failed to initialize AiModelRepository")
       raise
   return _ai_model_repo_instance
@@ -457,7 +492,7 @@ def get_quiz_repository() -> QuizRepository:
       from app.services.supabase.quiz_repository import QuizRepository
       _quiz_repo_instance = QuizRepository()
       logger.info("Initialized QuizRepository")
-    except Exception as e:
+    except Exception:
       logger.exception("Failed to initialize QuizRepository")
       raise
   return _quiz_repo_instance
@@ -535,7 +570,7 @@ def get_extractor_service() -> ExtractorService:
       from app.services.extractor.extractor_service import ExtractorService
       _extractor_service_instance = ExtractorService()
       logger.info("Initialized ExtractorService")
-    except Exception as e:
+    except Exception:
       logger.exception("Failed to initialize ExtractorService")
       raise
   return _extractor_service_instance

@@ -1,4 +1,3 @@
-from enum import Enum
 import sys
 
 if sys.version_info >= (3, 11):

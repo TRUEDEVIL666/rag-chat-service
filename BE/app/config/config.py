@@ -14,6 +14,7 @@ class Settings(BaseSettings):
   # ------------------
   SUPABASE_URL: str = ""
   SUPABASE_KEY: str = ""
+  MEMORI_DATABASE_URL: str = ""
 
   # ------------------
   # STORAGE
@@ -32,19 +33,22 @@ class Settings(BaseSettings):
   # GENERIC EMBEDDINGS (Fallback)
   # ------------------
   RERANKER_MODEL: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
-  DEFAULT_CHAT_MODEL: str = "ollama/gemma3:4b"
   DEFAULT_CHAT_TEMPERATURE: float = 0.7
 
   # ------------------
-  # OLLAMA DEFAULTS
+  # OLLAMA
   # ------------------
   OLLAMA_EMBEDDING_API_URL: str = "http://localhost:11434"
+
+  # ------------------
+  # SUBAGENTS DEFAULT
+  # ------------------
+  DEFAULT_SUBAGENT_MODEL: str = "gemma3:4b"
 
   # ------------------
   # EXTRACTION LLM
   # ------------------
   EXTRACTION_LLM_HOST: str = "http://localhost:11434"
-  # Requires tool calling support if using tools, but langextract handles json mode too
   EXTRACTION_LLM_MODEL: str = "gemma3:4b"
 
   # ------------------

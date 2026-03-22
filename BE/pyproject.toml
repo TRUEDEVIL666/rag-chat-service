@@ -31,7 +31,7 @@ dependencies = [
     "tornado>=6.4.2",
     "scikit-learn",
     "accelerate>=1.11.0",
-    "protobuf>=6.33.1",
+    "protobuf>=5.29.3",
     "google-genai>=1.55.0",
     "llama-index-node-parser-topic>=0.2.0",
     "llama-index-node-parser-slide>=0.1.0",
@@ -64,6 +64,8 @@ dependencies = [
     "pymupdf-layout>=1.27.1",
     "onnxruntime-gpu>=1.24.2",
     "easyocr>=1.7.2",
+    "memori>=3.2.3",
+    "psycopg2-binary>=2.9.11",
 ]
 
 [tool.setuptools]
