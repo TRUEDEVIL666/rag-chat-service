@@ -1,0 +1,41 @@
+---
+config:
+  layout: dagre
+---
+graph TD
+  START((START)):::statusNode
+  Planner["🧭 <b>Planner Node</b><br/><i>Intent Analysis</i>"]:::logicNode
+  KBRouter{"🎯 <b>KB Router</b><br/><i>Route to KBs</i>"}:::decisionNode
+  QueryRewrite["✏️ <b>Query Rewrite</b><br/><i>Improve Query</i>"]:::retrievalNode
+  HyDE["📄 <b>HyDE</b><br/><i>Hypothetical Doc</i>"]:::retrievalNode
+  MemRetrieve["🧠 <b>Memory Retrieve</b><br/><i>Past Facts</i>"]:::retrievalNode
+  RAGRetrieve["📚 <b>RAG Retrieve</b><br/><i>Knowledge Base</i>"]:::retrievalNode
+  ToolsNode["🛠️ <b>Tools Node</b><br/><i>Function Execution</i>"]:::toolNode
+  AgentNode["🤖 <b>Agent Node</b><br/><i>LLM Reasoning</i>"]:::agentNode
+  CheckHal{"🧪 <b>Check<br/>Hallucination</b>"}:::decisionNode
+  Observe["👀 <b>Observe Node</b><br/><i>Persist Turn</i>"]:::logicNode
+  END((END)):::statusNode
+  START --> Planner
+  Planner -- "use_memori" --> MemRetrieve
+  Planner -- "use_rag" --> KBRouter
+  Planner -- "use_tools" --> ToolsNode
+  Planner -- "direct" --> AgentNode
+  KBRouter -- "use_query_rewrite" --> QueryRewrite
+  KBRouter -- "use_hyde" --> HyDE
+  QueryRewrite --> RAGRetrieve
+  HyDE --> RAGRetrieve
+  MemRetrieve --> AgentNode
+  RAGRetrieve --> AgentNode
+  ToolsNode --> AgentNode
+  AgentNode -- "has tool_calls" --> ToolsNode
+  AgentNode -- "no tools" --> CheckHal
+  CheckHal -- "grounded / max_retries" --> Observe
+  CheckHal -- "hallucination<br/>(Retry)" --> AgentNode
+  Observe --> END
+  classDef statusNode fill:#10b981,stroke:#059669,color:#fff,stroke-width:2px;
+  classDef logicNode fill:#6366f1,stroke:#4f46e5,color:#fff,stroke-width:2px;
+  classDef retrievalNode fill:#0ea5e9,stroke:#0284c7,color:#fff,stroke-width:2px;
+  classDef toolNode fill:#8b5cf6,stroke:#7c3aed,color:#fff,stroke-width:2px;
+  classDef agentNode fill:#4f46e5,stroke:#3730a3,color:#fff,stroke-width:2px;
+  classDef decisionNode fill:#f59e0b,stroke:#d97706,color:#fff,stroke-width:2px;
+  style END fill:#f43f5e,stroke:#e11d48,color:#fff;

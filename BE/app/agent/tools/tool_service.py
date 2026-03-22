@@ -1,5 +1,5 @@
 from app.core.logger import get_logger
-from typing import List, Callable, Dict, Any
+from typing import List, Dict
 from langchain_core.tools import tool, Tool
 from langchain_community.tools import DuckDuckGoSearchResults
 

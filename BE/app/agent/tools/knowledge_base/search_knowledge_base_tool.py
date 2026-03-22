@@ -2,11 +2,8 @@ from typing import List, Optional, Type
 from pydantic import BaseModel, Field
 from langchain_core.tools import BaseTool
 
-from app.services.llm.llm_service import LLMService
-from app.services.supabase.knowledge_base_repository import KnowledgeBaseRepository
-from app.rag.retrieval import ChatRetrievalHelper
+from app.agent.retrieval import ChatRetrievalHelper
 from app.core.logger import get_logger
-import asyncio
 import json
 
 logger = get_logger(__name__)
@@ -17,7 +14,7 @@ class SearchKnowledgeBaseToolInput(BaseModel):
       description="Search queries to find relevant information. Provide 2-4 variations of the question using different keywords for better results."
   )
   kb_ids: List[str] = Field(
-      description="Knowledge base IDs to search. Use 'list_knowledge_bases' first if you don't know the IDs."
+      description="List of exact UUID strings representing the Knowledge Bases to search (e.g., ['123e4567-e89b-12d3...']). MUST be UUIDs, NEVER names. Use 'list_knowledge_bases' to get the IDs."
   )
 
 
@@ -26,7 +23,7 @@ class SearchKnowledgeBaseTool(BaseTool):
   description: str = (
       "Search for relevant information in knowledge bases using semantic search. "
       "Provide search queries and knowledge base IDs to retrieve relevant context. "
-      "IMPORTANT: Only show the names of the knowledge bases or documents to the user, NOT the IDs."
+      "IMPORTANT: You MUST ALWAYS call 'list_knowledge_bases' first to get the exact UUID strings before calling this tool. "
   )
   args_schema: Type[BaseModel] = SearchKnowledgeBaseToolInput
 
@@ -49,7 +46,19 @@ class SearchKnowledgeBaseTool(BaseTool):
     """
     try:
       if not kb_ids:
-        return "Error: No kb_ids provided. Please call 'list_knowledge_bases' first to get the IDs you want to search."
+        return "Error: No kb_ids provided. Please call 'list_knowledge_bases' first to get the exact UUIDs."
+
+      import uuid
+      valid_kb_ids = []
+      for kid in kb_ids:
+        try:
+          uuid.UUID(str(kid))
+          valid_kb_ids.append(str(kid))
+        except ValueError:
+          pass
+
+      if not valid_kb_ids:
+        return f"Error: No valid knowledge base UUIDs provided: {kb_ids}. Please check that you are using the correct UUID strings, not names."
 
       # 1. Prepare Centralized Retrieval Config
       from app.agent.config import BotRetrievalConfig
@@ -67,8 +76,10 @@ class SearchKnowledgeBaseTool(BaseTool):
 
       # 2. Execute Centralized Search (Parallel, Reranked, optimized)
       # We create tasks for EVERY query passed by the Agent (Rewrite, Decomposed, HyDE)
-      search_tasks = [(q, kb_ids) for q in queries]
+      search_tasks = [(q, valid_kb_ids) for q in queries]
 
+      import time
+      start_search = time.time()
       documents = await self.retrieval_helper.search_knowledge_bases(
           search_tasks=search_tasks,
           tenant_id=self.tenant_id,
@@ -76,6 +87,9 @@ class SearchKnowledgeBaseTool(BaseTool):
           access_token=self.access_token,
           rerank_query=queries[0] if queries else ""
       )
+      duration = time.time() - start_search
+      logger.info(
+        f"[SearchKnowledgeBaseTool] Search completed in {duration:.2f}s")
 
       # 3. Format results as context parts
       context_parts = [doc.page_content for doc in documents]

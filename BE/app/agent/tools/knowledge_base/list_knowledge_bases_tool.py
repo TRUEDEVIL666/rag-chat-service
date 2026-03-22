@@ -1,11 +1,10 @@
 import json
 from typing import List, Optional, Type
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from langchain_core.tools import BaseTool
 
 from app.services.supabase.knowledge_base_repository import KnowledgeBaseRepository
 from app.core.logger import get_logger
-import asyncio
 
 logger = get_logger(__name__)
 
@@ -18,8 +17,7 @@ class ListKnowledgeBasesInput(BaseModel):
 class ListKnowledgeBasesTool(BaseTool):
   name: str = "list_knowledge_bases"
   description: str = (
-      "Source Discovery. Use this to identify available knowledge bases and their metadata. "
-      "IMPORTANT: Do NOT reveal the internal IDs to the user; only use them for passing to other tools."
+      "Source Discovery. Use this to identify available knowledge bases and their metadata."
   )
   args_schema: Type[BaseModel] = ListKnowledgeBasesInput
 

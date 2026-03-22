@@ -1,5 +1,4 @@
 import re
-import uuid
 import hashlib
 from typing import Any, List, Optional, Tuple
 
@@ -14,7 +13,6 @@ from llama_index.core.node_parser import (
     SentenceWindowNodeParser,
     TokenTextSplitter,
 )
-from llama_index.node_parser.topic import TopicNodeParser
 from llama_index.core.schema import BaseNode
 
 from app.config.config import settings as AppSettings

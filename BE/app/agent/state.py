@@ -1,39 +1,33 @@
-from typing import Annotated, Any, List, Optional
+from typing import Annotated, List, Optional
 from typing_extensions import TypedDict
 from langchain_core.messages import AnyMessage
 from langchain_core.documents import Document
 from langgraph.graph.message import add_messages
+
+from app.agent.config import BotRetrievalConfig
 from app.schemas.llm import LLMConfig
+
+def add_documents(left: List[Document], right: List[Document]) -> List[Document]:
+  """Custom reducer to append documents in parallel nodes."""
+  return (left or []) + (right or [])
 
 
 class GraphState(TypedDict):
   """
   Represents the state of the agent graph.
   """
-  # Messages in the conversation
   messages: Annotated[list[AnyMessage], add_messages]
-
-  # Context retrieved from Knowledge Base
-  context: List[Document]
-
-  # The user's original query (or rewritten)
-  query: str
-
-  # Configuration for the LLM
+  context: Annotated[List[Document], add_documents]
   llm_config: LLMConfig
+  retrieval_config: BotRetrievalConfig
 
-  # Metadata for the session
-  session_id: str
-  bot_id: str
   user_id: str
-  access_token: Optional[str]
+  tenant_id: str
+  access_token: str | None
+  kb_ids: List[str]
+  memori_context: str | None
+  start_time: float | None
+  planner_decision: dict | None
 
-  # Retry count for self-correction
   retry_count: int
   is_grounded: bool
-
-  # Whether tools are supported/used
-  supports_tools: bool
-
-  # Flags
-  quiz_mode: bool
