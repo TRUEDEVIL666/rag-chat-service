@@ -10,7 +10,6 @@ from concurrent.futures import ThreadPoolExecutor
 import langextract as lx
 import langextract.factory as lx_factory
 from langextract.core.data import Extraction
-from langextract.providers.ollama import OllamaLanguageModel
 
 import logging
 import sys
@@ -94,26 +93,6 @@ def dedupe_extractions(extractions):
 
 
 def run_extraction(document):
-  config = lx_factory.ModelConfig(
-    model_id=MODEL_ID,
-    provider="ollama",
-    provider_kwargs={"base_url": OLLAMA_BASE_URL},
-  )
-
-  # NEW (working)
-  model = OllamaLanguageModel(
-    model_id=MODEL_ID,
-    base_url=OLLAMA_BASE_URL,
-    temperature=0,
-  )
-
-  result = lx.extract(
-    text_or_documents=[document],
-    model=model,
-    prompt_description=SCHEMA_PROMPT,
-    examples=EXAMPLES,
-  )
-
   result = lx.extract(
     text_or_documents=[document],
     prompt_description=SCHEMA_PROMPT,

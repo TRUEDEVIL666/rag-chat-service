@@ -11,7 +11,6 @@ If you just downloaded this project, follow the steps below to get it running.
 | **Frontend UI**                  | [http://localhost:3000](http://localhost:3000)                     | -                           |
 | **Backend API Docs**             | [http://localhost:8000/docs](http://localhost:8000/docs)           | -                           |
 | **MinIO Console** (Storage)      | [http://localhost:9001](http://localhost:9001)                     | `minioadmin` / `minioadmin` |
-| **Qdrant Dashboard** (Vector DB) | [http://localhost:6333/dashboard](http://localhost:6333/dashboard) | -                           |
 | **RabbitMQ** (Queue)             | [http://localhost:15672](http://localhost:15672)                   | `guest` / `guest`           |
 
 ## 🚀 Quick Start Guide
@@ -28,7 +27,7 @@ Ensure you have these installed:
 
 #### Step A: Start Core Infrastructure
 
-We use Docker to run the databases (Postgres/Supabase, Qdrant, Redis, MinIO).
+We use Docker to run the databases (Postgres/Supabase, Redis, MinIO).
 
 ```bash
 # In project root
@@ -51,7 +50,6 @@ _Wait ~30 seconds for all containers to be healthy._
       algorithm=HS256
       celery_broker=redis://localhost:6379/0
       celery_backend=redis://localhost:6379/0
-      qdrant_host=localhost
       minio_endpoint=localhost:9000
       minio_access_key=minioadmin
       minio_secret_key=minioadmin
@@ -127,7 +125,6 @@ pnpm dev
 | **Frontend UI**                  | [http://localhost:3000](http://localhost:3000)                     | -                           |
 | **Backend API Docs**             | [http://localhost:8000/docs](http://localhost:8000/docs)           | -                           |
 | **MinIO Console** (Storage)      | [http://localhost:9001](http://localhost:9001)                     | `minioadmin` / `minioadmin` |
-| **Qdrant Dashboard** (Vector DB) | [http://localhost:6333/dashboard](http://localhost:6333/dashboard) | -                           |
 | **RabbitMQ** (Queue)             | [http://localhost:15672](http://localhost:15672)                   | `guest` / `guest`           |
 
 ---
