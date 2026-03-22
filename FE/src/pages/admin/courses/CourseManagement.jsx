@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'react-hot-toast';
-import { useNavigate, useOutletContext } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '../../../routes';
 import courseService from '../../../services/courseService';
 
@@ -13,7 +13,6 @@ import CourseGrid from './components/CourseGrid';
 const CourseManagement = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { setTitle } = useOutletContext();
 
   // State
   const [semesters, setSemesters] = useState([]);
@@ -33,9 +32,8 @@ const CourseManagement = () => {
   const mountedRef = useRef(true);
 
   useEffect(() => {
-    setTitle(t('courses.title', 'Course Management'));
     return () => { mountedRef.current = false; };
-  }, [t, setTitle]);
+  }, [t]);
 
   // Data Loading
   const loadData = useCallback(async () => {

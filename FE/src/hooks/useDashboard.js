@@ -9,6 +9,7 @@ export const useDashboard = () => {
   const [topics, setTopics] = useState([]);
   const [engagement, setEngagement] = useState(null);
   const [feedback, setFeedback] = useState(null);
+  const [chartData, setChartData] = useState([]);
 
   // Granular Loading States
   const [loadingStats, setLoadingStats] = useState(false);
@@ -16,18 +17,19 @@ export const useDashboard = () => {
   const [loadingTopics, setLoadingTopics] = useState(false);
   const [loadingEngagement, setLoadingEngagement] = useState(false);
   const [loadingFeedback, setLoadingFeedback] = useState(false);
+  const [loadingChart, setLoadingChart] = useState(false);
 
   // Global error for critical failures, or we could have granular errors
   const [error, setError] = useState(null);
 
-  const fetchDashboardData = useCallback((withLoading = true, signal) => {
+  const fetchDashboardData = useCallback((withLoading = true, signal, range = '7days') => {
     const options = { signal };
 
     // Helper to fetch independent logic
-    const fetchData = async (setter, loader, serviceCall) => {
+    const fetchData = async (setter, loader, serviceCall, params = null) => {
       if (withLoading) loader(true);
       try {
-        const data = await serviceCall(options);
+        const data = params ? await serviceCall(params, options) : await serviceCall(options);
         if (!signal?.aborted) setter(data);
       } catch (err) {
         if (!signal?.aborted && err.name !== 'CanceledError' && err.code !== 'ERR_CANCELED') {
@@ -44,6 +46,7 @@ export const useDashboard = () => {
     fetchData(setTopics, setLoadingTopics, dashboardService.getTrendingTopics);
     fetchData(setEngagement, setLoadingEngagement, dashboardService.getEngagementStats);
     fetchData(setFeedback, setLoadingFeedback, dashboardService.getFeedbackSummary);
+    fetchData(setChartData, setLoadingChart, dashboardService.getChartData, range);
     
   }, []);
 
@@ -53,12 +56,14 @@ export const useDashboard = () => {
     topics,
     engagement,
     feedback,
+    chartData,
     loadingStats,
     loadingActivity,
     loadingTopics,
     loadingEngagement,
     loadingFeedback,
-    loading: loadingStats || loadingActivity || loadingTopics || loadingEngagement || loadingFeedback, // aggregated for backward compat
+    loadingChart,
+    loading: loadingStats || loadingActivity || loadingTopics || loadingEngagement || loadingFeedback || loadingChart, // aggregated for backward compat
     error,
     fetchDashboardData
   };

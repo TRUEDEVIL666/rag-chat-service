@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, useOutletContext } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { UsersIcon, ChalkboardTeacherIcon, CalendarCheckIcon, MagnifyingGlassIcon } from '@phosphor-icons/react';
 import courseService from '../../../services/courseService';
 import Skeleton from '../../../components/common/Skeleton';
@@ -9,7 +9,6 @@ import { toast } from 'react-hot-toast';
 const InstructorClasses = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { setTitle } = useOutletContext();
 
   const [classes, setClasses] = useState([]);
   const [semesters, setSemesters] = useState([]);
@@ -18,10 +17,6 @@ const InstructorClasses = () => {
   // Filter state
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSemesterId, setSelectedSemesterId] = useState('all');
-
-  useEffect(() => {
-    setTitle(t('courses.instructor_classes', 'My Classes'));
-  }, [t, setTitle]);
 
   useEffect(() => {
     loadInitialData();

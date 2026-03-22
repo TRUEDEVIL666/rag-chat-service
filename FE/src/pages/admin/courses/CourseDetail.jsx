@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate, useOutletContext } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeftIcon, PlusIcon, TrashIcon, BookOpenIcon, RobotIcon, CalendarCheckIcon, ChalkboardTeacherIcon, FilesIcon } from '@phosphor-icons/react';
+import { ArrowLeftIcon, PlusIcon, TrashIcon, RobotIcon, CalendarCheckIcon, ChalkboardTeacherIcon, FilesIcon } from '@phosphor-icons/react';
 import { toast } from 'react-hot-toast';
 import { ROUTES } from '../../../routes';
 import courseService from '../../../services/courseService';
@@ -14,7 +14,6 @@ const CourseDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { setTitle } = useOutletContext();
 
   // State
   const [course, setCourse] = useState(null);
@@ -43,11 +42,6 @@ const CourseDetail = () => {
       setClasses(classesData);
       setInstructors(usersData.items || []); // Assuming paginated response with 'items'
       setAllKbs(Array.isArray(kbsData) ? kbsData : (kbsData?.data || []));
-
-      // Set page title once course is loaded
-      if (setTitle && courseData) {
-        setTitle(`${courseData.code}: ${courseData.name}`);
-      }
     } catch (error) {
       console.error(error);
       toast.error(t('courses.load_error', "Failed to load course details"));

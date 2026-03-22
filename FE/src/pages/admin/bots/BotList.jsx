@@ -16,11 +16,6 @@ const BotList = () => {
   const { bots, loading: isLoading, error, fetchBots, deleteBot } = useBots();
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
-  const { setTitle } = useOutletContext() || {};
-
-  useEffect(() => {
-    if (setTitle) setTitle(t('admin.bots.title', 'Chatbots'));
-  }, [setTitle, t]);
 
 
   const tourSteps = [

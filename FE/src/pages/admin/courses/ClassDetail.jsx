@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate, useOutletContext } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeftIcon, RobotIcon, Trash } from '@phosphor-icons/react';
+import { ArrowLeftIcon, RobotIcon, TrashIcon } from '@phosphor-icons/react';
 import { toast } from 'react-hot-toast';
 import courseService from '../../../services/courseService';
 import Skeleton from '../../../components/common/Skeleton';
@@ -12,7 +12,6 @@ const ClassDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { setTitle } = useOutletContext() || {};
 
   const [cls, setCls] = useState(null);
   const [students, setStudents] = useState([]);
@@ -33,9 +32,6 @@ const ClassDetail = () => {
     try {
       const data = await courseService.getClass(id);
       setCls(data);
-      if (setTitle && data) {
-        setTitle(data.name);
-      }
     } catch (error) {
       console.error(error);
       toast.error(t('courses.load_error', "Failed to load class data"));
@@ -160,7 +156,7 @@ const ClassDetail = () => {
                           className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
                           title={t('common.remove', 'Remove')}
                         >
-                          <Trash size={18} />
+                          <TrashIcon size={18} />
                         </button>
                       </td>
                     </tr>
@@ -218,7 +214,7 @@ const ClassDetail = () => {
                           className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
                           title={t('common.remove', 'Remove')}
                         >
-                          <Trash size={18} />
+                          <TrashIcon size={18} />
                         </button>
                       </td>
                     </tr>

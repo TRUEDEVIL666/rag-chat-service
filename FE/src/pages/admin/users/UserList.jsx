@@ -28,12 +28,6 @@ const UserList = () => {
 
   const { startTour } = usePageTour('user-list', tourSteps);
 
-  const { setTitle } = useOutletContext() || {};
-
-  useEffect(() => {
-    if (setTitle) setTitle(t('admin.users.title', 'User Management'));
-  }, [setTitle, t]);
-
   useEffect(() => {
     const controller = new AbortController();
     fetchUsers(false, null, { signal: controller.signal });

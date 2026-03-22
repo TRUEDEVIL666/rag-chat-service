@@ -36,15 +36,6 @@ const KnowledgeBaseList = () => {
 
   const { documents } = useDocuments();
 
-
-  const { setTitle } = useOutletContext() || {};
-
-  useEffect(() => {
-    if (setTitle) {
-      setTitle(t('admin.documents.list.kbSection', 'Knowledge Bases'));
-    }
-  }, [setTitle, t]);
-
   const [searchQuery, setSearchQuery] = useState('');
 
   const [isCreateKBModalOpen, setIsCreateKBModalOpen] = useState(false);

@@ -10,13 +10,6 @@ import clsx from 'clsx';
 const AiProviderModelPage = () => {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState('providers');
-  const { setTitle } = useOutletContext() || {};
-
-  useEffect(() => {
-    if (setTitle) {
-      setTitle(t('admin.aiModels.title', 'AI Providers & Models'));
-    }
-  }, [setTitle, t]);
 
   const tabs = [
     { id: 'providers', label: t('admin.aiModels.providers.title'), icon: SquaresFourIcon },

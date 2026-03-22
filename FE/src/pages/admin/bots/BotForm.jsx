@@ -1,35 +1,29 @@
-import { useState, useEffect } from 'react';
-import { useNavigate, useOutletContext } from 'react-router-dom';
 import {
-  RobotIcon,
   ArrowLeftIcon,
   ArrowRightIcon,
-  MagicWandIcon,
-  FloppyDiskIcon,
   CpuIcon,
+  FloppyDiskIcon,
   LightningIcon,
-  NotebookIcon
+  MagicWandIcon,
+  NotebookIcon,
+  RobotIcon
 } from '@phosphor-icons/react';
-import TextField from '../../../components/common/TextField';
-import Select from '../../../components/common/Select';
-import Button from '../../../components/common/Button';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useBots, useBotOptions } from '../../../hooks/useBots';
-import { usePageTour } from '../../../hooks/usePageTour';
+import { useNavigate } from 'react-router-dom';
+import Button from '../../../components/common/Button';
+import Select from '../../../components/common/Select';
+import TextField from '../../../components/common/TextField';
 import TourButton from '../../../components/common/TourButton';
+import { useBotOptions, useBots } from '../../../hooks/useBots';
+import { usePageTour } from '../../../hooks/usePageTour';
+import { ROUTES } from '../../../routes';
 
 const BotForm = ({ initialData, isEdit = false }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { createBot, updateBot, loading: processing } = useBots();
   const { providers, models, rerankers, loading: loadingOptions, fetchProviders, fetchModels, fetchRerankers } = useBotOptions();
-  const { setTitle } = useOutletContext() || {};
-
-  useEffect(() => {
-    if (setTitle) {
-      setTitle(isEdit ? t('admin.bots.form.editTitle') : t('admin.bots.form.createTitle'));
-    }
-  }, [setTitle, isEdit, t]);
 
   const tourSteps = [
     { element: '#bot-name-input', popover: { title: t('tour.bots.form.name'), description: t('tour.bots.form.nameDesc') } },

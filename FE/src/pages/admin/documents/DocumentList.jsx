@@ -44,17 +44,6 @@ const DocumentList = () => {
     retryDocument
   } = useDocuments();
 
-
-  const { setTitle } = useOutletContext() || {};
-
-  const kbName = location.state?.kbName || 'Documents';
-
-  useEffect(() => {
-    if (setTitle) {
-      setTitle(kbName);
-    }
-  }, [setTitle, kbName]);
-
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedItems, setSelectedItems] = useState(new Set());
   const [highlightedDocId, setHighlightedDocId] = useState(null);

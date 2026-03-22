@@ -7,11 +7,6 @@ import { useEffect } from 'react';
 const Settings = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
-  const { setTitle } = useOutletContext() || {};
-
-  useEffect(() => {
-    if (setTitle) setTitle(t('admin.settings.title', 'Settings'));
-  }, [setTitle, t]);
 
   return (
     <div className="max-w-3xl space-y-8">

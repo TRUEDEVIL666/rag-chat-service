@@ -16,7 +16,6 @@ const BotKBConfigPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { setTitle } = useOutletContext() || {};
 
   const [bot, setBot] = useState(null);
   const [kbs, setKbs] = useState([]);
@@ -60,12 +59,6 @@ const BotKBConfigPage = () => {
       active = false;
     };
   }, [id]);
-
-  useEffect(() => {
-    if (setTitle && bot) {
-      setTitle(`${t('admin.bots.kbConfig.pageTitle', 'Configure Knowledge Base:')} ${bot.name}`);
-    }
-  }, [setTitle, bot, t]);
 
   const handleToggleKb = (kbId) => {
     setSelectedKbIds(prev => {
