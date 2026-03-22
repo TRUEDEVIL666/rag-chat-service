@@ -1,4 +1,4 @@
-from typing import List, Dict, Optional
+from typing import List, Dict
 from datetime import datetime
 from app.core.logger import get_logger
 from app.services.supabase.supabase_client import get_async_supabase_client
@@ -20,8 +20,8 @@ class GraphEdgeRepository:
     Store formatted graph edges into Supabase (Upsert).
     Expected edge format:
     {
-      "source_chunk_id": <uuid>,
-      "target_chunk_id": <uuid>,
+      "source_entity_id": <uuid>,
+      "target_entity_id": <uuid>,
       "relationship_type": <str>,
       "properties": <dict>
     }
@@ -45,23 +45,24 @@ class GraphEdgeRepository:
           f"[GraphEdgeRepo]: Upserted {len(response.data)} edges.")
     except Exception as e:
       logger.exception(f"[GraphEdgeRepo]: Failed to upsert edges: {e}")
+      raise
 
-  async def get_edges_by_chunk_ids(self, chunk_ids: List[str], access_token: str = None) -> List[Dict]:
+  async def get_edges_by_entity_ids(self, entity_ids: List[str], access_token: str = None) -> List[Dict]:
     """
-    Retrieve all edges where the source or target matches the provided chunk IDs.
+    Retrieve all edges where the source or target matches the provided entity IDs.
     """
-    if not chunk_ids:
+    if not entity_ids:
       return []
 
     try:
       client = await get_async_supabase_client(access_token)
 
       # Format IDs for PostgREST: (id1,id2,id3)
-      ids_param = f"({','.join(str(cid) for cid in chunk_ids)})"
+      ids_param = f"({','.join(str(cid) for cid in entity_ids)})"
 
       # Query where source OR target is in the list
-      # Supabase OR syntax: or=(source_chunk_id.in.(...),(target_chunk_id.in.(...))
-      or_filter = f"source_chunk_id.in.{ids_param},target_chunk_id.in.{ids_param}"
+      # Supabase OR syntax: or=(source_entity_id.in.(...),(target_entity_id.in.(...))
+      or_filter = f"source_entity_id.in.{ids_param},target_entity_id.in.{ids_param}"
 
       result = await (
           client.table(self.table_name)
@@ -72,10 +73,10 @@ class GraphEdgeRepository:
       return result.data or []
     except Exception as e:
       logger.exception(
-        f"[GraphEdgeRepo]: Failed to fetch edges by chunk IDs: {e}")
+        f"[GraphEdgeRepo]: Failed to fetch edges by entity IDs: {e}")
       return []
 
-  async def delete_edges(self, source_chunk_id: str, target_chunk_id: str, relationship_type: str, access_token: str = None) -> bool:
+  async def delete_edges(self, source_entity_id: str, target_entity_id: str, relationship_type: str, access_token: str = None) -> bool:
     """
     Delete a specific edge (used for cleanup or syncing).
     """
@@ -83,8 +84,8 @@ class GraphEdgeRepository:
       client = await get_async_supabase_client(access_token)
       await (client.table(self.table_name)
              .delete()
-             .eq("source_chunk_id", source_chunk_id)
-             .eq("target_chunk_id", target_chunk_id)
+             .eq("source_entity_id", source_entity_id)
+             .eq("target_entity_id", target_entity_id)
              .eq("relationship_type", relationship_type)
              .execute())
       return True

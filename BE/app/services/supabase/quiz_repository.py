@@ -1,6 +1,5 @@
-from typing import List, Optional, Dict, Any
+from typing import List, Dict
 from uuid import UUID
-from datetime import datetime
 
 from app.services.supabase.supabase_client import get_async_supabase_client
 

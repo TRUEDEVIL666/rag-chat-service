@@ -142,8 +142,7 @@ class ClassRepository:
         for uid in user_ids
       ]
 
-      response = await client.table("class_enrollments").upsert(
-        data, on_conflict="class_id,user_id").execute()
+      await client.table("class_enrollments").upsert(data, on_conflict="class_id,user_id").execute()
       return True
     except Exception as e:
       logger.error(f"Error adding students to class: {e}")

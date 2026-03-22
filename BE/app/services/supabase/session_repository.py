@@ -139,7 +139,7 @@ class SessionRepository:
         q = q.eq("tenant_id", tenant_id)
       res = await q.execute()
       return res.count or 0
-    except Exception as e:
+    except Exception:
       logger.exception("Failed to get total sessions count")
       return 0
 

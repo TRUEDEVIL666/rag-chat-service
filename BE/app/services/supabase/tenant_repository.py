@@ -1,8 +1,6 @@
 # app/services/supabase/tenant_repository.py
-from uuid import UUID
 from app.services.supabase.supabase_client import get_async_supabase_client
 from app.core.logger import get_logger
-from datetime import datetime
 
 logger = get_logger(__name__)
 
@@ -22,7 +20,7 @@ class TenantRepository:
           .execute()
       )
       return response.data
-    except Exception as e:
+    except Exception:
       logger.exception("Get user by email failed")
       raise RuntimeError("Failed to get user by email")
 
@@ -34,7 +32,7 @@ class TenantRepository:
       if response.data:
         return response.data
       return None
-    except Exception as e:
+    except Exception:
       logger.exception(f"Failed to get tenant {tenant_id}")
       return None
 
@@ -46,7 +44,7 @@ class TenantRepository:
       if response.data:
         return response.data[0]
       return None
-    except Exception as e:
+    except Exception:
       logger.exception(f"Failed to create tenant {name}")
       raise RuntimeError(f"Failed to create tenant {name}")
 
@@ -55,6 +53,6 @@ class TenantRepository:
       client = await get_async_supabase_client(access_token)
       response = await client.table(self.table_name).select("*").execute()
       return response.data if response.data else []
-    except Exception as e:
+    except Exception:
       logger.exception("Failed to get all tenants")
       return []

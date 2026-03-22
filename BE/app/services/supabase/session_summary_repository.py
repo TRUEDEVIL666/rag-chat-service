@@ -43,6 +43,6 @@ class SessionSummaryRepository:
       if response.data:
         return response.data
       return None
-    except Exception as e:
+    except Exception:
       # It's okay if summary doesn't exist
       return None

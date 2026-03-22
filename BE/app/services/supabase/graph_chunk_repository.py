@@ -143,7 +143,6 @@ class GraphChunkRepository:
     Extract metadata fields from a Document for Supabase insertion.
     """
     meta = doc.metadata or {}
-    backlash = '\n'
     kb_id = meta.get("kb_id")
     tenant_id = meta.get("tenant_id")
 

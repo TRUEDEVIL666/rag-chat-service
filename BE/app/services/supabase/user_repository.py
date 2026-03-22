@@ -1,8 +1,7 @@
 # app/services/supabase/user_repository.py
-from uuid import UUID
 from app.services.supabase.supabase_client import get_async_supabase_client
 from app.core.logger import get_logger
-from typing import Any, Dict, Optional, TYPE_CHECKING
+from typing import Any, Optional, TYPE_CHECKING
 if TYPE_CHECKING:
   from app.schemas.common_params import UserSearchParams
 
@@ -22,7 +21,7 @@ class UserRepository:
         logger.info(f"Updated user {user_id} {param_name} to {param_value}")
         return response.data[0]
       return None
-    except Exception as e:
+    except Exception:
       logger.exception(f"Failed to update user {user_id} {param_name}")
       raise RuntimeError(f"Failed to update user {user_id} {param_name}")
 
@@ -64,7 +63,7 @@ class UserRepository:
       if response.data:
         return response.data
       return []
-    except Exception as e:
+    except Exception:
       logger.exception("Failed to get all non-admin users")
       raise RuntimeError("Failed to get all non-admin users")
 
@@ -105,7 +104,7 @@ class UserRepository:
       if response.data:
         return response.data
       return None
-    except Exception as e:
+    except Exception:
       logger.exception(
         f"Failed to get user details from public.users for user_id: {user_id}")
       raise RuntimeError(
@@ -128,7 +127,7 @@ class UserRepository:
       res = await client.table(self.table_name).select(
         "*", count="exact", head=True).execute()
       return res.count or 0
-    except Exception as e:
+    except Exception:
       logger.exception("Failed to get total users count")
       return 0
 

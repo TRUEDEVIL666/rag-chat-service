@@ -1,7 +1,5 @@
 from app.services.supabase.supabase_client import get_async_supabase_client
 from app.schemas.bot import BotCreateRequest, BotUpdateConfigRequest
-from datetime import datetime
-from uuid import uuid4
 from app.core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -15,29 +13,21 @@ class BotRepository:
       user_id: str,
       access_token: str = None
   ):
-    bot_id = str(uuid4())
-    now = datetime.utcnow().isoformat()
+    insert_data = data.dict(exclude_unset=True)
+    insert_data["tenant_id"] = tenant_id
 
-    insert_data = {
-        "id": bot_id,
-        "tenant_id": tenant_id,
-        "name": data.name,
-        "description": data.description,
-        "config_prompt": data.config_prompt,
-        "config_model": data.config_model.dict() if data.config_model else None,
-        "provider_id": str(data.provider_id) if data.provider_id else None,
-        "model_id": str(data.model_id) if data.model_id else None,
-        "kb_ids": None,
-        "created_at": now,
-    }
+    # Ensure UUIDs are strings for the Supabase client
+    for field in ["provider_id", "model_id"]:
+      if insert_data.get(field):
+        insert_data[field] = str(insert_data[field])
+
+    # Remove kb_ids from the bots table insert (handled by junction table)
+    if "kb_ids" in insert_data:
+      del insert_data["kb_ids"]
 
     client = await get_async_supabase_client(access_token)
-    result = await client.table("bots").insert(insert_data).select(
-        "*, provider:ai_providers(*), model:ai_models(*)").execute()
-    if result.data:
-      return result.data[0]
-    else:
-      raise Exception("Failed to insert bot")
+    result = await client.table("bots").insert(insert_data).execute()
+    return result.data[0]
 
   async def update_config(
       self,
@@ -71,22 +61,24 @@ class BotRepository:
       update_data["provider_id"] = str(request.provider_id)
     if request.model_id is not None:
       update_data["model_id"] = str(request.model_id)
-    if request.kb_ids is not None:
-      update_data["kb_ids"] = [str(uid) for uid in request.kb_ids]
 
     # Execute update
-    await client.table("bots").update(update_data).eq("id", bot_id).execute()
+    if update_data:
+      await client.table("bots").update(update_data).eq("id", bot_id).execute()
 
     # Fetch updated record to return
     updated = await (
         client.table("bots")
-        .select("*, provider:ai_providers(*), model:ai_models(*)")
+        .select("*, provider:ai_providers(*), model:ai_models(*), bot_knowledge_bases(kb_id)")
         .eq("id", bot_id)
         .single()
         .execute()
     )
     if updated.data:
-      return updated.data
+      bot = updated.data
+      bot["kb_ids"] = [row["kb_id"]
+                       for row in bot.pop("bot_knowledge_bases", [])]
+      return bot
     else:
       raise ValueError("Failed to update bot")
 
@@ -126,13 +118,18 @@ class BotRepository:
     client = await get_async_supabase_client(access_token)
     result = await (
         client.table("bots")
-        .select("*, provider:ai_providers(*), model:ai_models(*)")
+        .select("*, provider:ai_providers(*), model:ai_models(*), bot_knowledge_bases(kb_id)")
         .eq("tenant_id", tenant_id)
         .order("created_at", desc=True)
         .execute()
     )
 
     bots = result.data or []
+    # Flatten junction table rows into a kb_ids array
+    for bot in bots:
+      bot["kb_ids"] = [row["kb_id"]
+                       for row in bot.pop("bot_knowledge_bases", [])]
+
     return await self._hydrate_bots_with_kbs(bots, client)
 
   async def get_bot(self, bot_id: str, tenant_id: str, access_token: str = None):
@@ -140,7 +137,7 @@ class BotRepository:
     try:
       result = await (
           client.table("bots")
-          .select("*, provider:ai_providers(*), model:ai_models(*)")
+          .select("*, provider:ai_providers(*), model:ai_models(*), bot_knowledge_bases(kb_id)")
           .eq("id", bot_id)
           .eq("tenant_id", tenant_id)
           .maybe_single()
@@ -154,6 +151,10 @@ class BotRepository:
           data["provider"] = data["provider"][0] if data["provider"] else None
         if isinstance(data.get("model"), list):
           data["model"] = data["model"][0] if data["model"] else None
+
+        # Flatten junction table rows into a kb_ids array
+        data["kb_ids"] = [row["kb_id"]
+                          for row in data.pop("bot_knowledge_bases", [])]
 
         # Hydrate KBs
         hydrated_list = await self._hydrate_bots_with_kbs([data], client)

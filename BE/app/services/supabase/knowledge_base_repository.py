@@ -3,7 +3,7 @@
 from datetime import datetime, timezone
 from app.services.supabase.supabase_client import get_async_supabase_client
 from app.core.logger import get_logger
-from typing import Any, Dict, Optional, List, Tuple
+from typing import Any, Dict, Optional, List
 
 logger = get_logger(__name__)
 
@@ -151,10 +151,10 @@ class KnowledgeBaseRepository:
     fields["updated_at"] = datetime.now(timezone.utc).isoformat()
 
     client = await get_async_supabase_client(access_token)
-    res = await (client.table(self.table_name)
-                 .update(fields)
-                 .eq("id", kb_id).eq("tenant_id", tenant_id)
-                 .execute())
+    await (client.table(self.table_name)
+           .update(fields)
+           .eq("id", kb_id).eq("tenant_id", tenant_id)
+           .execute())
     # Return get_one to ensure consistency with list/get views (e.g. joined fields)
     return await self.get_one(kb_id, tenant_id, access_token)
 
@@ -170,7 +170,7 @@ class KnowledgeBaseRepository:
       client = await get_async_supabase_client(access_token)
       res = await (
           client.table(self.table_name)
-          .select("id, name, description, retrieval_model, embedding_model:embedding_model_id(name, model_id), embedding_provider:embedding_provider_id(name)")
+          .select("id, name, description, retrieval_model, embedding_model:ai_models(name, model_id), embedding_provider:ai_providers(name)")
           .in_("id", kb_ids)
           .eq("tenant_id", tenant_id)
           .execute()
@@ -227,6 +227,6 @@ class KnowledgeBaseRepository:
 
       res = await res.execute()
       return res.count or 0
-    except Exception as e:
+    except Exception:
       logger.exception("Failed to get total KBs count")
       return 0
