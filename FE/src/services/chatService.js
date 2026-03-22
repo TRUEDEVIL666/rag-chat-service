@@ -56,77 +56,113 @@ export const streamChatResponse = async ({
   }
 
   // 2. STREAMING (Normal Chat)
-  const response = await api.post(endpoint, {
-    message,
-    streaming: true,
-    quiz_mode: false,
-  }, {
-    signal,
-    adapter: 'fetch',
-    responseType: 'stream'
-  });
+  const token = localStorage.getItem('token');
+  const headers = {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
 
-  const reader = response.data.getReader();
-  const decoder = new TextDecoder();
-  let accumulatedResponse = "";
-  let activeSessionId = sessionId;
+  // Create a timeout signal for the initial connection (10 seconds)
+  const timeoutId = setTimeout(() => signal.reason === undefined && signal.dispatchEvent(new Event('abort')), 10000);
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
+  try {
+    // Use native fetch to avoid Axios 'fetch' adapter unhandled promise rejection bugs with extensions
+    const fetchResponse = await fetch(`${api.defaults.baseURL}${endpoint}`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        message,
+        streaming: true,
+        quiz_mode: false,
+      }),
+      signal
+    });
 
-    const chunk = decoder.decode(value, { stream: true });
-    const lines = chunk.split('\n\n');
+    clearTimeout(timeoutId);
 
-    for (const line of lines) {
-      if (line.startsWith('data: ')) {
-        const jsonStr = line.replace('data: ', '').trim();
-        if (jsonStr === '[DONE]') break;
+    if (!fetchResponse.ok) {
+      const errorData = await fetchResponse.json().catch(() => ({}));
+      throw new Error(errorData.detail || `HTTP error! status: ${fetchResponse.status}`);
+    }
 
-        try {
-          const data = JSON.parse(jsonStr);
+    const reader = fetchResponse.body.getReader();
+    const decoder = new TextDecoder();
+    let accumulatedResponse = "";
+    let activeSessionId = sessionId;
 
-          if (data.session_id && !activeSessionId) {
-            activeSessionId = data.session_id;
-            if (onSessionId) onSessionId(data.session_id);
-          }
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-          if (data.response) {
-            const responseText = data.response;
-            
-            // Handle tool call events
-            if (responseText.startsWith('__TOOL_CALL__: ')) {
-              const toolCallJson = responseText.replace('__TOOL_CALL__: ', '');
-              try {
-                const toolCallData = JSON.parse(toolCallJson);
-                if (typeof onToolCall === 'function') {
-                  onToolCall(toolCallData);
-                }
-              } catch (e) {
-                console.warn("Failed to parse tool call JSON", e);
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const jsonStr = line.replace('data: ', '').trim();
+            if (jsonStr === '[DONE]') break;
+
+            try {
+              const data = JSON.parse(jsonStr);
+
+              if (data.session_id && !activeSessionId) {
+                activeSessionId = data.session_id;
+                if (onSessionId) onSessionId(data.session_id);
               }
-            }
-            // Handle status events
-            else if (responseText.startsWith('__STATUS__: ')) {
-              const statusJson = responseText.replace('__STATUS__: ', '');
-              try {
-                const statusData = JSON.parse(statusJson);
-                if (statusData.text && typeof onStatus === 'function') {
-                  onStatus(statusData.text);
+
+              if (data.response) {
+                const responseText = data.response;
+                
+                // Handle tool call events
+                if (responseText.startsWith('__TOOL_CALL__: ')) {
+                  const toolCallJson = responseText.replace('__TOOL_CALL__: ', '');
+                  try {
+                    const toolCallData = JSON.parse(toolCallJson);
+                    if (typeof onToolCall === 'function') {
+                      onToolCall(toolCallData);
+                    }
+                  } catch (e) {
+                    console.warn("Failed to parse tool call JSON", e);
+                  }
                 }
-              } catch (e) {
-                console.warn("Failed to parse status JSON", e);
+                // Handle status events
+                else if (responseText.startsWith('__STATUS__: ')) {
+                  const statusJson = responseText.replace('__STATUS__: ', '');
+                  try {
+                    const statusData = JSON.parse(statusJson);
+                    if (statusData.text && typeof onStatus === 'function') {
+                      onStatus(statusData.text);
+                    }
+                  } catch (e) {
+                    console.warn("Failed to parse status JSON", e);
+                  }
+                } else {
+                  accumulatedResponse += responseText;
+                  if (onChunk) onChunk(accumulatedResponse);
+                }
               }
-            } else {
-              accumulatedResponse += responseText;
-              if (onChunk) onChunk(accumulatedResponse);
+            } catch (e) {
+              console.warn("Parse error", e);
             }
           }
-        } catch (e) {
-          console.warn("Parse error", e);
         }
       }
+    } catch (readerError) {
+      console.error("Stream reading error:", readerError);
+      throw readerError;
+    } finally {
+      reader.releaseLock();
     }
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError' && !signal.aborted) {
+      throw new Error("Connection timeout. The server is taking too long to respond.");
+    }
+    throw err;
   }
 };
 

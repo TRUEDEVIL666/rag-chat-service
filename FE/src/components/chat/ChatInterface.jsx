@@ -136,14 +136,17 @@ const ChatInterface = ({ basePath = '/user/chat', homePath = '/user/home', sessi
     }));
   };
 
-  const loadSessionAndMessages = async (id, signal) => {
-    console.log("[ChatInterface] loadSessionAndMessages calling for id:", id);
-    setLoadingMessages(true);
+  const loadSessionAndMessages = async (id, signal, isRecovery = false) => {
+    console.log(`[ChatInterface] loadSessionAndMessages calling for id: ${id} (Recovery: ${isRecovery})`);
+    setLoadingMessages(!isRecovery); // Don't show full page spinner during silent recovery
     try {
       // 1. Fetch Session Details if needed
       let currentSession = activeSession;
       if (!currentSession || activeSession.id !== id) {
-        const sessionData = await getSession(id, { signal });
+        const sessionData = await getSession(id, { 
+          signal,
+          timeout: isRecovery ? 5000 : 30000 // Faster timeout for recovery
+        });
         if (sessionData) {
           const newSessionState = {
             id: sessionData.id,
@@ -160,7 +163,13 @@ const ChatInterface = ({ basePath = '/user/chat', homePath = '/user/home', sessi
       }
 
       // 2. Fetch Messages (sort_desc=true to get latest)
-      const response = await getSessionMessages(id, { limit: 20, sort_desc: true }, { signal });
+      const response = await getSessionMessages(id, 
+        { limit: 20, sort_desc: true }, 
+        { 
+          signal,
+          timeout: isRecovery ? 5000 : 30000 
+        }
+      );
       if (signal?.aborted) return;
 
       const messageList = response.items || [];
@@ -370,23 +379,35 @@ const ChatInterface = ({ basePath = '/user/chat', homePath = '/user/home', sessi
       });
     } catch (err) {
       if (err.name === 'AbortError') {
-        console.log("Response generation stopped by user");
-        // We can optionally add a small system message or just leave the partial response
+        console.log("Response generation stopped by user or timeout");
       } else {
-        console.error("Sending failed, attempting recovery...", err);
-        // Self-healing: If the error was network/extension related but backend saved it,
-        // fetching the latest messages will restore the missing response.
-        const targetSessionId = currentSessionId || activeSession?.id;
-        if (targetSessionId) {
-          try {
-            // Silent refresh
-            await loadSessionAndMessages(targetSessionId);
-            return; // If successful, skip the error message
-          } catch (recoverErr) {
-            console.error("Recovery failed", recoverErr);
+        const isConnectionError = 
+          err.message?.toLowerCase().includes('failed to fetch') || 
+          err.message?.toLowerCase().includes('network error') ||
+          err.message?.toLowerCase().includes('connection timeout') ||
+          err instanceof TypeError;
+
+        console.error("Sending failed", { isConnectionError, err });
+
+        // If it's a clear connection error, don't waste time trying to refresh messages
+        if (!isConnectionError) {
+          const targetSessionId = currentSessionId || activeSession?.id;
+          if (targetSessionId) {
+            try {
+              // Silent refresh with shorter timeout
+              await loadSessionAndMessages(targetSessionId, null, true);
+              return; 
+            } catch (recoverErr) {
+              console.error("Recovery failed", recoverErr);
+            }
           }
         }
-        addMessage('bot', "Sorry, I encountered an error.", false, activeSession?.botName);
+        
+        const errorMsg = isConnectionError 
+          ? "Connection to server lost. Please check if the API is running." 
+          : "Sorry, I encountered an error. Please try again.";
+          
+        addMessage('bot', errorMsg, false, activeSession?.botName);
       }
     } finally {
       setIsTyping(false);
@@ -441,7 +462,9 @@ const ChatInterface = ({ basePath = '/user/chat', homePath = '/user/home', sessi
   const handleKeyPress = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSendMessage();
+      if (!isTyping && !loadingMessages) {
+        handleSendMessage();
+      }
     }
   };
 
@@ -523,12 +546,13 @@ const ChatInterface = ({ basePath = '/user/chat', homePath = '/user/home', sessi
           <div className="relative border border-gray-300 dark:border-gray-700 rounded-xl shadow-sm bg-white dark:bg-gray-800 focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 transition-all overflow-hidden flex flex-col">
             <textarea
               rows="1"
+              spellCheck="false"
               className="w-full resize-none border-none focus:ring-0 p-4 text-base text-gray-900 dark:text-gray-100 placeholder-gray-400 font-sans max-h-48 bg-transparent"
               placeholder={t('chatbot.placeholder', 'Send a message...')}
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyPress}
-              disabled={(!activeSession?.botId && !botIdProp) || loadingMessages}
+              disabled={(!activeSession?.botId && !botIdProp) || loadingMessages || isTyping}
             ></textarea>
 
             <div className="px-3 py-2 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-100 dark:border-gray-700 flex justify-between items-center">

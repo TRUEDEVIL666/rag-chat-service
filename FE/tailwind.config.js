@@ -40,7 +40,7 @@ export default {
         }
       },
       fontFamily: {
-          sans: ['Be Vietnam Pro', 'sans-serif'],
+          sans: ['Inter', 'Plus Jakarta Sans', 'sans-serif'],
       },
     },
   },
