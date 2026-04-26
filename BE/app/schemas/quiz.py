@@ -6,15 +6,14 @@ from datetime import datetime
 
 class QuizQuestion(BaseModel):
   question: str = Field(description="The question text")
-  options: List[str] = Field(
-    description="List of 4 options", min_items=4, max_items=4)
-  correct_answer: int = Field(
-    description="Index (0-3) of the correct option")
+  options: List[str] = Field(description="List of 4 options", min_items=4, max_items=4)
+  correct_answer: int = Field(description="Index (0-3) of the correct option")
 
 
 class QuizOutput(BaseModel):
   quiz: List[QuizQuestion] = Field(
-    description="A list of multiple choice questions to test the user's knowledge based on the context.")
+    description="A list of multiple choice questions to test the user's knowledge based on the context."
+  )
 
 
 class QuizAttemptRequest(BaseModel):

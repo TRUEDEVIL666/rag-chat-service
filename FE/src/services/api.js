@@ -19,17 +19,36 @@ api.interceptors.request.use(
   }
 );
 
-// Response interceptor for handling 401 errors
+// Response interceptor
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Automatically extract 'data' from BaseResponse envelope
+    if (response.data && response.data.success !== undefined) {
+      if (response.data.success) {
+        return {
+          ...response,
+          data: response.data.data
+        };
+      } else {
+        // Handle explicit API errors
+        return Promise.reject({
+          response: {
+            status: 400,
+            data: { detail: response.data.error || response.data.message || 'API Error' }
+          }
+        });
+      }
+    }
+    return response;
+  },
   (error) => {
     if (error.response && error.response.status === 401) {
       // Clear token and redirect to login
       localStorage.removeItem('token');
       if (window.logout) {
-          window.logout();
+        window.logout();
       } else {
-          window.location.href = '/login';
+        window.location.href = '/login';
       }
     }
     return Promise.reject(error);

@@ -44,28 +44,26 @@ RULES:
 # ==============================================================================
 
 EXAMPLES = [
-    lx.data.ExampleData(
-        text="Plants use sunlight to perform photosynthesis.",
-        extractions=[
-            Extraction("Concept", "Plants"),
-            Extraction("Concept", "sunlight"),
-            Extraction("Concept", "photosynthesis"),
-            Extraction("Relationship", "Plants -> USE -> sunlight"),
-            Extraction("Relationship", "Plants -> PERFORM -> photosynthesis"),
-            Extraction("Relationship",
-                       "photosynthesis -> REQUIRES -> sunlight"),
-        ],
-    ),
-    lx.data.ExampleData(
-        text="Mitochondria are the powerhouse of the cell.",
-        extractions=[
-            Extraction("Concept", "Mitochondria"),
-            Extraction("Concept", "cell"),
-            Extraction("Relationship", "Mitochondria -> IS_PART_OF -> cell"),
-            Extraction("Relationship",
-                       "Mitochondria -> IS -> powerhouse of the cell"),
-        ],
-    ),
+  lx.data.ExampleData(
+    text="Plants use sunlight to perform photosynthesis.",
+    extractions=[
+      Extraction("Concept", "Plants"),
+      Extraction("Concept", "sunlight"),
+      Extraction("Concept", "photosynthesis"),
+      Extraction("Relationship", "Plants -> USE -> sunlight"),
+      Extraction("Relationship", "Plants -> PERFORM -> photosynthesis"),
+      Extraction("Relationship", "photosynthesis -> REQUIRES -> sunlight"),
+    ],
+  ),
+  lx.data.ExampleData(
+    text="Mitochondria are the powerhouse of the cell.",
+    extractions=[
+      Extraction("Concept", "Mitochondria"),
+      Extraction("Concept", "cell"),
+      Extraction("Relationship", "Mitochondria -> IS_PART_OF -> cell"),
+      Extraction("Relationship", "Mitochondria -> IS -> powerhouse of the cell"),
+    ],
+  ),
 ]
 
 # ==============================================================================
@@ -87,16 +85,16 @@ def build_knowledge_graph():
 
   try:
     model = OllamaLanguageModel(
-        model_id=MODEL_ID,
-        base_url=OLLAMA_BASE_URL,
-        temperature=0,
+      model_id=MODEL_ID,
+      base_url=OLLAMA_BASE_URL,
+      temperature=0,
     )
 
     result = lx.extract(
-        text_or_documents=text,
-        model=model,
-        prompt_description=SCHEMA_PROMPT,
-        examples=EXAMPLES,
+      text_or_documents=text,
+      model=model,
+      prompt_description=SCHEMA_PROMPT,
+      examples=EXAMPLES,
     )
 
     # Parse Results into a Graph Structure (Adjacency List)
@@ -146,6 +144,7 @@ def build_knowledge_graph():
   except Exception as e:
     print(f"Extraction failed: {e}")
     import traceback
+
     traceback.print_exc()
 
 

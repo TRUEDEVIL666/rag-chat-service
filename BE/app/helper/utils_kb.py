@@ -2,14 +2,14 @@
 from datetime import datetime
 
 PERM_MAP = {
-    "only_me": "private",
-    "all_team_members": "public",
-    "partial_members": "partial",
+  "only_me": "private",
+  "all_team_members": "public",
+  "partial_members": "partial",
 }
 
 INDEX_MAP = {
-    "high_quality": "recursive",
-    "economy": "sentence",
+  "high_quality": "recursive",
+  "economy": "sentence",
 }
 
 

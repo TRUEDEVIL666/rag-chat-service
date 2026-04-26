@@ -80,7 +80,6 @@ docker compose up -d  # Start Redis, Qdrant, MinIO, RabbitMQ
 | Frontend UI | http://localhost:3000 | - |
 | Backend API Docs | http://localhost:8000/docs | - |
 | MinIO Console | http://localhost:9001 | minioadmin / minioadmin |
-| Qdrant Dashboard | http://localhost:6333/dashboard | - |
 | RabbitMQ | http://localhost:15672 | guest / guest |
 
 ## Key Files

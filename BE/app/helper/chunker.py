@@ -2,16 +2,19 @@ import re
 import hashlib
 from typing import Any, List, Optional, Tuple
 
-from langchain_text_splitters import CharacterTextSplitter, RecursiveCharacterTextSplitter
+from langchain_text_splitters import (
+  CharacterTextSplitter,
+  RecursiveCharacterTextSplitter,
+)
 from llama_index.core import Document, Settings
 from llama_index.core.node_parser import (
-    HierarchicalNodeParser,
-    LangchainNodeParser,
-    NodeParser,
-    SemanticSplitterNodeParser,
-    SentenceSplitter,
-    SentenceWindowNodeParser,
-    TokenTextSplitter,
+  HierarchicalNodeParser,
+  LangchainNodeParser,
+  NodeParser,
+  SemanticSplitterNodeParser,
+  SentenceSplitter,
+  SentenceWindowNodeParser,
+  TokenTextSplitter,
 )
 from llama_index.core.schema import BaseNode
 
@@ -26,10 +29,7 @@ logger = get_logger(__name__)
 # CHUNKING STRATEGY IDENTIFIER
 # ----------------------------
 def process_chunks(
-    documents: List[Document],
-    chunking_method: str,
-    filename: str,
-    **kwargs
+  documents: List[Document], chunking_method: str, filename: str, **kwargs
 ) -> List[BaseNode]:
   """
   Dispatcher function to call the appropriate chunking strategy.
@@ -44,7 +44,7 @@ def process_chunks(
     case "semantic":
       buffer_size = kwargs.get("buffer_size", AppSettings.BUFFER_SIZE)
       threshold_percentage = kwargs.get(
-          "threshold_percentage", AppSettings.THRESHOLD_PERCENTAGE
+        "threshold_percentage", AppSettings.THRESHOLD_PERCENTAGE
       )
       # Type coercion
       buffer_size = int(buffer_size)
@@ -54,11 +54,11 @@ def process_chunks(
       embed_model = kwargs.get("embed_model") or Settings.embed_model
 
       return semantic_chunk_documents(
-          documents,
-          filename,
-          buffer_size=buffer_size,
-          threshold_percentage=threshold_percentage,
-          embed_model=embed_model,
+        documents,
+        filename,
+        buffer_size=buffer_size,
+        threshold_percentage=threshold_percentage,
+        embed_model=embed_model,
       )
 
     # case "topic":
@@ -82,10 +82,10 @@ def process_chunks(
         chunk_overlap = int(chunk_overlap)
 
       return sentence_chunk_documents(
-          documents,
-          filename,
-          chunk_size=chunk_size,
-          chunk_overlap=chunk_overlap,
+        documents,
+        filename,
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
       )
 
     case "token":
@@ -97,10 +97,10 @@ def process_chunks(
       chunk_overlap = int(chunk_overlap)
 
       return token_chunk_documents(
-          documents,
-          filename,
-          chunk_size=chunk_size,
-          chunk_overlap=chunk_overlap,
+        documents,
+        filename,
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
       )
 
     case "character":
@@ -113,11 +113,11 @@ def process_chunks(
       chunk_overlap = int(chunk_overlap)
 
       return character_chunk_documents(
-          documents,
-          filename,
-          chunk_size=chunk_size,
-          chunk_overlap=chunk_overlap,
-          separator=separator,
+        documents,
+        filename,
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
+        separator=separator,
       )
 
     case "word":
@@ -129,10 +129,10 @@ def process_chunks(
       chunk_overlap = int(chunk_overlap)
 
       return word_chunk_documents(
-          documents,
-          filename,
-          chunk_size=chunk_size,
-          chunk_overlap=chunk_overlap,
+        documents,
+        filename,
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
       )
 
     case "sliding":
@@ -141,9 +141,9 @@ def process_chunks(
       window_size = int(window_size)
 
       return sliding_window_chunk_documents(
-          documents,
-          filename,
-          window_size=window_size,
+        documents,
+        filename,
+        window_size=window_size,
       )
 
     case "hierarchical":
@@ -156,9 +156,9 @@ def process_chunks(
         chunk_sizes = [int(s.strip()) for s in chunk_sizes.split(",")]
 
       return hierarchical_chunk_documents(
-          documents,
-          filename,
-          chunk_sizes=chunk_sizes,
+        documents,
+        filename,
+        chunk_sizes=chunk_sizes,
       )
 
     case "recursive":
@@ -172,15 +172,15 @@ def process_chunks(
         chunk_overlap = int(chunk_overlap)
 
       return recursive_chunk_documents(
-          documents,
-          filename,
-          chunk_size=chunk_size,
-          chunk_overlap=chunk_overlap,
+        documents,
+        filename,
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
       )
 
     case _:
       logger.warning(
-          f"Unknown chunking method '{chunking_method}', defaulting to sentence chunking."
+        f"Unknown chunking method '{chunking_method}', defaulting to sentence chunking."
       )
       return sentence_chunk_documents(documents, filename)
 
@@ -189,11 +189,11 @@ def process_chunks(
 # CHUNKING STRATEGIES
 # -------------------
 def semantic_chunk_documents(
-    documents: List[Document],
-    filename: str,
-    buffer_size: int = AppSettings.BUFFER_SIZE,
-    threshold_percentage: int = AppSettings.THRESHOLD_PERCENTAGE,
-    embed_model: Optional[Any] = None,
+  documents: List[Document],
+  filename: str,
+  buffer_size: int = AppSettings.BUFFER_SIZE,
+  threshold_percentage: int = AppSettings.THRESHOLD_PERCENTAGE,
+  embed_model: Optional[Any] = None,
 ) -> List[BaseNode]:
   """
   Chunk documents semantically using embedding-based similarity.
@@ -201,9 +201,9 @@ def semantic_chunk_documents(
     (e.g., essays, research papers).
   """
   splitter = SemanticSplitterNodeParser(
-      embed_model=embed_model or Settings.embed_model,
-      buffer_size=buffer_size,
-      breakpoint_percentile_threshold=threshold_percentage,
+    embed_model=embed_model or Settings.embed_model,
+    buffer_size=buffer_size,
+    breakpoint_percentile_threshold=threshold_percentage,
   )
   return apply_chunking_logic(documents, splitter, filename)
 
@@ -226,10 +226,10 @@ def semantic_chunk_documents(
 
 
 def recursive_chunk_documents(
-    documents: List[Document],
-    filename: str,
-    chunk_size: Optional[int] = None,
-    chunk_overlap: Optional[int] = None,
+  documents: List[Document],
+  filename: str,
+  chunk_size: Optional[int] = None,
+  chunk_overlap: Optional[int] = None,
 ) -> List[BaseNode]:
   """
   Chunk documents recursively using LangChain's RecursiveCharacterTextSplitter.
@@ -241,18 +241,16 @@ def recursive_chunk_documents(
     chunk_size, chunk_overlap = adaptive_chunk_params(total_len)
 
   splitter = LangchainNodeParser(
-      RecursiveCharacterTextSplitter(
-          chunk_size=chunk_size, chunk_overlap=chunk_overlap
-      )
+    RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
   )
   return apply_chunking_logic(documents, splitter, filename)
 
 
 def sentence_chunk_documents(
-    documents: List[Document],
-    filename: str,
-    chunk_size: Optional[int] = None,
-    chunk_overlap: Optional[int] = None,
+  documents: List[Document],
+  filename: str,
+  chunk_size: Optional[int] = None,
+  chunk_overlap: Optional[int] = None,
 ) -> List[BaseNode]:
   """
   Chunk documents by sentence with optional adaptive chunk size and overlap.
@@ -263,32 +261,30 @@ def sentence_chunk_documents(
   if chunk_size is None or chunk_overlap is None:
     chunk_size, chunk_overlap = adaptive_chunk_params(total_len)
 
-  splitter = SentenceSplitter(
-      chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+  splitter = SentenceSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
   return apply_chunking_logic(documents, splitter, filename)
 
 
 def token_chunk_documents(
-    documents: List[Document],
-    filename: str,
-    chunk_size: int = 512,
-    chunk_overlap: int = 50,
+  documents: List[Document],
+  filename: str,
+  chunk_size: int = 512,
+  chunk_overlap: int = 50,
 ) -> List[BaseNode]:
   """
   Chunk documents by fixed token count.
   Suitable for LLM context window optimization where strict token limits are required.
   """
-  splitter = TokenTextSplitter(
-      chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+  splitter = TokenTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
   return apply_chunking_logic(documents, splitter, filename)
 
 
 def character_chunk_documents(
-    documents: List[Document],
-    filename: str,
-    chunk_size: int = 1000,
-    chunk_overlap: int = 200,
-    separator: str = "\n\n",
+  documents: List[Document],
+  filename: str,
+  chunk_size: int = 1000,
+  chunk_overlap: int = 200,
+  separator: str = "\n\n",
 ) -> List[BaseNode]:
   """
   *** NOT RECOMMENDED ***
@@ -296,66 +292,65 @@ def character_chunk_documents(
   Suitable for raw text processing where semantic structure is less important or unknown.
   """
   splitter = LangchainNodeParser(
-      CharacterTextSplitter(
-          separator=separator,
-          chunk_size=chunk_size,
-          chunk_overlap=chunk_overlap
-      )
+    CharacterTextSplitter(
+      separator=separator, chunk_size=chunk_size, chunk_overlap=chunk_overlap
+    )
   )
   return apply_chunking_logic(documents, splitter, filename)
 
 
 def word_chunk_documents(
-    documents: List[Document],
-    filename: str,
-    chunk_size: int = 1000,
-    chunk_overlap: int = 200,
+  documents: List[Document],
+  filename: str,
+  chunk_size: int = 1000,
+  chunk_overlap: int = 200,
 ) -> List[BaseNode]:
   """
   Chunk documents by word count (approximated by splitting on whitespace).
   Suitable for tasks where word count limits are strict or for simple text analysis.
   """
   splitter = LangchainNodeParser(
-      RecursiveCharacterTextSplitter(
-          separators=[" "],
-          chunk_size=chunk_size,
-          chunk_overlap=chunk_overlap,
-          keep_separator=True
-      )
+    RecursiveCharacterTextSplitter(
+      separators=[" "],
+      chunk_size=chunk_size,
+      chunk_overlap=chunk_overlap,
+      keep_separator=True,
+    )
   )
   return apply_chunking_logic(documents, splitter, filename)
 
 
 def sliding_window_chunk_documents(
-    documents: List[Document],
-    filename: str,
-    window_size: int = 3,
+  documents: List[Document],
+  filename: str,
+  window_size: int = 3,
 ) -> List[BaseNode]:
   """
   Chunk documents using a sliding window approach.
   Suitable for documents where context retention is critical.
   """
   splitter = SentenceWindowNodeParser(
-      window_size=window_size,
-      window_metadata_key="window",
-      original_text_metadata_key="original_text",
+    window_size=window_size,
+    window_metadata_key="window",
+    original_text_metadata_key="original_text",
   )
   return apply_chunking_logic(documents, splitter, filename)
 
 
 def hierarchical_chunk_documents(
-    documents: List[Document],
-    filename: str,
-    chunk_sizes: List[int] = [2048, 512, 128],
+  documents: List[Document],
+  filename: str,
+  chunk_sizes: List[int] = [2048, 512, 128],
 ) -> List[BaseNode]:
   """
   Chunk documents using HierarchicalNodeParser and AutoMergingRetriever to merge small context into larger parent context (Parent-Child hierarchy).
   Suitable for documents where context is too big, hence the requirement to split into smaller chunks connected to it.
   """
   splitter = HierarchicalNodeParser.from_defaults(
-      chunk_sizes=chunk_sizes,
+    chunk_sizes=chunk_sizes,
   )
   return apply_chunking_logic(documents, splitter, filename)
+
 
 # ----------------
 # HELPER FUNCTIONS
@@ -384,10 +379,10 @@ def adaptive_chunk_params(length: int) -> Tuple[int, int]:
 
 
 def apply_chunking_logic(
-    documents: List[Document],
-    splitter: NodeParser,
-    filename: str,
-  ) -> List[BaseNode]:
+  documents: List[Document],
+  splitter: NodeParser,
+  filename: str,
+) -> List[BaseNode]:
   """
   Clean, split, and enrich nodes with metadata.
   Processes all documents in a batch to allow the splitter to optimize (e.g. batch embeddings).
@@ -426,14 +421,15 @@ def apply_chunking_logic(
 
       # Prepare metadata update
       meta_update = {
-          "chunk_size": len(n.text),
-          "source_file": filename,
-          "chunk_hash": chunk_hash
+        "chunk_size": len(n.text),
+        "source_file": filename,
+        "chunk_hash": chunk_hash,
       }
 
       n.metadata.update(meta_update)
       chunks.append(n)
 
   logger.info(
-      f"[Chunker] Generated {len(chunks)} chunks from file: {filename} (Batch size: {len(documents)})")
+    f"[Chunker] Generated {len(chunks)} chunks from file: {filename} (Batch size: {len(documents)})"
+  )
   return chunks

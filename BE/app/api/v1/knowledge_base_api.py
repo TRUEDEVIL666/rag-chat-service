@@ -1,20 +1,23 @@
-# app/api/v1/knowledge_base.py
-from app.schemas.common import MessageResponse
-from uuid import UUID
+# app/api/v1/knowledge_base_api.py
 from datetime import datetime
-from fastapi import APIRouter, HTTPException, Depends, Path, Body
+from typing import Annotated
+from uuid import UUID
 
+from fastapi import APIRouter, Body, HTTPException, Path
+
+from app.services import kb_service_instance
 from app.core.logger import get_logger
-from app.core.factory import get_knowledge_base_service
-
-from app.utils.auth import get_current_user
-
+from app.schemas.common import BaseResponse, MessageResponse
+from app.schemas.document import DocumentItem, DocumentListResponse
 from app.schemas.knowledge_base import (
-    KnowledgeBaseDetail, KnowledgeBaseInput, KnowledgeBaseItem,
-    KnowledgeBaseResponse, KnowledgeBaseListResponse,
-    RetrievalModel, UpdateKnowledgeBaseRequest
+  KnowledgeBaseDetail,
+  KnowledgeBaseInput,
+  KnowledgeBaseItem,
+  KnowledgeBaseListResponse,
+  KnowledgeBaseResponse,
+  RetrievalModel,
+  UpdateKnowledgeBaseRequest,
 )
-from app.schemas.document import DocumentListResponse, DocumentItem
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -34,32 +37,19 @@ def _to_epoch(ts) -> int:
 
 
 @router.get(
-    "/knowledge_bases",
-    # response_model=KnowledgeBaseListResponse,
-    summary="Get Knowledge Base List",
-    description="Retrieves a list of knowledge bases, with options for pagination and filtering."
+  "/knowledge_bases",
+  response_model=BaseResponse[KnowledgeBaseListResponse],
+  summary="Get Knowledge Base List",
+  description="Retrieves a list of knowledge bases, with options for pagination and filtering.",
 )
-
-async def list_knowledge_bases(
-    # keyword: Optional[str] = Query(None, description="Search keyword to filter by name"),
-    # tag_ids: Optional[List[str]] = Query(None, description="List of tag IDs (ALL-of filtering)"),
-    # page: int = Query(1, ge=1, description="Page number"),
-    # limit: int = Query(20, ge=1, le=100, description="Items per page"),
-    # include_all: bool = Query(False, description="Only effective for workspace owners"),
-    kb_service=Depends(get_knowledge_base_service),
-    auth=Depends(get_current_user)
-):
+async def list_knowledge_bases():
   try:
-    tenant_id = auth["tenant_id"]
-
-    rows, total = await kb_service.list_knowledge_bases(
-        tenant_id=tenant_id,
-        access_token=auth.get("token")
-    )
+    rows, total = await kb_service_instance.list_knowledge_bases()
 
     data = []
     for r in rows:
-      data.append(KnowledgeBaseItem(
+      data.append(
+        KnowledgeBaseItem(
           id=str(r["id"]),
           name=r["name"],
           description=r.get("description"),
@@ -71,104 +61,93 @@ async def list_knowledge_bases(
           embedding_model=r.get("embedding_model_name"),
           embedding_model_id=r.get("embedding_model_id"),
           embedding_provider_id=r.get("embedding_provider_id"),
-          embedding_model_provider=r["embedding_provider"]["name"] if r.get(
-            "embedding_provider") else None,
+          embedding_model_provider=r["embedding_provider"]["name"]
+          if r.get("embedding_provider")
+          else None,
           retrieval_model=r.get("retrieval_model"),
-          embedding_available=r["embedding_model"]["is_active"] if r.get(
-            "embedding_model") else False,
-      ))
+          embedding_available=r["embedding_model"]["is_active"]
+          if r.get("embedding_model")
+          else False,
+        )
+      )
 
-    return KnowledgeBaseListResponse(
-        data=data,
-        has_more=False,
-        limit=100,
-        total=total,
-        page=1,
+    result = KnowledgeBaseListResponse(
+      data=data,
+      has_more=False,
+      limit=100,
+      total=total,
+      page=1,
     )
+    return BaseResponse(data=result)
   except Exception as e:
     logger.exception("Failed to fetch knowledge bases")
     raise HTTPException(status_code=500, detail=f"Internal server error: {e}")
 
 
 @router.post(
-    "/knowledge_bases",
-    # response_model=KnowledgeBaseResponse,
-    summary="Create an Empty Knowledge Base",
-    status_code=201
+  "/knowledge_bases",
+  response_model=BaseResponse[KnowledgeBaseResponse],
+  summary="Create an Empty Knowledge Base",
+  status_code=201,
 )
 async def create_knowledge_base(
-    request: KnowledgeBaseInput,
-    kb_service=Depends(get_knowledge_base_service),
-    auth=Depends(get_current_user)
+  request: KnowledgeBaseInput,
 ):
   try:
-    created = await kb_service.create_knowledge_base(
-        tenant_id=auth["tenant_id"],
-        user_id=auth.get("user_id"),
-        access_token=auth.get("token"),
-        request=request
-    )
+    created = await kb_service_instance.create_knowledge_base(request=request)
     if not created:
-      raise HTTPException(
-        status_code=500, detail="Failed to create knowledge base.")
+      raise HTTPException(status_code=500, detail="Failed to create knowledge base.")
 
-    return KnowledgeBaseResponse(
-        id=created["id"],
-        name=created["name"],
-        description=created.get("description"),
-        retrieval_model=RetrievalModel(**created["retrieval_model"]),
+    result = KnowledgeBaseResponse(
+      id=created["id"],
+      name=created["name"],
+      description=created.get("description"),
+      retrieval_model=RetrievalModel(**created["retrieval_model"]),
     )
+    return BaseResponse(data=result)
   except ValueError as e:
     raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get(
-    "/knowledge_bases/{knowledge_base_id}",
-    response_model=KnowledgeBaseDetail,
-    summary="Get Knowledge Base Details",
-    description="Fetches the detailed information of a specific knowledge base by its ID."
+  "/knowledge_bases/{knowledge_base_id}",
+  response_model=BaseResponse[KnowledgeBaseDetail],
+  summary="Get Knowledge Base Details",
+  description="Fetches the detailed information of a specific knowledge base by its ID.",
 )
 async def get_knowledge_base_details(
-    knowledge_base_id: UUID = Path(..., description="KB ID (uuid)"),
-    kb_service=Depends(get_knowledge_base_service),
-    auth=Depends(get_current_user)
+  knowledge_base_id: Annotated[UUID, Path(description="KB ID (uuid)")],
 ):
-  tenant_id = auth["tenant_id"]
-
-  kb_detail = await kb_service.get_knowledge_base_details(
-      knowledge_base_id=str(knowledge_base_id),
-      tenant_id=tenant_id,
-      access_token=auth.get("token")
+  kb_detail = await kb_service_instance.get_knowledge_base_details(
+    knowledge_base_id=str(knowledge_base_id)
   )
 
   if not kb_detail:
     raise HTTPException(status_code=404, detail="Knowledge base not found")
 
-  return kb_detail
+  return BaseResponse(data=kb_detail)
 
 
 @router.patch(
-    "/knowledge_bases/{knowledge_base_id}",
-    summary="Update Knowledge Base",
+  "/knowledge_bases/{knowledge_base_id}",
+  response_model=BaseResponse[KnowledgeBaseDetail],
+  summary="Update Knowledge Base",
 )
 async def update_knowledge_base(
-    knowledge_base_id: UUID = Path(..., description="KB ID"),
-    body: UpdateKnowledgeBaseRequest = Body(...),
-    kb_service=Depends(get_knowledge_base_service),
-    auth=Depends(get_current_user)
+  knowledge_base_id: Annotated[UUID, Path(description="KB ID")],
+  body: Annotated[UpdateKnowledgeBaseRequest, Body(...)],
 ):
-  tenant_id = auth["tenant_id"]
   kb_id = str(knowledge_base_id)
 
   try:
-    updated = await kb_service.update_knowledge_base(
-        kb_id, tenant_id, body, access_token=auth.get("token"))
+    updated = await kb_service_instance.update_knowledge_base(kb_id, body=body)
     if not updated:
       raise HTTPException(
-        status_code=404, detail="Knowledge base not found or update failed.")
+        status_code=404, detail="Knowledge base not found or update failed."
+      )
 
-    full_detail = await kb_service.get_knowledge_base_details(kb_id, tenant_id)
-    return full_detail
+    full_detail = await kb_service_instance.get_knowledge_base_details(kb_id)
+    return BaseResponse(data=full_detail)
   except ValueError as e:
     if "exists" in str(e):
       raise HTTPException(status_code=409, detail=str(e))
@@ -176,51 +155,47 @@ async def update_knowledge_base(
 
 
 @router.delete(
-    "/knowledge_bases/{knowledge_base_id}",
-    summary="Delete Knowledge Base",
-    description="Deletes a knowledge base and all its associated data (documents, chunks, vectors).",
-    response_model=MessageResponse
+  "/knowledge_bases/{knowledge_base_id}",
+  summary="Delete Knowledge Base",
+  description="Deletes a knowledge base and all its associated data (documents, chunks, vectors).",
+  response_model=BaseResponse[MessageResponse],
 )
 async def delete_knowledge_base(
-    knowledge_base_id: UUID = Path(..., description="KB ID"),
-    kb_service=Depends(get_knowledge_base_service),
-    auth=Depends(get_current_user)
+  knowledge_base_id: Annotated[UUID, Path(description="KB ID")],
 ):
-  tenant_id = auth["tenant_id"]
   kb_id = str(knowledge_base_id)
 
   try:
-    success = await kb_service.delete_knowledge_base(
-        kb_id, tenant_id, access_token=auth.get("token"))
+    success = await kb_service_instance.delete_knowledge_base(kb_id)
     if not success:
       raise HTTPException(
-        status_code=404, detail="Knowledge base not found or failed to delete.")
+        status_code=404, detail="Knowledge base not found or failed to delete."
+      )
 
-    return {"status": "success", "message": "Knowledge base deleted successfully."}
+    return BaseResponse(
+      data=MessageResponse(message="Knowledge base deleted successfully.")
+    )
   except Exception as e:
     logger.exception(f"Failed to delete knowledge base {kb_id}")
     raise HTTPException(status_code=500, detail=f"Internal server error: {e}")
 
 
 @router.get(
-    "/knowledge_bases/{knowledge_base_id}/documents",
-    response_model=DocumentListResponse,
-    summary="List Documents in Knowledge Base",
+  "/knowledge_bases/{knowledge_base_id}/documents",
+  response_model=BaseResponse[DocumentListResponse],
+  summary="List Documents in Knowledge Base",
 )
 async def list_documents(
-    knowledge_base_id: UUID = Path(..., description="KB ID"),
-    kb_service=Depends(get_knowledge_base_service),
-    auth=Depends(get_current_user)
+  knowledge_base_id: Annotated[UUID, Path(description="KB ID")],
 ):
-  tenant_id = auth["tenant_id"]
   kb_id = str(knowledge_base_id)
 
   try:
-    docs = await kb_service.list_documents(
-        kb_id, tenant_id, access_token=auth.get("token"))
+    docs = await kb_service_instance.list_documents(kb_id)
     data = []
     for d in docs:
-      data.append(DocumentItem(
+      data.append(
+        DocumentItem(
           id=str(d["id"]),
           name=d["name"],
           path=d.get("path"),
@@ -231,10 +206,11 @@ async def list_documents(
           creator=d.get("creator"),
           created_at=_to_epoch(d.get("created_at")),
           updated_at=_to_epoch(d.get("updated_at")),
-      ))
-    logger.info(
-      f"[API] list_documents for KB {kb_id}: Found {len(data)} items")
-    return DocumentListResponse(data=data, total=len(data))
+        )
+      )
+    logger.info(f"[API] list_documents for KB {kb_id}: Found {len(data)} items")
+    result = DocumentListResponse(data=data, total=len(data))
+    return BaseResponse(data=result)
   except Exception as e:
     logger.exception(f"Failed to list documents for {kb_id}")
     raise HTTPException(status_code=500, detail=f"Internal server error: {e}")

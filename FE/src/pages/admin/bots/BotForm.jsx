@@ -1,23 +1,22 @@
+import { useState, useEffect } from 'react';
+import { useNavigate, useOutletContext } from 'react-router-dom';
 import {
+  RobotIcon,
   ArrowLeftIcon,
   ArrowRightIcon,
-  CpuIcon,
-  FloppyDiskIcon,
-  LightningIcon,
   MagicWandIcon,
-  NotebookIcon,
-  RobotIcon
+  FloppyDiskIcon,
+  CpuIcon,
+  LightningIcon,
+  NotebookIcon
 } from '@phosphor-icons/react';
-import { useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
-import Button from '../../../components/common/Button';
-import Select from '../../../components/common/Select';
 import TextField from '../../../components/common/TextField';
-import TourButton from '../../../components/common/TourButton';
-import { useBotOptions, useBots } from '../../../hooks/useBots';
+import Select from '../../../components/common/Select';
+import Button from '../../../components/common/Button';
+import { useTranslation } from 'react-i18next';
+import { useBots, useBotOptions } from '../../../hooks/useBots';
 import { usePageTour } from '../../../hooks/usePageTour';
-import { ROUTES } from '../../../routes';
+import TourButton from '../../../components/common/TourButton';
 
 const BotForm = ({ initialData, isEdit = false }) => {
   const { t } = useTranslation();

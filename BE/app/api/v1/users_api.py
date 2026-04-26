@@ -1,22 +1,28 @@
-# app/api/v1/users.py
+# app/api/v1/users_api.py
 from datetime import datetime
-from app.schemas.common_params import PaginationParams, UserSearchParams
-from app.schemas.common import MessageResponse
-from fastapi import APIRouter, Depends, HTTPException, Body
+from typing import Annotated, List
+
+from fastapi import APIRouter, Body, Depends, HTTPException
 from fastapi_cache.decorator import cache
-from app.core.factory import get_auth_service, get_user_service
-from app.schemas.auth import RegisterRequest, UserIdRequest, BatchRegisterRequest, BatchRegisterResponse
-from typing import List
+
+from app.services import auth_service_instance, user_service_instance
+from app.schemas.auth import (
+  BatchRegisterRequest,
+  BatchRegisterResponse,
+  RegisterRequest,
+  UserIdRequest,
+)
+from app.schemas.common import BaseResponse, MessageResponse
+from app.schemas.common_params import PaginationParams, UserSearchParams
 from app.utils.auth import get_current_user
 
 router = APIRouter()
 
 
-@router.post("/users", response_model=MessageResponse)
+@router.post("/users", response_model=BaseResponse[MessageResponse])
 async def create_user(
-    data: RegisterRequest,
-    auth_service=Depends(get_auth_service),
-    current_user: dict = Depends(get_current_user),
+  data: RegisterRequest,
+  current_user: Annotated[dict, Depends(get_current_user)],
 ):
   if current_user.get("role") != "admin":
     raise HTTPException(status_code=403, detail="Not authorized")
@@ -24,16 +30,14 @@ async def create_user(
     raise HTTPException(status_code=400, detail="Missing required fields")
 
   try:
-    await auth_service.sign_up(
+    await auth_service_instance.sign_up(
       email=data.email,
       password=data.password,
       name=data.name,
       tenant_id=data.tenant_id if data.tenant_id else None,
       role=data.role if data.role else "user",
     )
-    return {
-      "message": "User created successfully",
-    }
+    return BaseResponse(data=MessageResponse(message="User created successfully"))
   except ValueError as ve:
     raise HTTPException(status_code=400, detail=str(ve))
   except RuntimeError as re:
@@ -42,71 +46,65 @@ async def create_user(
     raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/users/batch", response_model=BatchRegisterResponse)
+@router.post("/users/batch", response_model=BaseResponse[BatchRegisterResponse])
 async def create_users_batch(
-    data: BatchRegisterRequest,
-    auth_service=Depends(get_auth_service),
-    current_user: dict = Depends(get_current_user),
+  data: BatchRegisterRequest,
+  current_user: Annotated[dict, Depends(get_current_user)],
 ):
   if current_user.get("role") != "admin":
     raise HTTPException(status_code=403, detail="Not authorized")
 
   try:
     users_list = [user.dict() for user in data.users]
-    result = await auth_service.sign_up_batch(users_list)
-    return result
+    result = await auth_service_instance.sign_up_batch(users_list)
+    return BaseResponse(data=result)
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.delete("/users/{user_id}", status_code=204)
 async def delete_user(
-    req: UserIdRequest = Depends(),
-    user_service=Depends(get_user_service),
-    current_user: dict = Depends(get_current_user),
+  req: Annotated[UserIdRequest, Depends()],
+  current_user: Annotated[dict, Depends(get_current_user)],
 ):
   if current_user.get("role") != "admin":
     raise HTTPException(status_code=403, detail="Not authorized")
   try:
-    await user_service.delete_user(str(req.user_id), current_user.get("token"))
+    await user_service_instance.delete_user(str(req.user_id))
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.delete("/users", status_code=204)
 async def delete_users(
-    user_ids: List[str] = Body(...),
-    user_service=Depends(get_user_service),
-    current_user: dict = Depends(get_current_user),
+  user_ids: Annotated[List[str], Body()],
+  current_user: Annotated[dict, Depends(get_current_user)],
 ):
   if current_user.get("role") != "admin":
     raise HTTPException(status_code=403, detail="Not authorized")
   try:
-    await user_service.delete_users(user_ids, current_user.get("token"))
+    await user_service_instance.delete_users(user_ids)
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/users", response_model=dict)
+@router.get("/users", response_model=BaseResponse[dict])
 @cache(expire=60)
 async def get_all_users(
-    pagination: PaginationParams = Depends(),
-    search_params: UserSearchParams = Depends(),
-    user_service=Depends(get_user_service),
-    current_user: dict = Depends(get_current_user)
+  pagination: Annotated[PaginationParams, Depends()],
+  search_params: Annotated[UserSearchParams, Depends()],
+  current_user: Annotated[dict, Depends(get_current_user)],
 ):
   if current_user.get("role") != "admin":
     raise HTTPException(status_code=403, detail="Not authorized")
   try:
-    users = await user_service.get_all_users(
-        limit=pagination.limit,
-        cursor_timestamp=pagination.cursor_timestamp,
-        search_params=search_params,
-        access_token=current_user.get("token")
+    users = await user_service_instance.get_all_users(
+      limit=pagination.limit,
+      cursor_timestamp=pagination.cursor_timestamp,
+      search_params=search_params,
     )
 
-    total_users = await user_service.get_total_users(
-      access_token=current_user.get("token"))
+    total_users = await user_service_instance.get_total_users()
 
     next_cursor = None
     if users:
@@ -120,11 +118,13 @@ async def get_all_users(
         except ValueError:
           pass  # Fail silently if date format is unexpected
 
-    return {
+    return BaseResponse(
+      data={
         "items": users,
         "total": total_users,
         "next_cursor": next_cursor,
-        "limit": pagination.limit
-    }
+        "limit": pagination.limit,
+      }
+    )
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))

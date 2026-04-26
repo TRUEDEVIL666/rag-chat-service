@@ -17,6 +17,7 @@ logs/
 .idea/
 .ipynb_checkpoints/
 .gemini/
+.claude/
 
 # Dependencies
 node_modules/
@@ -51,6 +52,7 @@ yarn-error.log*
 .env.*
 .vercel
 .aider*
+.ruff_cache
 
 # Frontend
 FE/.next/
@@ -64,7 +66,4 @@ FE/.gitignore
 .history/
 node_modules
 .agent/
-VuDinhHong_522H0036.zip
 test_users.csv
-baocao.docx
-kehoach.xlsx

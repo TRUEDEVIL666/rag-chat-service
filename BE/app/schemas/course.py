@@ -1,4 +1,3 @@
-
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import date, datetime
@@ -28,14 +27,15 @@ class SemesterResponse(SemesterBase):
   class Config:
     from_attributes = True
 
+
 # --------------------------
 # COURSE (CATALOG)
 # --------------------------
 
 
 class CourseBase(BaseModel):
-  code: str   # e.g. "IT001"
-  name: str   # e.g. "Intro to Python"
+  code: str  # e.g. "IT001"
+  name: str  # e.g. "Intro to Python"
   description: Optional[str] = None
   semester_id: UUID
   kb_ids: List[UUID] = []
@@ -64,7 +64,7 @@ class CourseResponse(CourseBase):
 class ClassBase(BaseModel):
   course_id: UUID
   semester_id: UUID
-  name: str   # e.g. "Start Date Group"
+  name: str  # e.g. "Start Date Group"
   instructor_id: Optional[UUID] = None
 
 
@@ -85,6 +85,7 @@ class ClassResponse(ClassBase):
 
   class Config:
     from_attributes = True
+
 
 # --------------------------
 # ENROLLMENT & ASSIGNMENT

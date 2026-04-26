@@ -7,7 +7,7 @@ import {
   UsersIcon, UploadIcon, RobotIcon, TrendUpIcon,
   ThumbsUpIcon, ThumbsDownIcon, HeartbeatIcon, CheckCircleIcon,
   SquaresFourIcon, GraduationCapIcon, MonitorPlayIcon, BrainIcon,
-  GearIcon, ChatCircleTextIcon as ChatIcon, ChartBarIcon
+  GearIcon, ChatCircleTextIcon as ChatIcon
 } from '@phosphor-icons/react';
 import { useDashboard } from '../../hooks/useDashboard';
 import { useTranslation } from 'react-i18next';
@@ -383,18 +383,19 @@ const Dashboard = () => {
               </div>
               <div className="flex bg-gray-50 dark:bg-gray-900 p-1 rounded-xl">
                 <button
+                  className={clsx("px-4 py-1.5 text-xs font-bold transition-all", timeRange === '24h' ? "text-primary-600 bg-white dark:bg-gray-800 rounded-lg shadow-sm" : "text-gray-500 hover:text-gray-900")}
+                  onClick={() => handleRangeChange('24h')}
+                >
+                  Daily
+                </button>
+                <button
+                  className={clsx("px-4 py-1.5 text-xs font-bold transition-all", timeRange === '7days' ? "text-primary-600 bg-white dark:bg-gray-800 rounded-lg shadow-sm" : "text-gray-500 hover:text-gray-900")}
                   onClick={() => handleRangeChange('7days')}
-                  className={clsx(
-                    "px-4 py-1.5 rounded-xl text-xs font-bold transition-all",
-                    timeRange === '7days'
-                      ? "bg-blue-600 text-white shadow-lg shadow-blue-500/30"
-                      : "text-gray-400 hover:text-white hover:bg-white/5"
-                  )}
                 >
                   Weekly
                 </button>
                 <button
-                  className={clsx("px-4 py-1.5 rounded-xl text-xs font-bold transition-all", timeRange === '30days' ? "bg-blue-600 text-white shadow-lg shadow-blue-500/30" : "text-gray-400 hover:text-white hover:bg-white/5")}
+                  className={clsx("px-4 py-1.5 text-xs font-bold transition-all", timeRange === '30days' ? "text-primary-600 bg-white dark:bg-gray-800 rounded-lg shadow-sm" : "text-gray-500 hover:text-gray-900")}
                   onClick={() => handleRangeChange('30days')}
                 >
                   Monthly
@@ -408,7 +409,7 @@ const Dashboard = () => {
                 <AreaChart
                   data={displayChartData}
                   margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
-                  style={{ opacity: (loadingChart || !displayChartData?.length) ? 0 : 1, transition: 'opacity 0.3s' }}
+                  style={{ opacity: loadingChart ? 0 : 1, transition: 'opacity 0.3s' }}
                 >
                   <defs>
                     <linearGradient id="usageGradient" x1="0" y1="0" x2="0" y2="1">
@@ -418,23 +419,20 @@ const Dashboard = () => {
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
                   <XAxis
-                    dataKey="date"
+                    dataKey="period"
                     axisLine={false}
                     tickLine={false}
                     tick={{ fill: '#9CA3AF', fontSize: 10, fontWeight: 700 }}
                     dy={10}
+                    // For backend dates, we might want to format them
                     tickFormatter={(val) => {
-                      if (!val) return '';
-                      try {
-                        // Standard format is YYYY-MM-DD
-                        const parts = val.split('-');
-                        if (parts.length === 3) {
-                          return `${parts[2]}/${parts[1]}`; // DD/MM
-                        }
-                        return val;
-                      } catch (e) {
-                        return val;
+                      if (val.includes('-')) {
+                        try {
+                          const date = new Date(val);
+                          return date.toLocaleDateString(undefined, { weekday: 'short' });
+                        } catch (e) { return val; }
                       }
+                      return val;
                     }}
                   />
                   <YAxis
@@ -455,7 +453,7 @@ const Dashboard = () => {
                   />
                   <Area
                     type="monotone"
-                    dataKey="messages"
+                    dataKey="count"
                     stroke="#3B82F6"
                     strokeWidth={4}
                     fillOpacity={1}
@@ -464,21 +462,6 @@ const Dashboard = () => {
                   />
                 </AreaChart>
               </ResponsiveContainer>
-
-              {/* Empty State Overlay */}
-              {!loadingChart && !displayChartData?.length && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center animate-in fade-in duration-500">
-                  <div className="bg-white/40 dark:bg-slate-800/40 backdrop-blur-md rounded-2xl p-8 border border-white/40 dark:border-slate-700/40 shadow-xl flex flex-col items-center max-w-sm text-center">
-                    <div className="w-16 h-16 bg-blue-500/10 rounded-full flex items-center justify-center mb-4">
-                      <ChartBarIcon size={32} weight="bold" className="text-blue-500" />
-                    </div>
-                    <h4 className="text-lg font-bold text-slate-800 dark:text-white mb-2">No activity recorded</h4>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">
-                      We haven't recorded any student message activity for the selected {timeRange === '7days' ? 'week' : 'month'}.
-                    </p>
-                  </div>
-                </div>
-              )}
 
               {loadingChart && (
                 <div className="absolute inset-0 flex items-center justify-center bg-white/50 dark:bg-gray-800/10 backdrop-blur-[1px] transition-all rounded-3xl z-10">

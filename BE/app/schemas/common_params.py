@@ -4,22 +4,12 @@ from pydantic import BaseModel, Field
 
 
 class PaginationParams(BaseModel):
-  limit: Annotated[
-    Optional[int],
-    Field(20, ge=1, le=100, description="Page size")
-  ] = 20
+  limit: Annotated[Optional[int], Field(20, ge=1, le=100, description="Page size")] = 20
   cursor_timestamp: Annotated[
-    Optional[int],
-    Field(description="Cursor timestamp for pagination")
+    Optional[int], Field(description="Cursor timestamp for pagination")
   ] = None
-  sort_column: Annotated[
-    Optional[str],
-    Field(description="Sort column")
-  ] = "created_at"
-  sort_desc: Annotated[
-    Optional[bool],
-    Field(description="Sort descending")
-  ] = True
+  sort_column: Annotated[Optional[str], Field(description="Sort column")] = "created_at"
+  sort_desc: Annotated[Optional[bool], Field(description="Sort descending")] = True
 
 
 class UserSearchParams(BaseModel):

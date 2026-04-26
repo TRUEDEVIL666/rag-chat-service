@@ -143,7 +143,7 @@ const ChatInterface = ({ basePath = '/user/chat', homePath = '/user/home', sessi
       // 1. Fetch Session Details if needed
       let currentSession = activeSession;
       if (!currentSession || activeSession.id !== id) {
-        const sessionData = await getSession(id, { 
+        const sessionData = await getSession(id, {
           signal,
           timeout: isRecovery ? 5000 : 30000 // Faster timeout for recovery
         });
@@ -163,11 +163,11 @@ const ChatInterface = ({ basePath = '/user/chat', homePath = '/user/home', sessi
       }
 
       // 2. Fetch Messages (sort_desc=true to get latest)
-      const response = await getSessionMessages(id, 
-        { limit: 20, sort_desc: true }, 
-        { 
+      const response = await getSessionMessages(id,
+        { limit: 20, sort_desc: true },
+        {
           signal,
-          timeout: isRecovery ? 5000 : 30000 
+          timeout: isRecovery ? 5000 : 30000
         }
       );
       if (signal?.aborted) return;
@@ -381,8 +381,8 @@ const ChatInterface = ({ basePath = '/user/chat', homePath = '/user/home', sessi
       if (err.name === 'AbortError') {
         console.log("Response generation stopped by user or timeout");
       } else {
-        const isConnectionError = 
-          err.message?.toLowerCase().includes('failed to fetch') || 
+        const isConnectionError =
+          err.message?.toLowerCase().includes('failed to fetch') ||
           err.message?.toLowerCase().includes('network error') ||
           err.message?.toLowerCase().includes('connection timeout') ||
           err instanceof TypeError;
@@ -396,17 +396,17 @@ const ChatInterface = ({ basePath = '/user/chat', homePath = '/user/home', sessi
             try {
               // Silent refresh with shorter timeout
               await loadSessionAndMessages(targetSessionId, null, true);
-              return; 
+              return;
             } catch (recoverErr) {
               console.error("Recovery failed", recoverErr);
             }
           }
         }
-        
-        const errorMsg = isConnectionError 
-          ? "Connection to server lost. Please check if the API is running." 
+
+        const errorMsg = isConnectionError
+          ? "Connection to server lost. Please check if the API is running."
           : "Sorry, I encountered an error. Please try again.";
-          
+
         addMessage('bot', errorMsg, false, activeSession?.botName);
       }
     } finally {
@@ -470,7 +470,7 @@ const ChatInterface = ({ basePath = '/user/chat', homePath = '/user/home', sessi
 
   return (
     <div className="flex flex-col h-full bg-white dark:bg-gray-900 relative">
-      <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] bg-opacity-20 pointer-events-none opacity-5"></div>
+      <div className="absolute inset-0 bg-opacity-20 pointer-events-none opacity-5"></div>
 
       {/* Chat History Area */}
       <div

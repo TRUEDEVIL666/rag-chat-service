@@ -14,7 +14,7 @@ class Settings(BaseSettings):
   # ------------------
   SUPABASE_URL: str = ""
   SUPABASE_KEY: str = ""
-  MEMORI_DATABASE_URL: str = ""
+  DATABASE_URL: str = ""
 
   # ------------------
   # STORAGE
@@ -39,6 +39,8 @@ class Settings(BaseSettings):
   # OLLAMA
   # ------------------
   OLLAMA_EMBEDDING_API_URL: str = "http://localhost:11434"
+  DEFAULT_LLM_PROVIDER: str = "ollama"
+  DEFAULT_LLM_MODEL: str = "gemma3:4b"
 
   # ------------------
   # SUBAGENTS DEFAULT
@@ -60,9 +62,20 @@ class Settings(BaseSettings):
 
   # Default set of extensions if not provided in env
   ALLOWED_EXTENSIONS: Set[str] = {
-      '.pdf', '.txt', '.docx', '.csv', '.json',
-      '.pptx', '.xlsx', '.md', '.html', '.jpg',
-      '.jpeg', '.png', '.bmp', '.tiff'
+    ".pdf",
+    ".txt",
+    ".docx",
+    ".csv",
+    ".json",
+    ".pptx",
+    ".xlsx",
+    ".md",
+    ".html",
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".bmp",
+    ".tiff",
   }
 
   QUIZ_MODE_TOP_K: int = 20

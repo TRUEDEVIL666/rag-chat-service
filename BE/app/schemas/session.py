@@ -35,22 +35,16 @@ class SessionResponse(BaseModel):
 
 
 class SessionListRequest(PaginationParams):
-  bot_id: Annotated[
-    Optional[UUID],
-    Query(description="Filter by Bot ID")
-  ] = None
-  search: Annotated[
-    Optional[str],
-    Query(description="Search by summary or title")
-  ] = None
+  bot_id: Annotated[Optional[UUID], Query(description="Filter by Bot ID")] = None
+  search: Annotated[Optional[str], Query(description="Search by summary or title")] = (
+    None
+  )
   start_date: Annotated[
-    Optional[datetime],
-    Query(description="Filter by start date")
+    Optional[datetime], Query(description="Filter by start date")
   ] = None
-  end_date: Annotated[
-    Optional[datetime],
-    Query(description="Filter by end date")
-  ] = None
+  end_date: Annotated[Optional[datetime], Query(description="Filter by end date")] = (
+    None
+  )
 
 
 class SessionIdRequest(BaseModel):
@@ -80,4 +74,5 @@ class SessionMessagesRequest(BaseModel):
 
 class MessageRatingRequest(BaseModel):
   rating: Optional[str] = Field(
-    None, description="Rating type: 'thumbs_up', 'thumbs_down', or None to clear")
+    None, description="Rating type: 'thumbs_up', 'thumbs_down', or None to clear"
+  )

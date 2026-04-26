@@ -14,7 +14,12 @@ from bs4 import BeautifulSoup
 
 from llama_index.core import Document
 from docling.document_converter import DocumentConverter, PdfFormatOption
-from docling.datamodel.pipeline_options import PdfPipelineOptions, AcceleratorOptions, AcceleratorDevice, EasyOcrOptions
+from docling.datamodel.pipeline_options import (
+  PdfPipelineOptions,
+  AcceleratorOptions,
+  AcceleratorDevice,
+  EasyOcrOptions,
+)
 from docling.datamodel.base_models import InputFormat
 
 from app.core.enums.file import FileExtension, EncodingType, ParsingConstants
@@ -32,7 +37,10 @@ def get_docling_converter() -> DocumentConverter:
   if _docling_converter is None:
     try:
       import torch
-      device = AcceleratorDevice.CUDA if torch.cuda.is_available() else AcceleratorDevice.CPU
+
+      device = (
+        AcceleratorDevice.CUDA if torch.cuda.is_available() else AcceleratorDevice.CPU
+      )
       # device = AcceleratorDevice.CPU
       logger.info(f"Initializing DocumentConverter with device: {device}...")
     except ImportError:
@@ -41,16 +49,16 @@ def get_docling_converter() -> DocumentConverter:
 
     pipeline_options = PdfPipelineOptions()
     pipeline_options.accelerator_options = AcceleratorOptions(
-        num_threads=4, device=device
+      num_threads=4, device=device
     )
     # Force EasyOCR engine and specify English and Vietnamese languages
     pipeline_options.do_ocr = True
     pipeline_options.ocr_options = EasyOcrOptions(lang=["en", "vi"])
 
     _docling_converter = DocumentConverter(
-        format_options={
-            InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
-        }
+      format_options={
+        InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
+      }
     )
   return _docling_converter
 
@@ -58,7 +66,9 @@ def get_docling_converter() -> DocumentConverter:
 # -------------------------------------------------------------------------
 # MAIN EXTRACTOR
 # -------------------------------------------------------------------------
-def extract_documents(file_bytes: bytes, filename: str, reader_map: dict, arg_map: dict) -> List[Document]:
+def extract_documents(
+  file_bytes: bytes, filename: str, reader_map: dict, arg_map: dict
+) -> List[Document]:
   """
   Tiered Extraction Strategy:
   1. DoclingReader (Default for PDF, DOCX, PPTX, XLSX, MD, HTML, Images)
@@ -69,10 +79,17 @@ def extract_documents(file_bytes: bytes, filename: str, reader_map: dict, arg_ma
 
   # Skip Docling for simple structured sets like CSV/JSON as standard readers are better/faster
   use_docling = ext in [
-      FileExtension.PDF, FileExtension.DOCX, FileExtension.PPTX,
-      FileExtension.XLSX, FileExtension.MD, FileExtension.HTML,
-      FileExtension.JPG, FileExtension.JPEG, FileExtension.PNG,
-      FileExtension.BMP, FileExtension.TIFF
+    FileExtension.PDF,
+    FileExtension.DOCX,
+    FileExtension.PPTX,
+    FileExtension.XLSX,
+    FileExtension.MD,
+    FileExtension.HTML,
+    FileExtension.JPG,
+    FileExtension.JPEG,
+    FileExtension.PNG,
+    FileExtension.BMP,
+    FileExtension.TIFF,
   ]
 
   with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
@@ -89,20 +106,22 @@ def extract_documents(file_bytes: bytes, filename: str, reader_map: dict, arg_ma
 
         converter = get_docling_converter()
         reader = DoclingReader(
-            doc_converter=converter,
-            export_type=DoclingReader.ExportType.MARKDOWN
+          doc_converter=converter,
+          export_type=DoclingReader.ExportType.MARKDOWN,
         )
         docs = reader.load_data(file_path=tmp_path)
 
         if docs:
           for doc in docs:
             # We add our custom RAG identifiers on top of Docling's rich structural metadata
-            doc.metadata.update({
+            doc.metadata.update(
+              {
                 "file_name": filename,
                 "file_type": ext,
                 "processing_method": "docling_reader",
-                "reader_type": "DoclingReader(CUDA)"
-            })
+                "reader_type": "DoclingReader(CUDA)",
+              }
+            )
           _safe_remove(tmp_path)
           return docs
       except Exception as e:
@@ -118,12 +137,14 @@ def extract_documents(file_bytes: bytes, filename: str, reader_map: dict, arg_ma
 
         if docs:
           for doc in docs:
-            doc.metadata.update({
+            doc.metadata.update(
+              {
                 "file_name": filename,
                 "file_type": ext,
                 "processing_method": "llama_index_reader",
-                "reader_type": type(reader).__name__
-            })
+                "reader_type": type(reader).__name__,
+              }
+            )
           _safe_remove(tmp_path)
           return docs
       except Exception as e:
@@ -133,7 +154,12 @@ def extract_documents(file_bytes: bytes, filename: str, reader_map: dict, arg_ma
     logger.info(f"Fallback to manual extraction for {filename}")
     text = _extract_text_manual(file_bytes, filename)
     _safe_remove(tmp_path)
-    return [Document(text=text, metadata={"file_name": filename, "processing_method": "manual"})]
+    return [
+      Document(
+        text=text,
+        metadata={"file_name": filename, "processing_method": "manual"},
+      )
+    ]
 
   except Exception as e:
     if os.path.exists(tmp_path):
@@ -173,13 +199,22 @@ def _extract_text_manual(file_bytes: bytes, filename: str) -> List[Document]:
       result = _extract_text_from_html(file_bytes)
     case _:
       raise HTTPException(
-          status_code=HttpStatus.UNPROCESSABLE_ENTITY.value,
-          detail=f"{ErrorMessage.UNSUPPORTED_FILE_TYPE}: {ext}"
+        status_code=HttpStatus.UNPROCESSABLE_ENTITY.value,
+        detail=f"{ErrorMessage.UNSUPPORTED_FILE_TYPE}: {ext}",
       )
 
   # Convert legacy string-based extractors to Document format
   if isinstance(result, str):
-    return [Document(text=result, metadata={"file_name": filename, "processing_method": "manual", "file_type": ext})]
+    return [
+      Document(
+        text=result,
+        metadata={
+          "file_name": filename,
+          "processing_method": "manual",
+          "file_type": ext,
+        },
+      )
+    ]
   return result
 
 
@@ -191,18 +226,18 @@ def _extract_text_from_txt(binary_txt: bytes) -> str:
   Try decoding a text file using multiple encodings.
   """
   for enc in [
-      EncodingType.UTF8,
-      EncodingType.UTF8_SIG,
-      EncodingType.LATIN1,
-      EncodingType.CP1252
+    EncodingType.UTF8,
+    EncodingType.UTF8_SIG,
+    EncodingType.LATIN1,
+    EncodingType.CP1252,
   ]:
     try:
       return binary_txt.decode(enc)
     except UnicodeDecodeError:
       continue
   raise HTTPException(
-      status_code=HttpStatus.UNPROCESSABLE_ENTITY.value,
-      detail=ErrorMessage.UNABLE_TO_DECODE_TEXT
+    status_code=HttpStatus.UNPROCESSABLE_ENTITY.value,
+    detail=ErrorMessage.UNABLE_TO_DECODE_TEXT,
   )
 
 
@@ -219,7 +254,7 @@ def _extract_text_from_docx(binary_docx: bytes) -> str:
       if row_text:
         text_parts.append(ParsingConstants.COLUMN_SEPARATOR.join(row_text))
 
-  return '\n'.join(text_parts)
+  return "\n".join(text_parts)
 
 
 def _extract_text_from_csv(binary_csv: bytes) -> str:
@@ -234,20 +269,27 @@ def _extract_text_from_csv(binary_csv: bytes) -> str:
   for i, row in enumerate(csv_reader):
     if i == 0:
       headers = row
-      text_parts.append(ParsingConstants.HEADERS_PREFIX +
-                        ParsingConstants.COLUMN_SEPARATOR.join(headers))
+      text_parts.append(
+        ParsingConstants.HEADERS_PREFIX
+        + ParsingConstants.COLUMN_SEPARATOR.join(headers)
+      )
     else:
       if headers and len(row) == len(headers):
         row_dict = dict(zip(headers, row))
-        row_text = ParsingConstants.COLUMN_SEPARATOR.join([
-            f"{k}{ParsingConstants.KEY_VALUE_SEPARATOR}{v}" for k, v in row_dict.items() if v.strip()
-        ])
+        row_text = ParsingConstants.COLUMN_SEPARATOR.join(
+          [
+            f"{k}{ParsingConstants.KEY_VALUE_SEPARATOR}{v}"
+            for k, v in row_dict.items()
+            if v.strip()
+          ]
+        )
       else:
         row_text = ParsingConstants.COLUMN_SEPARATOR.join(
-            [cell for cell in row if cell.strip()])
+          [cell for cell in row if cell.strip()]
+        )
       text_parts.append(row_text)
 
-  return '\n'.join(text_parts)
+  return "\n".join(text_parts)
 
 
 def _extract_text_from_json(binary_json: bytes) -> str:
@@ -271,7 +313,7 @@ def _extract_text_from_json(binary_json: bytes) -> str:
       parts.append(f"{prefix}: {str(obj)}")
     return parts
 
-  return '\n'.join(extract_text(data))
+  return "\n".join(extract_text(data))
 
 
 def _extract_text_from_pptx(binary_pptx: bytes) -> str:
@@ -296,7 +338,7 @@ def _extract_text_from_pptx(binary_pptx: bytes) -> str:
       if text_frame:
         text_parts.append(text_frame.text)
 
-  return '\n'.join(text_parts)
+  return "\n".join(text_parts)
 
 
 def _extract_text_from_pdf(binary_pdf: bytes, filename: str) -> List[Document]:
@@ -318,16 +360,18 @@ def _extract_text_from_pdf(binary_pdf: bytes, filename: str) -> List[Document]:
       text = page.get("text", "")
       metadata = page.get("metadata", {})
       if text.strip():
-        docs.append(Document(
+        docs.append(
+          Document(
             text=text,
             metadata={
-                "file_name": filename,
-                "file_type": ".pdf",
-                "processing_method": "manual_pymupdf",
-                "page_number": metadata.get("page", 0) + 1,  # 1-indexed
-                "source": metadata.get("title", filename)
-            }
-        ))
+              "file_name": filename,
+              "file_type": ".pdf",
+              "processing_method": "manual_pymupdf",
+              "page_number": metadata.get("page", 0) + 1,  # 1-indexed
+              "source": metadata.get("title", filename),
+            },
+          )
+        )
     return docs
   except Exception as e:
     raise e
@@ -348,7 +392,7 @@ def _extract_text_from_xlsx(binary_xlsx: bytes) -> str:
       row_text = [str(cell).strip() for cell in row if cell is not None]
       if row_text:
         text_parts.append(ParsingConstants.COLUMN_SEPARATOR.join(row_text))
-  return '\n'.join(text_parts)
+  return "\n".join(text_parts)
 
 
 def _safe_remove(path: str, retries: int = 3, delay: float = 0.5):
@@ -365,10 +409,12 @@ def _safe_remove(path: str, retries: int = 3, delay: float = 0.5):
         time.sleep(delay)
       else:
         logger.warning(
-          f"Could not remove temporary file {path} after {retries} attempts.")
+          f"Could not remove temporary file {path} after {retries} attempts."
+        )
     except Exception as e:
       logger.warning(f"Error removing temporary file {path}: {e}")
       return
+
 
 # ... (End of file helper functions) ...
 
@@ -381,4 +427,4 @@ def _extract_text_from_html(binary_html: bytes) -> str:
   # Remove script and style elements
   for script in soup(["script", "style"]):
     script.decompose()
-  return soup.get_text(separator='\n', strip=True)
+  return soup.get_text(separator="\n", strip=True)

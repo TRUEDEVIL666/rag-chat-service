@@ -28,7 +28,8 @@ class AiModelResponse(BaseModel):
 class AiModelProviderRequest(BaseModel):
   provider_id: UUID = Path(..., description="Provider ID")
   model_type: Optional[str] = Query(
-    None, description="Filter by model type (chat, reranker)")
+    None, description="Filter by model type (chat, reranker)"
+  )
 
 
 class AiModelTypeRequest(BaseModel):

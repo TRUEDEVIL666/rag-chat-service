@@ -5,27 +5,27 @@ if sys.version_info >= (3, 11):
 
 
 class FileExtension(StrEnum):
-  PDF = '.pdf'
-  TXT = '.txt'
-  DOCX = '.docx'
-  CSV = '.csv'
-  JSON = '.json'
-  PPTX = '.pptx'
-  XLSX = '.xlsx'
-  MD = '.md'
-  HTML = '.html'
-  JPG = '.jpg'
-  JPEG = '.jpeg'
-  PNG = '.png'
-  BMP = '.bmp'
-  TIFF = '.tiff'
+  PDF = ".pdf"
+  TXT = ".txt"
+  DOCX = ".docx"
+  CSV = ".csv"
+  JSON = ".json"
+  PPTX = ".pptx"
+  XLSX = ".xlsx"
+  MD = ".md"
+  HTML = ".html"
+  JPG = ".jpg"
+  JPEG = ".jpeg"
+  PNG = ".png"
+  BMP = ".bmp"
+  TIFF = ".tiff"
 
 
 class EncodingType(StrEnum):
-  UTF8 = 'utf-8'
-  UTF8_SIG = 'utf-8-sig'
-  LATIN1 = 'latin-1'
-  CP1252 = 'cp1252'
+  UTF8 = "utf-8"
+  UTF8_SIG = "utf-8-sig"
+  LATIN1 = "latin-1"
+  CP1252 = "cp1252"
 
 
 class TextSeparator(StrEnum):
