@@ -1,10 +1,12 @@
-from app.schemas.common_params import PaginationParams
 from datetime import datetime
-from typing import Annotated, Optional, List
+from typing import Annotated, List, Optional
 from uuid import UUID
+
 from fastapi import Path, Query
 from pydantic import BaseModel
 from pydantic.fields import Field
+
+from app.schemas.common_params import PaginationParams
 
 
 class BotSimpleResponse(BaseModel):

@@ -1,4 +1,5 @@
 from app.config.celery import celery_app
+from app.services import FileProcessor
 
 
 @celery_app.task(name="process_uploaded_file_celery")
@@ -13,9 +14,7 @@ def process_uploaded_file_celery(
   chunking_method: str = "sentence",
   **kwargs,
 ):
-  from app.services import file_processor_instance
-
-  return file_processor_instance.process_file(
+  return FileProcessor.get_instance().process_file(
     file_path=file_path,
     file_name=file_name,
     kb_id=kb_id,
@@ -40,9 +39,7 @@ def process_update_file_celery(
   chunking_method: str = "sentence",
   **kwargs,
 ):
-  from app.services import file_processor_instance
-
-  return file_processor_instance.process_file_update(
+  return FileProcessor.get_instance().process_file_update(
     document_id=document_id,
     file_path=file_path,
     file_name=file_name,

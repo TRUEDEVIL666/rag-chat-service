@@ -1,35 +1,22 @@
 # app/services/supabase/knowledge_base_repository.py
-
 from datetime import datetime, timezone
-from app.core.supabase_client import get_async_supabase_client
-from app.core.logger import get_logger
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, List, Optional
 
-logger = get_logger(__name__)
+from app.repositories.base_repository import BaseRepository
 
 
-class KnowledgeBaseRepository:
-  _instance = None
-
-  @classmethod
-  def get_instance(cls) -> "KnowledgeBaseRepository":
-    if cls._instance is None:
-      cls._instance = cls()
-    return cls._instance
-
+class KnowledgeBaseRepository(BaseRepository):
   def __init__(self):
-    self.table_name = "knowledgebases"
+    super().__init__(table_name="knowledgebases")
 
   async def check_exists(self, kb_name: str) -> bool:
-    """
-    Kiểm tra knowledge base đã tồn tại theo tenant + kb_name
-    """
+    """Kiểm tra knowledge base đã tồn tại theo tenant + kb_name"""
     try:
       from app.core.context import get_current_tenant_id
 
       tenant_id = get_current_tenant_id()
       tenant_id = str(tenant_id) if tenant_id and str(tenant_id) != "None" else None
-      client = await get_async_supabase_client()
+      client = await self._get_client()
       response = await (
         client.table(self.table_name)
         .select("id")
@@ -40,13 +27,11 @@ class KnowledgeBaseRepository:
       )
       return bool(response.data)
     except Exception as e:
-      logger.exception(f"[KBRepo]: Error checking KB exists: {e}")
+      self.logger.exception(f"[KBRepo]: Error checking KB exists: {e}")
       return False
 
   async def create(self, kb_data: dict) -> Optional[dict]:
-    """
-    Tạo mới knowledge base (nếu chưa tồn tại). Trả về toàn bộ bản ghi vừa insert.
-    """
+    """Tạo mới knowledge base (nếu chưa tồn tại)."""
     try:
       from app.core.context import get_current_tenant_id
 
@@ -60,35 +45,27 @@ class KnowledgeBaseRepository:
       kb_data["tenant_id"] = tenant_id
       kb_data.setdefault("created_at", datetime.now(timezone.utc).isoformat())
 
-      client = await get_async_supabase_client()
-      response = await client.table(self.table_name).insert(kb_data).execute()
-
-      created = response.data[0] if getattr(response, "data", None) else None
+      result = await self.insert(kb_data)
+      created = result[0] if result else None
       if not created:
-        err = getattr(response, "error", None)
-        if err:
-          logger.error(f"[KBRepo]: Insert KB error: {getattr(err, 'message', err)}")
-        else:
-          logger.error("[KBRepo]: Insert KB returned no data")
+        self.logger.error("[KBRepo]: Insert KB returned no data")
         return None
 
-      logger.info(f"[KBRepo]: Created KB: {kb_name}")
+      self.logger.info(f"[KBRepo]: Created KB: {kb_name}")
       return created
 
     except Exception as e:
-      logger.exception(f"[KBRepo]: Failed to create knowledge base: {e}")
+      self.logger.exception(f"[KBRepo]: Failed to create knowledge base: {e}")
       return None
 
   async def list_knowledge_bases(self):
-    """
-    Trả danh sách KB theo spec /knowledge_bases, kèm total.
-    """
+    """Trả danh sách KB theo spec /knowledge_bases, kèm total."""
     try:
       from app.core.context import get_current_tenant_id
 
       tenant_id = get_current_tenant_id()
       tenant_id = str(tenant_id) if tenant_id and str(tenant_id) != "None" else None
-      client = await get_async_supabase_client()
+      client = await self._get_client()
       q = await (
         client.table(self.table_name)
         .select(
@@ -108,19 +85,17 @@ class KnowledgeBaseRepository:
         return q.data, len(q.data)
       return [], 0
     except Exception as e:
-      logger.exception(f"[KBRepo]: Failed to list knowledge bases: {e}")
+      self.logger.exception(f"[KBRepo]: Failed to list knowledge bases: {e}")
       return [], 0
 
   async def get_knowledge_base_detail(self, knowledge_base_id: str) -> Optional[dict]:
-    """
-    Lấy chi tiết 1 KB theo id + tenant scope.
-    """
+    """Lấy chi tiết 1 KB theo id + tenant scope."""
     try:
       from app.core.context import get_current_tenant_id
 
       tenant_id = get_current_tenant_id()
       tenant_id = str(tenant_id) if tenant_id and str(tenant_id) != "None" else None
-      client = await get_async_supabase_client()
+      client = await self._get_client()
       kb_q = await (
         client.table(self.table_name)
         .select("*")
@@ -132,7 +107,7 @@ class KnowledgeBaseRepository:
       return (kb_q.data or [None])[0]
 
     except Exception as e:
-      logger.exception(
+      self.logger.exception(
         f"[KBRepo]: Failed to get knowledge base detail {knowledge_base_id}: {e}"
       )
       return None
@@ -141,7 +116,7 @@ class KnowledgeBaseRepository:
     from app.core.context import get_current_tenant_id
 
     tenant_id = get_current_tenant_id()
-    client = await get_async_supabase_client()
+    client = await self._get_client()
     res = await (
       client.table(self.table_name)
       .select(
@@ -167,7 +142,7 @@ class KnowledgeBaseRepository:
     from app.core.context import get_current_tenant_id
 
     tenant_id = get_current_tenant_id()
-    client = await get_async_supabase_client()
+    client = await self._get_client()
     res = await (
       client.table(self.table_name)
       .select("id")
@@ -188,7 +163,7 @@ class KnowledgeBaseRepository:
     tenant_id = get_current_tenant_id()
     fields["updated_at"] = datetime.now(timezone.utc).isoformat()
 
-    client = await get_async_supabase_client()
+    client = await self._get_client()
     await (
       client.table(self.table_name)
       .update(fields)
@@ -196,14 +171,10 @@ class KnowledgeBaseRepository:
       .eq("tenant_id", tenant_id)
       .execute()
     )
-    # Return get_one to ensure consistency with list/get views (e.g. joined fields)
     return await self.get_one(kb_id)
 
   async def get_retrieval_configs_by_ids(self, kb_ids: List[str]) -> Dict[str, dict]:
-    """
-    Batch fetch retrieval configs for multiple KBs.
-    Returns: { kb_id: { "retrieval_model": ..., "embedding_model": ... } }
-    """
+    """Batch fetch retrieval configs for multiple KBs."""
     if not kb_ids:
       return {}
 
@@ -212,7 +183,7 @@ class KnowledgeBaseRepository:
 
       tenant_id = get_current_tenant_id()
       tenant_id = str(tenant_id) if tenant_id and str(tenant_id) != "None" else None
-      client = await get_async_supabase_client()
+      client = await self._get_client()
       res = await (
         client.table(self.table_name)
         .select(
@@ -235,20 +206,17 @@ class KnowledgeBaseRepository:
       return result_map
 
     except Exception as e:
-      logger.exception(f"[KBRepo]: Failed to batch get retrieval models: {e}")
+      self.logger.exception(f"[KBRepo]: Failed to batch get retrieval models: {e}")
       return {}
 
   async def delete_kb(self, kb_id: str) -> bool:
-    """
-    Delete a knowledge base.
-    This should trigger ON DELETE CASCADE for metadata and documents if configured in DB.
-    """
+    """Delete a knowledge base."""
     try:
       from app.core.context import get_current_tenant_id
 
       tenant_id = get_current_tenant_id()
       tenant_id = str(tenant_id) if tenant_id and str(tenant_id) != "None" else None
-      client = await get_async_supabase_client()
+      client = await self._get_client()
       response = await (
         client.table(self.table_name)
         .delete()
@@ -256,14 +224,13 @@ class KnowledgeBaseRepository:
         .eq("tenant_id", tenant_id)
         .execute()
       )
-      # Check if any row was returned (deleted)
       if response.data:
-        logger.info(f"[KBRepo]: Deleted KB {kb_id}")
+        self.logger.info(f"[KBRepo]: Deleted KB {kb_id}")
         return True
-      logger.warning(f"[KBRepo]: KB {kb_id} not found or not deleted")
+      self.logger.warning(f"[KBRepo]: KB {kb_id} not found or not deleted")
       return False
     except Exception as e:
-      logger.exception(f"[KBRepo]: Failed to delete KB {kb_id}: {e}")
+      self.logger.exception(f"[KBRepo]: Failed to delete KB {kb_id}: {e}")
       return False
 
   async def get_total_kbs(self) -> int:
@@ -272,7 +239,7 @@ class KnowledgeBaseRepository:
 
       tenant_id = get_current_tenant_id()
       tenant_id = str(tenant_id) if tenant_id and str(tenant_id) != "None" else None
-      client = await get_async_supabase_client()
+      client = await self._get_client()
       res = client.table(self.table_name).select("*", count="exact", head=True)
 
       if tenant_id:
@@ -281,5 +248,5 @@ class KnowledgeBaseRepository:
       res = await res.execute()
       return res.count or 0
     except Exception:
-      logger.exception("Failed to get total KBs count")
+      self.logger.exception("Failed to get total KBs count")
       return 0

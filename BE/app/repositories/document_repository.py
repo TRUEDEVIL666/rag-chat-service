@@ -1,37 +1,23 @@
 from typing import List
-from app.core.supabase_client import get_async_supabase_client
-from app.core.logger import get_logger
 
-logger = get_logger(__name__)
+from app.repositories.base_repository import BaseRepository
 
 
-class DocumentRepository:
-  _instance = None
-
-  @classmethod
-  def get_instance(cls) -> "DocumentRepository":
-    if cls._instance is None:
-      cls._instance = cls()
-    return cls._instance
-
+class DocumentRepository(BaseRepository):
   def __init__(self):
-    self.table_name = "documents"
+    super().__init__(table_name="documents")
 
   async def create_document(self, data: dict) -> dict | None:
     try:
-      client = await get_async_supabase_client()
-      response = await client.table(self.table_name).insert(data).execute()
-      if response and hasattr(response, "data") and response.data:
-        return response.data[0]
-      return None
+      result = await self.insert(data)
+      return result[0] if result else None
     except Exception as e:
-      logger.exception(f"[DocRepo]: Failed to create document: {e}")
-      # Don't raise, just return None so processing can continue if DB fails
+      self.logger.exception(f"[DocRepo]: Failed to create document: {e}")
       return None
 
   async def get_document_by_id(self, document_id: str) -> dict | None:
     try:
-      client = await get_async_supabase_client()
+      client = await self._get_client()
       response = (
         await client.table(self.table_name)
         .select("*")
@@ -43,7 +29,7 @@ class DocumentRepository:
         return response.data
       return None
     except Exception as e:
-      logger.exception(f"Failed to get document {document_id}: {e}")
+      self.logger.exception(f"Failed to get document {document_id}: {e}")
       return None
 
   async def get_document_by_name(self, kb_id: str, name: str) -> dict | None:
@@ -52,7 +38,7 @@ class DocumentRepository:
 
       tenant_id = get_current_tenant_id()
       tenant_id = str(tenant_id) if tenant_id and str(tenant_id) != "None" else None
-      client = await get_async_supabase_client()
+      client = await self._get_client()
       response = await (
         client.table(self.table_name)
         .select("*")
@@ -66,9 +52,7 @@ class DocumentRepository:
         return response.data[0]
       return None
     except Exception as e:
-      logger.exception(
-        f"Failed to get document by name {name} in KB {kb_id} for tenant {tenant_id}: {e}"
-      )
+      self.logger.exception(f"Failed to get document by name {name} in KB {kb_id}: {e}")
       return None
 
   async def list_documents(
@@ -79,7 +63,7 @@ class DocumentRepository:
     sort_desc: bool = True,
   ) -> List[dict]:
     try:
-      client = await get_async_supabase_client()
+      client = await self._get_client()
       query = client.table(self.table_name).select(
         "*, creator:users!created_by(name), knowledgebases(id, name)"
       )
@@ -102,7 +86,7 @@ class DocumentRepository:
       response = await query.order(sort_column, desc=sort_desc).limit(limit).execute()
       return response.data or []
     except Exception as e:
-      logger.exception(f"Failed to list documents for tenant {tenant_id}: {e}")
+      self.logger.exception(f"Failed to list documents: {e}")
       return []
 
   async def get_documents_by_kb(self, kb_id: str) -> List[dict]:
@@ -112,7 +96,7 @@ class DocumentRepository:
 
       tenant_id = get_current_tenant_id()
       tenant_id = str(tenant_id) if tenant_id and str(tenant_id) != "None" else None
-      client = await get_async_supabase_client()
+      client = await self._get_client()
       response = await (
         client.table(self.table_name)
         .select("*, creator:users!created_by(name)")
@@ -123,53 +107,34 @@ class DocumentRepository:
       )
       return response.data or []
     except Exception as e:
-      logger.exception(f"Failed to get documents for KB {kb_id}: {e}")
+      self.logger.exception(f"Failed to get documents for KB {kb_id}: {e}")
       return []
 
   async def update_document_upload_success(
     self, document_id: str, file_path: str
   ) -> bool:
-    """Updates status to 'processing' and sets the valid MinIO path."""
+    """Updates status to 'learning' and sets the valid MinIO path."""
     try:
-      client = await get_async_supabase_client()
-      await (
-        client.table(self.table_name)
-        .update({"status": "learning", "path": file_path})
-        .eq("id", document_id)
-        .execute()
-      )
+      await self.update("id", document_id, {"status": "learning", "path": file_path})
       return True
     except Exception as e:
-      logger.exception(f"Failed to update document success {document_id}: {e}")
+      self.logger.exception(f"Failed to update document success {document_id}: {e}")
       return False
 
   async def update_document_status(self, document_id: str, status: str) -> dict | None:
     try:
-      client = await get_async_supabase_client()
-      response = await (
-        client.table(self.table_name)
-        .update(
-          {
-            "status": status,
-          }
-        )
-        .eq("id", document_id)
-        .execute()
-      )
-      if response.data:
-        return response.data[0]
-      return None
+      result = await self.update("id", document_id, {"status": status})
+      return result[0] if result else None
     except Exception as e:
-      logger.exception(f"Failed to update document status {document_id}: {e}")
+      self.logger.exception(f"Failed to update document status {document_id}: {e}")
       return None
 
   async def delete_document(self, document_id: str) -> bool:
     try:
-      client = await get_async_supabase_client()
-      await client.table(self.table_name).delete().eq("id", document_id).execute()
+      await self.delete("id", document_id)
       return True
     except Exception as e:
-      logger.exception(f"Failed to delete document {document_id}: {e}")
+      self.logger.exception(f"Failed to delete document {document_id}: {e}")
       return False
 
   async def count_documents_by_kb(self, kb_id: str) -> int:
@@ -179,7 +144,7 @@ class DocumentRepository:
 
       tenant_id = get_current_tenant_id()
       tenant_id = str(tenant_id) if tenant_id and str(tenant_id) != "None" else None
-      client = await get_async_supabase_client()
+      client = await self._get_client()
       response = await (
         client.table(self.table_name)
         .select("*", count="exact", head=True)
@@ -190,13 +155,13 @@ class DocumentRepository:
       )
       return response.count or 0
     except Exception as e:
-      logger.exception(f"Failed to count documents for KB {kb_id}: {e}")
+      self.logger.exception(f"Failed to count documents for KB {kb_id}: {e}")
       return 0
 
   async def get_total_documents(self) -> int:
     """Count all documents in the system (Global)."""
     try:
-      client = await get_async_supabase_client()
+      client = await self._get_client()
       response = await (
         client.table(self.table_name)
         .select("*", count="exact", head=True)
@@ -205,5 +170,5 @@ class DocumentRepository:
       )
       return response.count or 0
     except Exception as e:
-      logger.exception(f"Failed to count total documents: {e}")
+      self.logger.exception(f"Failed to count total documents: {e}")
       return 0

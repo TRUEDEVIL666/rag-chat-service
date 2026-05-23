@@ -1,6 +1,7 @@
+from typing import Optional
+
 from app.repositories import UserRepository
 from app.schemas.common_params import UserSearchParams
-from typing import Optional
 
 
 class UserService:

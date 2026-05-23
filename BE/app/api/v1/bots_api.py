@@ -1,15 +1,15 @@
-from typing import Annotated, Optional
-from fastapi import APIRouter, Depends, HTTPException
+import json
+from typing import Optional
+
+from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-import json
-from fastapi.responses import StreamingResponse
-from app.agent import chat_service_instance
-from app.repositories import bot_repo_instance
-from app.utils.auth import get_current_user
+from app.api.dependencies import BotServiceDep, ChatServiceDep, CurrentUser
 from app.core.logger import get_logger
-from app.schemas.common import BaseResponse
 from app.schemas.bot import BotItem, BotKBItem
+from app.schemas.common import BaseResponse
+from app.services import BotService, ChatService
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/bots", tags=["Bots"])
@@ -24,12 +24,13 @@ class AskRequest(BaseModel):
 @router.get("/{bot_id}", response_model=BaseResponse[BotItem])
 async def get_bot(
   bot_id: str,
-  current_user: Annotated[dict, Depends(get_current_user)],
+  current_user: CurrentUser,
+  bot_service: BotServiceDep,
 ):
   """
   Get bot details including linked knowledge bases.
   """
-  bot = await bot_repo_instance.get_bot_with_kbs(bot_id)
+  bot = await bot_service.get_bot_with_kbs(bot_id)
   if not bot:
     raise HTTPException(status_code=404, detail="Bot not found")
 
@@ -63,7 +64,9 @@ async def get_bot(
 async def ask_bot(
   bot_id: str,
   request: AskRequest,
-  current_user: Annotated[dict, Depends(get_current_user)],
+  current_user: CurrentUser,
+  bot_service: BotServiceDep,
+  chat_service: ChatServiceDep,
   session_id: Optional[str] = None,
 ):
   """
@@ -74,18 +77,30 @@ async def ask_bot(
 
     session_id = str(uuid.uuid4())
 
-  return await _handle_chat(bot_id, session_id, request, current_user)
+  return await _handle_chat(
+    bot_id=bot_id,
+    session_id=session_id,
+    request=request,
+    current_user=current_user,
+    bot_service=bot_service,
+    chat_service=chat_service,
+  )
 
 
 async def _handle_chat(
-  bot_id: str, session_id: str, request: AskRequest, current_user: dict
+  bot_id: str,
+  session_id: str,
+  request: AskRequest,
+  current_user: dict,
+  bot_service: BotService,
+  chat_service: ChatService,
 ):
   user_id = current_user["user_id"]
 
   logger.info(f"[BotsAPI] Ask request for bot {bot_id}, session {session_id}")
 
   try:
-    kb_ids = await bot_repo_instance.get_bot_kb_ids(bot_id)
+    kb_ids = await bot_service.get_bot_kb_ids(bot_id)
     target_kb_id = kb_ids[0] if kb_ids else None
 
     if not kb_ids:
@@ -95,7 +110,7 @@ async def _handle_chat(
 
     # 2. Execute chat streaming
     async def event_generator():
-      async for chunk in chat_service_instance.stream_chat(
+      async for chunk in chat_service.stream_chat(
         query=request.message,
         session_id=session_id,
         user_id=user_id,

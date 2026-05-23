@@ -1,18 +1,18 @@
-from datetime import timezone
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
-from datetime import datetime
+
+from app.helper.utils_kb import INDEX_MAP, PERM_MAP, api_to_db_retrieval
 from app.repositories import (
-  KnowledgeBaseRepository,
   DocumentRepository,
+  KnowledgeBaseRepository,
   TenantRepository,
 )
 from app.schemas.knowledge_base import (
-  KnowledgeBaseInput,
-  UpdateKnowledgeBaseRequest,
   KnowledgeBaseDetail,
+  KnowledgeBaseInput,
   RetrievalModelSchema,
+  UpdateKnowledgeBaseRequest,
 )
-from app.helper.utils_kb import INDEX_MAP, PERM_MAP, api_to_db_retrieval
 
 
 class KnowledgeBaseService:
@@ -75,17 +75,52 @@ class KnowledgeBaseService:
     if idx:
       idx = INDEX_MAP.get(idx, idx)
 
+    emb_provider_id = kb_dict.get("embedding_provider_id")
+    emb_model_id = kb_dict.get("embedding_model_id")
+
+    if not emb_provider_id or not emb_model_id:
+      try:
+        client = await self.kb_repo_instance._get_client()
+        if not emb_provider_id:
+          prov_res = (
+            await client.table("ai_providers")
+            .select("id")
+            .eq("name", "ollama")
+            .limit(1)
+            .execute()
+          )
+          if prov_res.data:
+            emb_provider_id = prov_res.data[0]["id"]
+        if not emb_model_id and emb_provider_id:
+          model_res = (
+            await client.table("ai_models")
+            .select("id")
+            .eq("model_id", "nomic-embed-text")
+            .limit(1)
+            .execute()
+          )
+          if not model_res.data:
+            model_res = (
+              await client.table("ai_models")
+              .select("id")
+              .eq("provider_id", emb_provider_id)
+              .limit(1)
+              .execute()
+            )
+          if model_res.data:
+            emb_model_id = model_res.data[0]["id"]
+      except Exception as e:
+        self.kb_repo_instance.logger.error(
+          f"Error fetching default embedding provider/model: {e}"
+        )
+
     payload = {
       "name": kb_name,
       "description": kb_dict.get("description"),
       "permission": perm,
       "indexing_technique": idx,
-      "embedding_provider_id": str(kb_dict.get("embedding_provider_id"))
-      if kb_dict.get("embedding_provider_id")
-      else None,
-      "embedding_model_id": str(kb_dict.get("embedding_model_id"))
-      if kb_dict.get("embedding_model_id")
-      else None,
+      "embedding_provider_id": str(emb_provider_id) if emb_provider_id else None,
+      "embedding_model_id": str(emb_model_id) if emb_model_id else None,
       "created_at": datetime.now(timezone.utc).isoformat(),
       "retrieval_model": api_to_db_retrieval(
         kb_dict.get("retrieval_model").dict()

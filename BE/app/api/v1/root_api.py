@@ -1,6 +1,7 @@
 # app/api/v1/root.py
-from app.schemas.common import MessageResponse
 from fastapi import APIRouter
+
+from app.schemas.common import MessageResponse
 
 router = APIRouter()
 

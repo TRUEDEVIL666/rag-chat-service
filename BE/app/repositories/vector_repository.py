@@ -12,7 +12,7 @@ from sqlalchemy import text
 from app.config.config import settings
 from app.core.database import postgres_engine
 from app.core.logger import get_logger
-from app.core.supabase_client import get_async_supabase_client
+from app.repositories.base_repository import BaseRepository
 
 logger = get_logger(__name__)
 
@@ -52,21 +52,14 @@ def sanitize_table_name(name: str) -> str:
 # ----------------------------------------------------------------------
 # VECTOR REPOSITORY
 # ----------------------------------------------------------------------
-class VectorRepository:
-  _instance = None
-
-  @classmethod
-  def get_instance(cls) -> "VectorRepository":
-    if cls._instance is None:
-      cls._instance = cls()
-    return cls._instance
-
+class VectorRepository(BaseRepository):
   """
   Handles document vector indexing and semantic search using PGVector with model-specific tables.
   """
 
   def __init__(self, embedding_service: Optional[BaseEmbedding] = None):
     """Initializes the repository with a PGVector backend."""
+    super().__init__(table_name="")
     self.embedding_service = embedding_service
     self._rerankers = {}
     self._ensured_tables = set()
@@ -304,7 +297,7 @@ class VectorRepository:
   async def _apply_auto_merging(self, results: List[dict], parent_ids: List[str]):
     """Fetch and replace chunk text with parent context."""
     try:
-      client = await get_async_supabase_client()
+      client = await self._get_client()
       resp = (
         await client.table("graph_chunks")
         .select("id, chunk_text")
@@ -360,7 +353,7 @@ class VectorRepository:
         target_service = await get_embedding_model(provider=provider, model=model_name)
 
       store = await self._get_vector_store(model_name, target_service)
-      client = await get_async_supabase_client()
+      client = await self._get_client()
       resp = (
         await client.table("graph_chunks").select("id").eq("kb_id", kb_id).execute()
       )
@@ -406,7 +399,7 @@ class VectorRepository:
 
   async def _resolve_kb_embedding_config(self, kb_id: str) -> tuple[str, str]:
     """Resolves the embedding provider and model for a given knowledge base."""
-    client = await get_async_supabase_client()
+    client = await self._get_client()
     response = await (
       client.table("knowledgebases")
       .select(
@@ -427,6 +420,3 @@ class VectorRepository:
       )
 
     return (data["embedding_provider"]["name"], data["embedding_model"]["model_id"])
-
-
-vector_repo_instance = VectorRepository.get_instance()

@@ -29,9 +29,9 @@ async def validate_token(token: str) -> dict:
     role = app_metadata.get("role")
 
     if not tenant_id or tenant_id == "None":
-      from app.repositories import user_repo_instance
+      from app.repositories import UserRepository
 
-      user_details = await user_repo_instance.get_user_details(user_id)
+      user_details = await UserRepository.get_instance().get_user_details(user_id)
 
       if user_details:
         tenant_id = user_details.get("tenant_id")

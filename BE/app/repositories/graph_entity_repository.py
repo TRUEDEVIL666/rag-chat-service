@@ -1,31 +1,18 @@
-from typing import List, Dict
-from app.core.logger import get_logger
-from app.core.supabase_client import get_async_supabase_client
+from typing import Dict, List
 
-logger = get_logger(__name__)
+from app.repositories.base_repository import BaseRepository
 
 
-class GraphEntityRepository:
-  _instance = None
-
-  @classmethod
-  def get_instance(cls) -> "GraphEntityRepository":
-    if cls._instance is None:
-      cls._instance = cls()
-    return cls._instance
-
+class GraphEntityRepository(BaseRepository):
   """
   Handles storing and querying graph entities and their mentions in Supabase.
   Tables: "graph_entities", "graph_chunk_entity_mentions"
   """
 
-  def __init__(
-    self,
-    entities_table: str = "graph_entities",
-    mentions_table: str = "graph_chunk_entity_mentions",
-  ):
-    self.entities_table = entities_table
-    self.mentions_table = mentions_table
+  def __init__(self):
+    super().__init__(table_name="graph_entities")
+    self.entities_table = "graph_entities"
+    self.mentions_table = "graph_chunk_entity_mentions"
 
   async def store(
     self, entities: List[Dict], chunk_mentions: List[Dict], access_token: str = None
@@ -37,7 +24,7 @@ class GraphEntityRepository:
       return
 
     try:
-      client = await get_async_supabase_client(access_token)
+      client = await self._get_client(access_token)
 
       # Upsert entities
       if entities:
@@ -47,11 +34,13 @@ class GraphEntityRepository:
           await client.table(self.entities_table).upsert(entities).execute()
         )
         if hasattr(response_ent, "error") and response_ent.error:
-          logger.error(
+          self.logger.error(
             f"[GraphEntityRepo]: Entities Upsert error: {response_ent.error.get('message')}"
           )
         else:
-          logger.info(f"[GraphEntityRepo]: Upserted {len(response_ent.data)} entities.")
+          self.logger.info(
+            f"[GraphEntityRepo]: Upserted {len(response_ent.data)} entities."
+          )
 
       # Upsert mentions
       if chunk_mentions:
@@ -59,16 +48,18 @@ class GraphEntityRepository:
           await client.table(self.mentions_table).upsert(chunk_mentions).execute()
         )
         if hasattr(response_mentions, "error") and response_mentions.error:
-          logger.error(
+          self.logger.error(
             f"[GraphEntityRepo]: Mentions Upsert error: {response_mentions.error.get('message')}"
           )
         else:
-          logger.info(
+          self.logger.info(
             f"[GraphEntityRepo]: Upserted {len(response_mentions.data)} chunk-entity mentions."
           )
 
     except Exception as e:
-      logger.exception(f"[GraphEntityRepo]: Failed to upsert entities/mentions: {e}")
+      self.logger.exception(
+        f"[GraphEntityRepo]: Failed to upsert entities/mentions: {e}"
+      )
       raise
 
   async def get_entities_by_kb(
@@ -76,13 +67,13 @@ class GraphEntityRepository:
   ) -> List[Dict]:
     """Retrieve all entities for a specific KB."""
     try:
-      client = await get_async_supabase_client(access_token)
+      client = await self._get_client(access_token)
       result = (
         await client.table(self.entities_table).select("*").eq("kb_id", kb_id).execute()
       )
       return result.data or []
     except Exception as e:
-      logger.exception(f"[GraphEntityRepo]: Failed to fetch entities: {e}")
+      self.logger.exception(f"[GraphEntityRepo]: Failed to fetch entities: {e}")
       return []
 
   async def check_existing_entities(
@@ -92,7 +83,7 @@ class GraphEntityRepository:
     if not names:
       return {}
     try:
-      client = await get_async_supabase_client(access_token)
+      client = await self._get_client(access_token)
       # Lowercase for case-insensitive matching if needed, or exact matching:
       result = (
         await client.table(self.entities_table)
@@ -103,7 +94,9 @@ class GraphEntityRepository:
       )
       return {row["name"]: row["id"] for row in (result.data or [])}
     except Exception as e:
-      logger.exception(f"[GraphEntityRepo]: Failed to check existing entities: {e}")
+      self.logger.exception(
+        f"[GraphEntityRepo]: Failed to check existing entities: {e}"
+      )
       return {}
 
   async def get_entities_by_chunk_ids(
@@ -114,7 +107,7 @@ class GraphEntityRepository:
       return []
 
     try:
-      client = await get_async_supabase_client(access_token)
+      client = await self._get_client(access_token)
 
       # Execute query to get mentions
       result = (
@@ -131,5 +124,7 @@ class GraphEntityRepository:
 
       return list(entity_ids)
     except Exception as e:
-      logger.exception(f"[GraphEntityRepo]: Failed to fetch entities by chunk IDs: {e}")
+      self.logger.exception(
+        f"[GraphEntityRepo]: Failed to fetch entities by chunk IDs: {e}"
+      )
       return []

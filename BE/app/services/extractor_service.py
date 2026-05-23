@@ -1,6 +1,8 @@
 from typing import Any, List, Optional
+
 import langextract as lx
 import langextract.providers.ollama  # Registers the "ollama" string provider
+
 from app.config.config import settings
 from app.core.logger import get_logger
 

@@ -1,43 +1,27 @@
 # app/services/supabase/user_repository.py
-from app.core.supabase_client import get_async_supabase_client
-from app.core.logger import get_logger
-from typing import Any, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional
+
+from app.repositories.base_repository import BaseRepository
 
 if TYPE_CHECKING:
   from app.schemas.common_params import UserSearchParams
 
-logger = get_logger(__name__)
 
-
-class UserRepository:
-  _instance = None
-
-  @classmethod
-  def get_instance(cls) -> "UserRepository":
-    if cls._instance is None:
-      cls._instance = cls()
-    return cls._instance
-
+class UserRepository(BaseRepository):
   def __init__(self):
-    self.table_name = "users"
+    super().__init__(table_name="users")
 
   async def update_user_param(
     self, user_id: str, param_name: str, param_value: Any
   ) -> dict | None:
     try:
-      client = await get_async_supabase_client()
-      response = (
-        await client.table(self.table_name)
-        .update({param_name: param_value})
-        .eq("id", user_id)
-        .execute()
-      )
-      if response.data:
-        logger.info(f"Updated user {user_id} {param_name} to {param_value}")
-        return response.data[0]
+      result = await self.update("id", user_id, {param_name: param_value})
+      if result:
+        self.logger.info(f"Updated user {user_id} {param_name} to {param_value}")
+        return result[0]
       return None
     except Exception:
-      logger.exception(f"Failed to update user {user_id} {param_name}")
+      self.logger.exception(f"Failed to update user {user_id} {param_name}")
       raise RuntimeError(f"Failed to update user {user_id} {param_name}")
 
   async def get_users(
@@ -47,15 +31,11 @@ class UserRepository:
     search_params: Optional["UserSearchParams"] = None,
   ) -> list[dict] | None:
     try:
-      client = await get_async_supabase_client()
-      # Fetch users + tenant name
+      client = await self._get_client()
       query = client.table(self.table_name).select("*, tenants(name)")
 
-      # Apply Search Filters
       if search_params:
         if search_params.query:
-          # Search by email or Name (if name exists in metadata or column)
-          # Assuming 'email' column check for now as 'exact' or 'ilike'
           query = query.ilike("email", f"%{search_params.query}%")
 
         if search_params.role:
@@ -71,13 +51,11 @@ class UserRepository:
           query = query.lte("created_at", search_params.date_to.isoformat())
 
       if cursor_timestamp:
-        # Cursor logic: created_at < cursor
         from datetime import datetime, timezone
 
         dt_cursor = datetime.fromtimestamp(cursor_timestamp, tz=timezone.utc)
         query = query.lt("created_at", dt_cursor.isoformat())
 
-      # Apply sorting and limit
       query = query.order("created_at", desc=True).limit(limit)
 
       response = await query.execute()
@@ -85,15 +63,14 @@ class UserRepository:
         return response.data
       return []
     except Exception:
-      logger.exception("Failed to get all non-admin users")
+      self.logger.exception("Failed to get all non-admin users")
       raise RuntimeError("Failed to get all non-admin users")
 
   async def delete_users(self, user_ids: list[str]) -> None:
     try:
       from app.core.context import get_current_token
 
-      # Invoke the Edge Function to delete users from auth.users
-      client = await get_async_supabase_client()
+      client = await self._get_client()
       res = await client.functions.invoke(
         "delete-users",
         invoke_options={
@@ -106,14 +83,14 @@ class UserRepository:
         if res.get("error"):
           raise RuntimeError(f"Edge Function Error: {res.get('error')}")
         if res.get("errors") and len(res.get("errors")) > 0:
-          logger.error(f"Some users failed to delete: {res.get('errors')}")
+          self.logger.error(f"Some users failed to delete: {res.get('errors')}")
 
       # Manual cleanup in public.users just in case (optional if cascade exists)
-      client = await get_async_supabase_client()
+      client = await self._get_client()
       await client.table(self.table_name).delete().in_("id", user_ids).execute()
 
     except Exception as e:
-      logger.exception(f"Failed to delete users {user_ids}")
+      self.logger.exception(f"Failed to delete users {user_ids}")
       raise RuntimeError(f"Failed to delete users: {str(e)}")
 
   async def delete_user(self, user_id: str) -> None:
@@ -121,19 +98,9 @@ class UserRepository:
 
   async def get_user_details(self, user_id: str) -> dict | None:
     try:
-      client = await get_async_supabase_client()
-      response = (
-        await client.from_(self.table_name)
-        .select("*")
-        .eq("id", user_id)
-        .single()
-        .execute()
-      )
-      if response.data:
-        return response.data
-      return None
+      return await self.find_by_id("id", user_id)
     except Exception:
-      logger.exception(
+      self.logger.exception(
         f"Failed to get user details from public.users for user_id: {user_id}"
       )
       raise RuntimeError(
@@ -142,20 +109,14 @@ class UserRepository:
 
   async def get_users_by_ids(self, user_ids: list[str]) -> list[dict]:
     try:
-      if not user_ids:
-        return []
-      client = await get_async_supabase_client()
-      response = (
-        await client.table(self.table_name).select("*").in_("id", user_ids).execute()
-      )
-      return response.data or []
+      return await self.find_by_ids(user_ids)
     except Exception as e:
-      logger.error(f"Failed to get users by ids: {e}")
+      self.logger.error(f"Failed to get users by ids: {e}")
       return []
 
   async def get_total_users(self) -> int:
     try:
-      client = await get_async_supabase_client()
+      client = await self._get_client()
       res = (
         await client.table(self.table_name)
         .select("*", count="exact", head=True)
@@ -163,12 +124,12 @@ class UserRepository:
       )
       return res.count or 0
     except Exception:
-      logger.exception("Failed to get total users count")
+      self.logger.exception("Failed to get total users count")
       return 0
 
   async def get_at_risk_users(self, days_threshold: int = 7) -> list[dict]:
     try:
-      client = await get_async_supabase_client()
+      client = await self._get_client()
       from datetime import datetime, timedelta, timezone
 
       cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_threshold)
@@ -184,5 +145,5 @@ class UserRepository:
         return response.data
       return []
     except Exception as e:
-      logger.warning(f"Failed to get at-risk users (Column might be missing): {e}")
+      self.logger.warning(f"Failed to get at-risk users (Column might be missing): {e}")
       return []

@@ -1,7 +1,8 @@
-from pydantic import BaseModel, Field
-from typing import List, Dict, Optional, Any
-from uuid import UUID
 from datetime import datetime
+from typing import Any, Dict, List, Optional
+from uuid import UUID
+
+from pydantic import BaseModel, Field
 
 
 class QuizQuestion(BaseModel):

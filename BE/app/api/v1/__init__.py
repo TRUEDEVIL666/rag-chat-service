@@ -1,22 +1,19 @@
 # app/api/v1/__init__.py
-from .users_api import router as users_router
-from fastapi import APIRouter
-from .root_api import router as root_router
-from .auth_api import router as auth_router
-from .knowledge_base_api import router as knowledge_base_router
-from .session_api import router as session_router
-from .analytics_api import router as analytics_router
-from .document_api import router as document_router
-from .tenant_api import router as tenant_router
-from .quiz_api import router as quiz_router
-from .semester_api import router as semester_router
-from .course_api import router as course_router
-from .class_api import router as class_router
-from .chat_api import router as chat_router
-from .bots_api import router as bots_router
+from fastapi import APIRouter, Depends
 
 from app.utils.auth import get_current_user
-from fastapi import Depends
+
+from .analytics_api import router as analytics_router
+from .auth_api import router as auth_router
+from .bots_api import router as bots_router
+from .chat_api import router as chat_router
+from .document_api import router as document_router
+from .knowledge_base_api import router as knowledge_base_router
+from .quiz_api import router as quiz_router
+from .root_api import router as root_router
+from .session_api import router as session_router
+from .tenant_api import router as tenant_router
+from .users_api import router as users_router
 
 router = APIRouter()
 
@@ -37,10 +34,6 @@ protected_router.include_router(
 protected_router.include_router(router=tenant_router, tags=["Tenants"])
 protected_router.include_router(router=quiz_router, prefix="/quiz", tags=["Quiz"])
 
-# LMS (Protected)
-protected_router.include_router(router=semester_router, tags=["Semesters"])
-protected_router.include_router(router=course_router, tags=["Courses"])
-protected_router.include_router(router=class_router, tags=["Classes"])
 protected_router.include_router(router=chat_router)
 protected_router.include_router(router=bots_router)
 

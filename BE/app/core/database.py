@@ -1,6 +1,8 @@
 from typing import Optional
+
 from langchain_postgres import PGEngine
 from psycopg_pool import AsyncConnectionPool
+
 from app.config.config import settings
 from app.core.logger import get_logger
 

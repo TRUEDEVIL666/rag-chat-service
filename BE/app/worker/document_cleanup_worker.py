@@ -1,7 +1,6 @@
 from app.config.celery import celery_app
 from app.core.logger import get_logger
 
-
 logger = get_logger(__name__)
 
 
@@ -26,24 +25,32 @@ def _run_async(coro):
 
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=10)
 def delete_document_background(
-  self, document_id: str, tenant_id: str, kb_id: str, access_token: str
+  self,
+  document_id: str,
+  tenant_id: str,
+  kb_id: str,
+  access_token: str,
 ):
-  """
-  Background task to cleanup all resources associated with a document.
+  """Background task to cleanup all resources associated with a document.
+
   Steps:
 
   1. Delete from MinIO (File)
   2. Delete from Metadata (Chunks) — CASCADE auto-deletes vectors
   3. Final DB Record Deletion
   """
-  from app.repositories import document_repo_instance, graph_chunk_repo_instance
-  from app.services import minio_storage_instance
+  from app.repositories import DocumentRepository, GraphChunkRepository
+  from app.services import MinioStorageService
+
   logger.info(f"Starting background cleanup for document {document_id}")
 
   try:
     # 1. Get Document Details (if needed for path)
     doc = _run_async(
-      document_repo_instance.get_document_by_id(document_id, access_token=access_token)
+      DocumentRepository.get_instance().get_document_by_id(
+        document_id,
+        access_token=access_token,
+      )
     )
     if not doc:
       logger.warning(
@@ -55,21 +62,24 @@ def delete_document_background(
     file_path = doc.get("path")
     if file_path:
       try:
-        minio_storage_instance.delete_file(file_path)
+        MinioStorageService.get_instance().delete_file(file_path)
         logger.info(f"Deleted file {file_path} from MinIO")
       except Exception as e:
         logger.error(f"MinIO deletion failed: {e}")
 
     # 3. Delete Metadata (Chunks) — CASCADE auto-deletes associated vectors
     try:
-      _run_async(graph_chunk_repo_instance.delete_by_document_id(document_id))
+      _run_async(GraphChunkRepository.get_instance().delete_by_document_id(document_id))
       logger.info("Deleted graph chunks (CASCADE auto-deleted vectors)")
     except Exception as e:
       logger.error(f"Metadata deletion failed: {e}")
 
     # 4. Final DB Record Deletion
     _run_async(
-      document_repo_instance.delete_document(document_id, access_token=access_token)
+      DocumentRepository.get_instance().delete_document(
+        document_id,
+        access_token=access_token,
+      )
     )
     logger.info("Deleted document record from Database")
 

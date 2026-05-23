@@ -1,17 +1,17 @@
 # app/services/indexer/embedding_service.py
 
 from typing import Optional
-from app.core.logger import get_logger
-from app.config.config import settings
 
-from llama_index.core.base.embeddings.base import BaseEmbedding
-from llama_index.embeddings.langchain import LangchainEmbedding
-
-# LangChain Providers
-from langchain_openai import OpenAIEmbeddings
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_ollama import OllamaEmbeddings
 
+# LangChain Providers
+from langchain_openai import OpenAIEmbeddings
+from llama_index.core.base.embeddings.base import BaseEmbedding
+from llama_index.embeddings.langchain import LangchainEmbedding
+
+from app.config.config import settings
+from app.core.logger import get_logger
 
 logger = get_logger(__name__)
 

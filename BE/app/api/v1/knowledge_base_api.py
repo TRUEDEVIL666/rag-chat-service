@@ -5,7 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Body, HTTPException, Path
 
-from app.services import kb_service_instance
+from app.api.dependencies import KnowledgeBaseServiceDep
 from app.core.logger import get_logger
 from app.schemas.common import BaseResponse, MessageResponse
 from app.schemas.document import DocumentItem, DocumentListResponse
@@ -42,9 +42,11 @@ def _to_epoch(ts) -> int:
   summary="Get Knowledge Base List",
   description="Retrieves a list of knowledge bases, with options for pagination and filtering.",
 )
-async def list_knowledge_bases():
+async def list_knowledge_bases(
+  kb_service: KnowledgeBaseServiceDep,
+):
   try:
-    rows, total = await kb_service_instance.list_knowledge_bases()
+    rows, total = await kb_service.list_knowledge_bases()
 
     data = []
     for r in rows:
@@ -92,9 +94,10 @@ async def list_knowledge_bases():
 )
 async def create_knowledge_base(
   request: KnowledgeBaseInput,
+  kb_service: KnowledgeBaseServiceDep,
 ):
   try:
-    created = await kb_service_instance.create_knowledge_base(request=request)
+    created = await kb_service.create_knowledge_base(request=request)
     if not created:
       raise HTTPException(status_code=500, detail="Failed to create knowledge base.")
 
@@ -117,8 +120,9 @@ async def create_knowledge_base(
 )
 async def get_knowledge_base_details(
   knowledge_base_id: Annotated[UUID, Path(description="KB ID (uuid)")],
+  kb_service: KnowledgeBaseServiceDep,
 ):
-  kb_detail = await kb_service_instance.get_knowledge_base_details(
+  kb_detail = await kb_service.get_knowledge_base_details(
     knowledge_base_id=str(knowledge_base_id)
   )
 
@@ -136,17 +140,18 @@ async def get_knowledge_base_details(
 async def update_knowledge_base(
   knowledge_base_id: Annotated[UUID, Path(description="KB ID")],
   body: Annotated[UpdateKnowledgeBaseRequest, Body(...)],
+  kb_service: KnowledgeBaseServiceDep,
 ):
   kb_id = str(knowledge_base_id)
 
   try:
-    updated = await kb_service_instance.update_knowledge_base(kb_id, body=body)
+    updated = await kb_service.update_knowledge_base(kb_id, body=body)
     if not updated:
       raise HTTPException(
         status_code=404, detail="Knowledge base not found or update failed."
       )
 
-    full_detail = await kb_service_instance.get_knowledge_base_details(kb_id)
+    full_detail = await kb_service.get_knowledge_base_details(kb_id)
     return BaseResponse(data=full_detail)
   except ValueError as e:
     if "exists" in str(e):
@@ -162,11 +167,12 @@ async def update_knowledge_base(
 )
 async def delete_knowledge_base(
   knowledge_base_id: Annotated[UUID, Path(description="KB ID")],
+  kb_service: KnowledgeBaseServiceDep,
 ):
   kb_id = str(knowledge_base_id)
 
   try:
-    success = await kb_service_instance.delete_knowledge_base(kb_id)
+    success = await kb_service.delete_knowledge_base(kb_id)
     if not success:
       raise HTTPException(
         status_code=404, detail="Knowledge base not found or failed to delete."
@@ -187,11 +193,12 @@ async def delete_knowledge_base(
 )
 async def list_documents(
   knowledge_base_id: Annotated[UUID, Path(description="KB ID")],
+  kb_service: KnowledgeBaseServiceDep,
 ):
   kb_id = str(knowledge_base_id)
 
   try:
-    docs = await kb_service_instance.list_documents(kb_id)
+    docs = await kb_service.list_documents(kb_id)
     data = []
     for d in docs:
       data.append(

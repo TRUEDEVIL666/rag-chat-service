@@ -1,8 +1,9 @@
+from typing import Optional
+
 from app.repositories import (
   ChatMessageRepository,
   SessionRepository,
 )
-from typing import Optional
 
 
 class SessionService:

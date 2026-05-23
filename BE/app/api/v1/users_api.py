@@ -5,7 +5,7 @@ from typing import Annotated, List
 from fastapi import APIRouter, Body, Depends, HTTPException
 from fastapi_cache.decorator import cache
 
-from app.services import auth_service_instance, user_service_instance
+from app.api.dependencies import AuthServiceDep, CurrentUser, UserServiceDep
 from app.schemas.auth import (
   BatchRegisterRequest,
   BatchRegisterResponse,
@@ -14,7 +14,6 @@ from app.schemas.auth import (
 )
 from app.schemas.common import BaseResponse, MessageResponse
 from app.schemas.common_params import PaginationParams, UserSearchParams
-from app.utils.auth import get_current_user
 
 router = APIRouter()
 
@@ -22,7 +21,8 @@ router = APIRouter()
 @router.post("/users", response_model=BaseResponse[MessageResponse])
 async def create_user(
   data: RegisterRequest,
-  current_user: Annotated[dict, Depends(get_current_user)],
+  current_user: CurrentUser,
+  auth_service: AuthServiceDep,
 ):
   if current_user.get("role") != "admin":
     raise HTTPException(status_code=403, detail="Not authorized")
@@ -30,7 +30,7 @@ async def create_user(
     raise HTTPException(status_code=400, detail="Missing required fields")
 
   try:
-    await auth_service_instance.sign_up(
+    await auth_service.sign_up(
       email=data.email,
       password=data.password,
       name=data.name,
@@ -49,14 +49,15 @@ async def create_user(
 @router.post("/users/batch", response_model=BaseResponse[BatchRegisterResponse])
 async def create_users_batch(
   data: BatchRegisterRequest,
-  current_user: Annotated[dict, Depends(get_current_user)],
+  current_user: CurrentUser,
+  auth_service: AuthServiceDep,
 ):
   if current_user.get("role") != "admin":
     raise HTTPException(status_code=403, detail="Not authorized")
 
   try:
     users_list = [user.dict() for user in data.users]
-    result = await auth_service_instance.sign_up_batch(users_list)
+    result = await auth_service.sign_up_batch(users_list)
     return BaseResponse(data=result)
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
@@ -65,12 +66,13 @@ async def create_users_batch(
 @router.delete("/users/{user_id}", status_code=204)
 async def delete_user(
   req: Annotated[UserIdRequest, Depends()],
-  current_user: Annotated[dict, Depends(get_current_user)],
+  current_user: CurrentUser,
+  user_service: UserServiceDep,
 ):
   if current_user.get("role") != "admin":
     raise HTTPException(status_code=403, detail="Not authorized")
   try:
-    await user_service_instance.delete_user(str(req.user_id))
+    await user_service.delete_user(str(req.user_id))
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
 
@@ -78,12 +80,13 @@ async def delete_user(
 @router.delete("/users", status_code=204)
 async def delete_users(
   user_ids: Annotated[List[str], Body()],
-  current_user: Annotated[dict, Depends(get_current_user)],
+  current_user: CurrentUser,
+  user_service: UserServiceDep,
 ):
   if current_user.get("role") != "admin":
     raise HTTPException(status_code=403, detail="Not authorized")
   try:
-    await user_service_instance.delete_users(user_ids)
+    await user_service.delete_users(user_ids)
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
 
@@ -93,18 +96,19 @@ async def delete_users(
 async def get_all_users(
   pagination: Annotated[PaginationParams, Depends()],
   search_params: Annotated[UserSearchParams, Depends()],
-  current_user: Annotated[dict, Depends(get_current_user)],
+  current_user: CurrentUser,
+  user_service: UserServiceDep,
 ):
   if current_user.get("role") != "admin":
     raise HTTPException(status_code=403, detail="Not authorized")
   try:
-    users = await user_service_instance.get_all_users(
+    users = await user_service.get_all_users(
       limit=pagination.limit,
       cursor_timestamp=pagination.cursor_timestamp,
       search_params=search_params,
     )
 
-    total_users = await user_service_instance.get_total_users()
+    total_users = await user_service.get_total_users()
 
     next_cursor = None
     if users:

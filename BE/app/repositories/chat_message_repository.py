@@ -1,7 +1,7 @@
 # app/repositories/chat_message_repository.py
+import json
 from typing import List, Optional, Sequence
 
-import json
 from langchain_core.chat_history import BaseChatMessageHistory
 from langchain_core.messages import (
   AIMessage,
@@ -16,7 +16,7 @@ from sqlalchemy import text
 
 from app.core.database import postgres_engine
 from app.core.logger import get_logger
-from app.core.supabase_client import get_async_supabase_client
+from app.repositories.base_repository import BaseRepository
 
 logger = get_logger(__name__)
 
@@ -66,7 +66,7 @@ class CustomPostgresChatMessageHistory(BaseChatMessageHistory):
 
   async def aget_messages(self) -> List[BaseMessage]:
     """Retrieve messages using PGEngine."""
-    sql = f'SELECT message FROM "{self.table_name}" WHERE session_id = :session_id ORDER BY id'
+    sql = f'SELECT message FROM "{self.table_name}" WHERE session_id = :session_id ORDER BY created_at, id'
 
     async with self.pg_engine._pool.connect() as conn:
       result = await conn.execute(text(sql), {"session_id": self.session_id})
@@ -117,17 +117,9 @@ class CustomPostgresChatMessageHistory(BaseChatMessageHistory):
     return loop.run_until_complete(coro)
 
 
-class ChatMessageRepository:
-  _instance = None
-
-  @classmethod
-  def get_instance(cls) -> "ChatMessageRepository":
-    if cls._instance is None:
-      cls._instance = cls()
-    return cls._instance
-
+class ChatMessageRepository(BaseRepository):
   def __init__(self):
-    self.table_name = "chat_messages"
+    super().__init__(table_name="chat_messages")
 
   def get_history(
     self,
@@ -209,7 +201,7 @@ class ChatMessageRepository:
   ) -> List[dict]:
     """Retrieves messages from the unified JSONB table."""
     try:
-      client = await get_async_supabase_client()
+      client = await self._get_client()
       query = (
         client.table(self.table_name)
         .select("id, session_id, message, created_at")
@@ -279,7 +271,7 @@ class ChatMessageRepository:
   ) -> List[dict]:
     """Queries the updated RPC which now handles JSONB types."""
     try:
-      client = await get_async_supabase_client()
+      client = await self._get_client()
       response = await client.rpc(
         "get_message_counts_by_period",
         {
@@ -298,7 +290,7 @@ class ChatMessageRepository:
   ) -> int:
     """Updated to query JSONB 'type' field."""
     try:
-      client = await get_async_supabase_client()
+      client = await self._get_client()
       query = (
         client.table(self.table_name)
         .select("id, chat_sessions!inner(bot_id, user_id)", count="exact", head=True)
@@ -322,7 +314,7 @@ class ChatMessageRepository:
   async def get_top_active_user_ids(self, limit_messages: int = 2000) -> List[dict]:
     """Identifies top users by extracting sender_id from JSONB additional_kwargs."""
     try:
-      client = await get_async_supabase_client()
+      client = await self._get_client()
 
       response = (
         await client.table(self.table_name)

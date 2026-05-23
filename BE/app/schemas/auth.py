@@ -1,7 +1,8 @@
 from datetime import datetime
-from pydantic import BaseModel, EmailStr
 from uuid import UUID
+
 from fastapi import Path
+from pydantic import BaseModel, EmailStr
 
 
 class RegisterRequest(BaseModel):

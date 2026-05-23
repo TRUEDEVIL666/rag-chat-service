@@ -1,5 +1,6 @@
 from celery import Celery
 from kombu import Queue
+
 from app.config.config import settings
 
 celery_app = Celery(
@@ -19,7 +20,5 @@ celery_app.conf.update(
   timezone="Asia/Ho_Chi_Minh",
   enable_utc=True,
 )
-
-celery_app.autodiscover_tasks(["app.task"])
 
 __all__ = ("celery_app",)

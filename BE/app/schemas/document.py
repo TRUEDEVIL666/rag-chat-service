@@ -1,10 +1,10 @@
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, Dict, List, Optional
+from uuid import UUID
 
 from fastapi import File, Form, Path, UploadFile
 from pydantic import BaseModel
-from uuid import UUID
-from datetime import datetime
 
 
 class DocumentItem(BaseModel):

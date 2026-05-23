@@ -78,6 +78,7 @@ packages = ["app"]
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
+    "ruff>=0.15.12",
 ]
 
 [[tool.uv.index]]

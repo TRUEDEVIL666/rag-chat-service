@@ -1,9 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
-from typing import Annotated, Optional
+from typing import Optional
 
-from app.agent import chat_service_instance
-from app.utils.auth import get_current_user
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+
+from app.api.dependencies import ChatServiceDep, CurrentUser
 from app.core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -19,7 +19,8 @@ class ChatRequest(BaseModel):
 @router.post("/chat")
 async def chat_endpoint(
   request: ChatRequest,
-  current_user: Annotated[dict, Depends(get_current_user)],
+  current_user: CurrentUser,
+  chat_service: ChatServiceDep,
 ):
   """
   Standard chat endpoint using the RAG Graph.
@@ -27,7 +28,7 @@ async def chat_endpoint(
   user_id = current_user["user_id"]
 
   try:
-    result = await chat_service_instance.stream_chat(
+    result = await chat_service.chat(
       query=request.query,
       session_id=request.session_id,
       user_id=user_id,
@@ -42,6 +43,7 @@ async def chat_endpoint(
 @router.get("/history/{session_id}")
 async def get_chat_history(
   session_id: str,
-  current_user: Annotated[dict, Depends(get_current_user)],
+  current_user: CurrentUser,
+  chat_service: ChatServiceDep,
 ):
-  return await chat_service_instance.get_history(session_id)
+  return await chat_service.get_history(session_id)

@@ -14,12 +14,12 @@ from app.core.context import (
   get_current_user_id,
 )
 from app.core.logger import get_logger
-from app.services.minio_storage_service import MinioStorageService
 from app.repositories import (
   DocumentRepository,
   GraphChunkRepository,
   KnowledgeBaseRepository,
 )
+from app.services.minio_storage_service import MinioStorageService
 
 logger = get_logger(__name__)
 
@@ -175,7 +175,7 @@ class DocumentService:
         await self.document_repo_instance.update_document_status(
           existing_doc["id"], "learning"
         )
-        from app.task.file_processor_worker import process_update_file_celery
+        from app.worker.file_processor_worker import process_update_file_celery
 
         task = process_update_file_celery.delay(
           document_id=existing_doc["id"],
@@ -207,7 +207,7 @@ class DocumentService:
           "path": "PENDING_UPLOAD",
           "knowledgebase_id": kb_id,
           "tenant_id": tenant_id,
-          "user_id": user_id,
+          "created_by": user_id,
           "status": "learning",
           "created_at": datetime.now(timezone.utc).isoformat(),
           "updated_at": datetime.now(timezone.utc).isoformat(),
@@ -242,7 +242,7 @@ class DocumentService:
           )
 
           # 4. Dispatch Task
-          from app.task.file_processor_worker import process_uploaded_file_celery
+          from app.worker.file_processor_worker import process_uploaded_file_celery
 
           task = process_uploaded_file_celery.delay(
             file_path,
@@ -328,7 +328,7 @@ class DocumentService:
 
       await self.document_repo_instance.update_document_status(document_id, "learning")
 
-      from app.task.file_processor_worker import process_update_file_celery
+      from app.worker.file_processor_worker import process_update_file_celery
 
       task = process_update_file_celery.delay(
         document_id=document_id,
@@ -398,7 +398,7 @@ class DocumentService:
     await self.document_repo_instance.update_document_status(document_id, "trashed")
 
     # 3. Trigger Background Cleanup
-    from app.task.document_cleanup_worker import delete_document_background
+    from app.worker.document_cleanup_worker import delete_document_background
 
     delete_document_background.delay(
       document_id=document_id,
@@ -436,7 +436,7 @@ class DocumentService:
         await self.document_repo_instance.update_document_status(doc_id_str, "trashed")
 
         # 3. Trigger Background Cleanup (Async)
-        from app.task.document_cleanup_worker import delete_document_background
+        from app.worker.document_cleanup_worker import delete_document_background
 
         delete_document_background.delay(
           document_id=doc_id_str,
@@ -465,7 +465,7 @@ class DocumentService:
       raise HTTPException(status_code=404, detail="Document not found")
 
     # 2. Dispatch Task (Reuse existing file in MinIO)
-    from app.task.file_processor_worker import process_uploaded_file_celery
+    from app.worker.file_processor_worker import process_uploaded_file_celery
 
     task = process_uploaded_file_celery.delay(
       file_path=document.get("path"),

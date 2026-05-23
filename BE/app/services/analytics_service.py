@@ -2,14 +2,13 @@ from fastapi import HTTPException
 
 from app.core.context import get_auth_context
 from app.core.logger import get_logger
+from app.repositories import (
+  ChatMessageRepository,
+  DocumentRepository,
+)
 from app.services.knowledge_base_service import KnowledgeBaseService
 from app.services.session_service import SessionService
 from app.services.user_service import UserService
-from app.repositories import (
-  ChatMessageRepository,
-  ClassRepository,
-  DocumentRepository,
-)
 
 logger = get_logger(__name__)
 
@@ -22,18 +21,14 @@ class AnalyticsService:
     if cls._instance is None:
       from app.repositories import (
         ChatMessageRepository,
-        ClassRepository,
         DocumentRepository,
       )
-
-      pass  # Classes already imported at module level
 
       cls._instance = cls(
         user_service_instance=UserService.get_instance(),
         session_service_instance=SessionService.get_instance(),
         kb_service_instance=KnowledgeBaseService.get_instance(),
         chat_repo=ChatMessageRepository.get_instance(),
-        class_repo_instance=ClassRepository.get_instance(),
         document_repo_instance=DocumentRepository.get_instance(),
       )
     return cls._instance
@@ -45,14 +40,12 @@ class AnalyticsService:
     kb_service_instance: KnowledgeBaseService,
     document_repo_instance: DocumentRepository,
     chat_repo: ChatMessageRepository,
-    class_repo_instance: ClassRepository = None,
   ):
     self.user_service_instance = user_service_instance
     self.session_service_instance = session_service_instance
     self.kb_service_instance = kb_service_instance
     self.document_repo_instance = document_repo_instance
     self.chat_repo = chat_repo
-    self.class_repo_instance = class_repo_instance
 
   async def get_summary_stats(self) -> dict:
     user = get_auth_context()

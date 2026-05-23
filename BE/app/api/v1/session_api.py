@@ -1,17 +1,19 @@
+from datetime import datetime
+from typing import List
+
+from fastapi import APIRouter, Depends, HTTPException
+
+from app.api.dependencies import SessionServiceDep
 from app.schemas.common import MessageResponse
 from app.schemas.common_params import PaginationParams
 from app.schemas.session import (
-  SessionResponse,
-  SessionListRequest,
-  SessionIdRequest,
   ChatMessageListResponse,
-  SessionMessagesRequest,
   MessageRatingRequest,
+  SessionIdRequest,
+  SessionListRequest,
+  SessionMessagesRequest,
+  SessionResponse,
 )
-from fastapi import APIRouter, Depends, HTTPException
-from typing import List
-from app.services import session_service_instance
-from datetime import datetime
 
 router = APIRouter()
 
@@ -20,10 +22,11 @@ router = APIRouter()
   "/sessions", summary="List all chat sessions", response_model=List[SessionResponse]
 )
 async def list_sessions(
+  session_service: SessionServiceDep,
   req: SessionListRequest = Depends(),
 ):
   try:
-    sessions = await session_service_instance.list_sessions(
+    sessions = await session_service.list_sessions(
       limit=req.limit,
       cursor_timestamp=req.cursor_timestamp,
       bot_id=str(req.bot_id) if req.bot_id else None,
@@ -42,11 +45,12 @@ async def list_sessions(
   response_model=ChatMessageListResponse,
 )
 async def get_messages(
+  session_service: SessionServiceDep,
   req: SessionMessagesRequest = Depends(),
   pagination: PaginationParams = Depends(),
 ):
   try:
-    messages = await session_service_instance.get_chat_messages(
+    messages = await session_service.get_chat_messages(
       session_id=str(req.session_id),
       limit=pagination.limit,
       cursor_timestamp=pagination.cursor_timestamp,
@@ -78,10 +82,11 @@ async def get_messages(
   response_model=SessionResponse,
 )
 async def get_session_details(
+  session_service: SessionServiceDep,
   req: SessionIdRequest = Depends(),
 ):
   try:
-    session = await session_service_instance.get_session(str(req.session_id))
+    session = await session_service.get_session(str(req.session_id))
     if not session:
       raise HTTPException(status_code=404, detail="Session not found")
     return session
@@ -95,10 +100,11 @@ async def get_session_details(
   response_model=MessageResponse,
 )
 async def delete_session(
+  session_service: SessionServiceDep,
   req: SessionIdRequest = Depends(),
 ):
   try:
-    success = await session_service_instance.delete_session(str(req.session_id))
+    success = await session_service.delete_session(str(req.session_id))
     if not success:
       raise HTTPException(
         status_code=404, detail="Session not found or failed to delete"
@@ -117,11 +123,10 @@ async def delete_session(
 async def rate_message(
   message_id: str,
   req: MessageRatingRequest,
+  session_service: SessionServiceDep,
 ):
   try:
-    success = await session_service_instance.update_message_rating(
-      message_id, req.rating
-    )
+    success = await session_service.update_message_rating(message_id, req.rating)
     if not success:
       raise HTTPException(
         status_code=404, detail="Message not found or failed to update rating"

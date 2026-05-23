@@ -5,8 +5,8 @@ from jose import jwt
 
 from app.config.config import settings
 from app.core.logger import get_logger
-from app.repositories import user_repo_instance
 from app.core.supabase_client import get_async_supabase_client
+from app.repositories import UserRepository
 
 logger = get_logger(__name__)
 
@@ -43,11 +43,13 @@ class AuthService:
         if tenant_id:
           t_id = str(tenant_id) if tenant_id and str(tenant_id) != "None" else None
           if t_id:
-            await user_repo_instance.update_user_param(user_id, "tenant_id", t_id)
+            await UserRepository.get_instance().update_user_param(
+              user_id, "tenant_id", t_id
+            )
         if name:
-          await user_repo_instance.update_user_param(user_id, "name", name)
+          await UserRepository.get_instance().update_user_param(user_id, "name", name)
         if role:
-          await user_repo_instance.update_user_param(user_id, "role", role)
+          await UserRepository.get_instance().update_user_param(user_id, "role", role)
 
         return {"message": "User registered successfully", "user_id": user_id}
       else:
@@ -105,7 +107,7 @@ class AuthService:
       if response.user and response.session:
         user_id = response.user.id
         # user_repo_instance has been converted to async, so use await
-        user_details = await user_repo_instance.get_user_details(user_id)
+        user_details = await UserRepository.get_instance().get_user_details(user_id)
         if (
           not user_details
           or "tenant_id" not in user_details
@@ -139,7 +141,7 @@ class AuthService:
 
         # Update last_sign_in_at
         try:
-          await user_repo_instance.update_user_param(
+          await UserRepository.get_instance().update_user_param(
             user_id, "last_sign_in_at", datetime.now().isoformat()
           )
         except Exception as e:

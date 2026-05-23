@@ -1,47 +1,38 @@
 # app/services/supabase/graph_chunk_repository.py
 from datetime import datetime
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
 
 from llama_index.core import Document
 
-from app.core.logger import get_logger
-from app.core.supabase_client import get_async_supabase_client
-
-logger = get_logger(__name__)
+from app.repositories.base_repository import BaseRepository
 
 
-class GraphChunkRepository:
-  _instance = None
-
-  @classmethod
-  def get_instance(cls) -> "GraphChunkRepository":
-    if cls._instance is None:
-      cls._instance = cls()
-    return cls._instance
-
+class GraphChunkRepository(BaseRepository):
   """
   Handles storing and querying document chunks (graph nodes) in Supabase.
   Table: "graph_chunks" (renamed from metadata)
   """
 
-  def __init__(self, table_name: str = "graph_chunks"):
-    self.table_name = table_name
+  def __init__(self):
+    super().__init__(table_name="graph_chunks")
 
   async def store(self, documents: List[Document], access_token: str = None):
     """
     Store metadata for each document chunk into Supabase (Upsert).
     """
     try:
-      client = await get_async_supabase_client(access_token)
+      client = await self._get_client(access_token)
       records = [self._build_chunk_metadata(doc) for doc in documents]
       # Upsert to ensure we update existing records or insert new ones
       response = await client.table(self.table_name).upsert(records).execute()
       if hasattr(response, "error") and response.error:
-        logger.error(f"[GraphChunkRepo]: Upsert error: {response.error.get('message')}")
+        self.logger.error(
+          f"[GraphChunkRepo]: Upsert error: {response.error.get('message')}"
+        )
       else:
-        logger.info(f"[GraphChunkRepo]: Upserted {len(response.data)} records.")
+        self.logger.info(f"[GraphChunkRepo]: Upserted {len(response.data)} records.")
     except Exception as e:
-      logger.exception(f"[GraphChunkRepo]: Failed to upsert chunks: {e}")
+      self.logger.exception(f"[GraphChunkRepo]: Failed to upsert chunks: {e}")
 
   async def delete_stale_nodes(
     self, document_id: str, active_ids: List[str], access_token: str = None
@@ -50,7 +41,7 @@ class GraphChunkRepository:
     Delete nodes that are no longer active (not present in the current update).
     """
     try:
-      client = await get_async_supabase_client(access_token)
+      client = await self._get_client(access_token)
 
       query = client.table(self.table_name).delete().eq("document_id", document_id)
 
@@ -63,14 +54,14 @@ class GraphChunkRepository:
       deleted_ids = [item["id"] for item in (response.data or [])]
 
       if deleted_ids:
-        logger.info(
+        self.logger.info(
           f"[GraphChunkRepo]: Deleted {len(deleted_ids)} stale nodes for doc {document_id}"
         )
 
       return deleted_ids
 
     except Exception as e:
-      logger.exception(f"Failed to delete stale chunks for doc {document_id}: {e}")
+      self.logger.exception(f"Failed to delete stale chunks for doc {document_id}: {e}")
       return []
 
   async def find_by_filename(
@@ -80,18 +71,18 @@ class GraphChunkRepository:
     Search chunks by document filename in Supabase (less common for chunks, but kept for compatibility).
     """
     try:
-      client = await get_async_supabase_client(access_token)
+      client = await self._get_client(access_token)
       result = await (
         client.table(self.table_name)
         .select("*")
-        # Potential bug in original code: eq("document_id", file_name)? Kept as is.
-        .eq("document_id", file_name)
+        # Fix query: search by source_file (filename) instead of document_id (UUID)
+        .eq("source_file", file_name)
         .limit(1)
         .execute()
       )
       return result.data[0] if result.data else None
     except Exception as e:
-      logger.exception(
+      self.logger.exception(
         f"[GraphChunkRepo]: Failed to query by filename '{file_name}': {e}"
       )
       return None
@@ -103,7 +94,7 @@ class GraphChunkRepository:
     Get all chunks for a document.
     """
     try:
-      client = await get_async_supabase_client(access_token)
+      client = await self._get_client(access_token)
       result = await (
         client.table(self.table_name)
         .select("*")
@@ -112,7 +103,7 @@ class GraphChunkRepository:
       )
       return result.data or []
     except Exception as e:
-      logger.exception(
+      self.logger.exception(
         f"[GraphChunkRepo]: Failed to get chunks for doc {document_id}: {e}"
       )
       return []
@@ -124,7 +115,7 @@ class GraphChunkRepository:
     Get all ids and chunk_hashes for a given document.
     """
     try:
-      client = await get_async_supabase_client(access_token)
+      client = await self._get_client(access_token)
       result = await (
         client.table(self.table_name)
         .select("id, chunk_hash")
@@ -133,7 +124,7 @@ class GraphChunkRepository:
       )
       return result.data or []
     except Exception as e:
-      logger.exception(
+      self.logger.exception(
         f"[GraphChunkRepo]: Failed to fetch hashes for doc {document_id}: {e}"
       )
       return []
@@ -145,14 +136,14 @@ class GraphChunkRepository:
     Delete all chunks associated with a document_id.
     """
     try:
-      client = await get_async_supabase_client(access_token)
+      client = await self._get_client(access_token)
       await (
         client.table(self.table_name).delete().eq("document_id", document_id).execute()
       )
-      logger.info(f"[GraphChunkRepo]: Deleted chunks for document {document_id}")
+      self.logger.info(f"[GraphChunkRepo]: Deleted chunks for document {document_id}")
       return True
     except Exception as e:
-      logger.exception(
+      self.logger.exception(
         f"[GraphChunkRepo]: Failed to delete chunks for doc {document_id}: {e}"
       )
       return False

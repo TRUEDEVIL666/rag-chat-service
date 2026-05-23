@@ -67,3 +67,4 @@ FE/.gitignore
 node_modules
 .agent/
 test_users.csv
+docs/

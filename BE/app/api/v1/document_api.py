@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from fastapi.responses import StreamingResponse
 
-from app.services import document_service_instance
+from app.api.dependencies import DocumentServiceDep
 from app.core.logger import get_logger
 from app.schemas.common import BaseResponse
 from app.schemas.document import (
@@ -28,12 +28,13 @@ logger = get_logger(__name__)
 )
 async def upload_documents(
   request: Annotated[FileUploadRequest, Depends()],
+  document_service: DocumentServiceDep,
 ):
   """
   Upload one or more documents to a knowledge base.
   """
   chunk_params = json.loads(request.chunking_params) if request.chunking_params else {}
-  result = await document_service_instance.upload_documents(
+  result = await document_service.upload_documents(
     kb_id=request.knowledge_base_id,
     files=request.files,
     chunking_method=request.chunking_method,
@@ -51,12 +52,13 @@ async def upload_documents(
 async def update_document(
   document_id: Annotated[str, Path(description="Document ID")],
   request: Annotated[DocumentUpdateRequest, Depends()],
+  document_service: DocumentServiceDep,
 ):
   """
   Update a specific document using incremental sync.
   """
   chunk_params = json.loads(request.chunking_params) if request.chunking_params else {}
-  result = await document_service_instance.update_document(
+  result = await document_service.update_document(
     document_id=document_id,
     file=request.file,
     chunking_method=request.chunking_method,
@@ -71,11 +73,12 @@ async def update_document(
 )
 async def delete_document(
   document_id: Annotated[str, Path(description="Document ID")],
+  document_service: DocumentServiceDep,
 ):
   """
   Hard delete a document and all related artifacts (file, vectors, metadata).
   """
-  result = await document_service_instance.delete_document(document_id=document_id)
+  result = await document_service.delete_document(document_id=document_id)
   return BaseResponse(data=result)
 
 
@@ -86,11 +89,12 @@ async def delete_document(
 )
 async def get_task_status(
   req: Annotated[TaskIdRequest, Depends()],
+  document_service: DocumentServiceDep,
 ):
   """
   Check the status of any document-related background task.
   """
-  result = await document_service_instance.get_task_status(req.task_id)
+  result = await document_service.get_task_status(req.task_id)
   return BaseResponse(data=result)
 
 
@@ -99,11 +103,12 @@ async def get_task_status(
 )
 async def batch_delete_documents(
   request: BatchDeleteRequest,
+  document_service: DocumentServiceDep,
 ):
   """
   Batch delete multiple documents.
   """
-  result = await document_service_instance.batch_delete_documents(doc_ids=request.ids)
+  result = await document_service.batch_delete_documents(doc_ids=request.ids)
   return BaseResponse(data=result)
 
 
@@ -114,19 +119,19 @@ async def batch_delete_documents(
 )
 async def retry_document(
   document_id: Annotated[str, Path(description="Document ID")],
+  document_service: DocumentServiceDep,
 ):
   """
   Retry processing for a failed document.
   """
-  result = await document_service_instance.retry_document_processing(
-    document_id=document_id
-  )
+  result = await document_service.retry_document_processing(document_id=document_id)
   return BaseResponse(data=result)
 
 
 @router.get("/{document_id}/content", summary="Get Document Content Stream")
 async def get_document_content(
   document_id: Annotated[str, Path(description="Document ID")],
+  document_service: DocumentServiceDep,
   token: Annotated[str | None, Query()] = None,
 ):
   """
@@ -148,7 +153,7 @@ async def get_document_content(
   # MANUALLY POPULATE CONTEXT because we bypassed the dependency
   set_auth_context(user_auth)
 
-  stream, filename, media_type = await document_service_instance.get_document_stream(
+  stream, filename, media_type = await document_service.get_document_stream(
     document_id=document_id
   )
 

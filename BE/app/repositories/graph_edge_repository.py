@@ -1,27 +1,17 @@
-from typing import List, Dict
 from datetime import datetime
-from app.core.logger import get_logger
-from app.core.supabase_client import get_async_supabase_client
+from typing import Dict, List
 
-logger = get_logger(__name__)
+from app.repositories.base_repository import BaseRepository
 
 
-class GraphEdgeRepository:
-  _instance = None
-
-  @classmethod
-  def get_instance(cls) -> "GraphEdgeRepository":
-    if cls._instance is None:
-      cls._instance = cls()
-    return cls._instance
-
+class GraphEdgeRepository(BaseRepository):
   """
   Handles storing and querying graph edges (relationships) in Supabase.
   Table: "graph_edges"
   """
 
-  def __init__(self, table_name: str = "graph_edges"):
-    self.table_name = table_name
+  def __init__(self):
+    super().__init__(table_name="graph_edges")
 
   async def store(self, edges: List[Dict], access_token: str = None):
     """
@@ -38,7 +28,7 @@ class GraphEdgeRepository:
       return
 
     try:
-      client = await get_async_supabase_client(access_token)
+      client = await self._get_client(access_token)
       for edge in edges:
         # Add timestamp if missing
         if "created_at" not in edge:
@@ -46,11 +36,13 @@ class GraphEdgeRepository:
 
       response = await client.table(self.table_name).upsert(edges).execute()
       if hasattr(response, "error") and response.error:
-        logger.error(f"[GraphEdgeRepo]: Upsert error: {response.error.get('message')}")
+        self.logger.error(
+          f"[GraphEdgeRepo]: Upsert error: {response.error.get('message')}"
+        )
       else:
-        logger.info(f"[GraphEdgeRepo]: Upserted {len(response.data)} edges.")
+        self.logger.info(f"[GraphEdgeRepo]: Upserted {len(response.data)} edges.")
     except Exception as e:
-      logger.exception(f"[GraphEdgeRepo]: Failed to upsert edges: {e}")
+      self.logger.exception(f"[GraphEdgeRepo]: Failed to upsert edges: {e}")
       raise
 
   async def get_edges_by_entity_ids(
@@ -63,7 +55,7 @@ class GraphEdgeRepository:
       return []
 
     try:
-      client = await get_async_supabase_client(access_token)
+      client = await self._get_client(access_token)
 
       # Format IDs for PostgREST: (id1,id2,id3)
       ids_param = f"({','.join(str(cid) for cid in entity_ids)})"
@@ -75,7 +67,9 @@ class GraphEdgeRepository:
       result = await client.table(self.table_name).select("*").or_(or_filter).execute()
       return result.data or []
     except Exception as e:
-      logger.exception(f"[GraphEdgeRepo]: Failed to fetch edges by entity IDs: {e}")
+      self.logger.exception(
+        f"[GraphEdgeRepo]: Failed to fetch edges by entity IDs: {e}"
+      )
       return []
 
   async def delete_edges(
@@ -89,7 +83,7 @@ class GraphEdgeRepository:
     Delete a specific edge (used for cleanup or syncing).
     """
     try:
-      client = await get_async_supabase_client(access_token)
+      client = await self._get_client(access_token)
       await (
         client.table(self.table_name)
         .delete()
@@ -100,5 +94,5 @@ class GraphEdgeRepository:
       )
       return True
     except Exception as e:
-      logger.exception(f"[GraphEdgeRepo]: Failed to delete edge: {e}")
+      self.logger.exception(f"[GraphEdgeRepo]: Failed to delete edge: {e}")
       return False

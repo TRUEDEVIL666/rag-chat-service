@@ -1,28 +1,27 @@
-import time
-import io
-import os
-import json
 import csv
-import docx
+import io
+import json
+import os
 import tempfile
-import openpyxl
-
+import time
 from pathlib import Path
 from typing import List, Optional
-from fastapi import HTTPException
+
+import docx
+import openpyxl
 from bs4 import BeautifulSoup
-
-from llama_index.core import Document
-from docling.document_converter import DocumentConverter, PdfFormatOption
-from docling.datamodel.pipeline_options import (
-  PdfPipelineOptions,
-  AcceleratorOptions,
-  AcceleratorDevice,
-  EasyOcrOptions,
-)
 from docling.datamodel.base_models import InputFormat
+from docling.datamodel.pipeline_options import (
+  AcceleratorDevice,
+  AcceleratorOptions,
+  EasyOcrOptions,
+  PdfPipelineOptions,
+)
+from docling.document_converter import DocumentConverter, PdfFormatOption
+from fastapi import HTTPException
+from llama_index.core import Document
 
-from app.core.enums.file import FileExtension, EncodingType, ParsingConstants
+from app.core.enums.file import EncodingType, FileExtension, ParsingConstants
 from app.core.enums.http import ErrorMessage, HttpStatus
 from app.core.logger import get_logger
 
@@ -345,8 +344,9 @@ def _extract_text_from_pdf(binary_pdf: bytes, filename: str) -> List[Document]:
   """
   Extract text from a PDF file using pymupdf4llm (Markdown), sliced by page to preserve metadata.
   """
-  import pymupdf4llm
   import tempfile
+
+  import pymupdf4llm
 
   with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
     tmp.write(binary_pdf)

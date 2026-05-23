@@ -18,7 +18,6 @@ from app.core.enums.file import FileExtension
 from app.core.logger import get_logger
 from app.helper.chunker import process_chunks
 from app.helper.document_extractor import extract_documents
-from app.services.minio_storage_service import MinioStorageService
 from app.repositories import (
   DocumentRepository,
   GraphChunkRepository,
@@ -26,6 +25,7 @@ from app.repositories import (
   GraphEntityRepository,
   KnowledgeBaseRepository,
 )
+from app.services.minio_storage_service import MinioStorageService
 
 logger = get_logger(__name__)
 
@@ -55,6 +55,7 @@ class FileProcessor:
         GraphEntityRepository,
         KnowledgeBaseRepository,
       )
+
       from .minio_storage_service import MinioStorageService
 
       cls._instance = cls(
@@ -567,9 +568,9 @@ class FileProcessor:
     self, documents: List[Document], embed_model: BaseEmbedding = None
   ):
     """Upsert document vectors into Supabase vector store."""
-    from app.repositories.vector_repository import vector_repo_instance
+    from app.repositories import VectorRepository
 
-    vector_repo_instance.upsert_documents(documents, embed_model)
+    VectorRepository.get_instance().upsert_documents(documents, embed_model)
 
   def _extract_and_create_entity_nodes(
     self,
@@ -585,7 +586,7 @@ class FileProcessor:
     """
     import uuid
 
-    from app.services.extractor_service import extractor_service_instance
+    from app.services import ExtractorService
 
     entities = []
     chunk_mentions = []
@@ -599,7 +600,7 @@ class FileProcessor:
       return [], [], []
 
     try:
-      extractions = extractor_service_instance.extract(full_text)
+      extractions = ExtractorService.get_instance().extract(full_text)
 
       # Pre-fetch existing entities from the database to prevent duplicates
       existing_entities_map = {}

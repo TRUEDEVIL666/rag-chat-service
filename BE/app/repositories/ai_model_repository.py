@@ -1,20 +1,12 @@
-from app.core.supabase_client import get_async_supabase_client
-from app.core.logger import get_logger
-
-logger = get_logger(__name__)
+from app.repositories.base_repository import BaseRepository
 
 
-class AiModelRepository:
-  _instance = None
-
-  @classmethod
-  def get_instance(cls) -> "AiModelRepository":
-    if cls._instance is None:
-      cls._instance = cls()
-    return cls._instance
+class AiModelRepository(BaseRepository):
+  def __init__(self):
+    super().__init__(table_name="ai_models")
 
   async def list_providers(self, is_active: bool = True):
-    client = await get_async_supabase_client()
+    client = await self._get_client()
     query = client.table("ai_providers").select("*")
     if is_active:
       query = query.eq("is_active", True)
@@ -25,8 +17,8 @@ class AiModelRepository:
   async def get_models_by_provider(
     self, provider_id: str, model_type: str = None, is_active: bool = True
   ):
-    client = await get_async_supabase_client()
-    query = client.table("ai_models").select("*").eq("provider_id", provider_id)
+    client = await self._get_client()
+    query = client.table(self.table_name).select("*").eq("provider_id", provider_id)
     if model_type:
       query = query.eq("model_type", model_type)
     if is_active:
@@ -36,8 +28,8 @@ class AiModelRepository:
     return result.data or []
 
   async def list_models_by_type(self, model_type: str, is_active: bool = True):
-    client = await get_async_supabase_client()
-    query = client.table("ai_models").select("*").eq("model_type", model_type)
+    client = await self._get_client()
+    query = client.table(self.table_name).select("*").eq("model_type", model_type)
     if is_active:
       query = query.eq("is_active", True)
 
@@ -45,8 +37,8 @@ class AiModelRepository:
     return result.data or []
 
   async def list_all_models(self, is_active: bool = True):
-    client = await get_async_supabase_client()
-    query = client.table("ai_models").select("*, ai_providers(name, display_name)")
+    client = await self._get_client()
+    query = client.table(self.table_name).select("*, ai_providers(name, display_name)")
     if is_active:
       query = query.eq("is_active", True)
 
@@ -54,9 +46,9 @@ class AiModelRepository:
     return result.data or []
 
   async def get_model_by_id(self, model_id: str):
-    client = await get_async_supabase_client()
+    client = await self._get_client()
     result = (
-      await client.table("ai_models")
+      await client.table(self.table_name)
       .select("*, ai_providers(*)")
       .eq("id", model_id)
       .maybe_single()
@@ -70,7 +62,7 @@ class AiModelRepository:
     return data
 
   async def get_provider_by_id(self, provider_id: str):
-    client = await get_async_supabase_client()
+    client = await self._get_client()
     result = (
       await client.table("ai_providers")
       .select("*")
@@ -81,8 +73,7 @@ class AiModelRepository:
     return result.data
 
   async def create_provider(self, provider_data: dict):
-    client = await get_async_supabase_client()
-    # Use secure RPC to handle vault insertion
+    client = await self._get_client()
     result = await client.rpc(
       "create_ai_provider_secure",
       {
@@ -96,8 +87,7 @@ class AiModelRepository:
     return result.data if result.data else None
 
   async def update_provider(self, provider_id: str, update_data: dict):
-    client = await get_async_supabase_client()
-    # Use secure RPC to handle vault update
+    client = await self._get_client()
     result = await client.rpc(
       "update_provider_secure",
       {
@@ -112,40 +102,34 @@ class AiModelRepository:
     return result.data if result.data else None
 
   async def delete_provider(self, provider_id: str):
-    client = await get_async_supabase_client()
+    client = await self._get_client()
     result = await client.table("ai_providers").delete().eq("id", provider_id).execute()
     return result.data
 
   async def create_model(self, model_data: dict):
-    client = await get_async_supabase_client()
-    result = await client.table("ai_models").insert(model_data).execute()
-    return result.data[0] if result.data else None
+    result = await self.insert(model_data)
+    return result[0] if result else None
 
   async def update_model(self, model_id: str, update_data: dict):
-    client = await get_async_supabase_client()
-    result = (
-      await client.table("ai_models").update(update_data).eq("id", model_id).execute()
-    )
-    return result.data[0] if result.data else None
+    result = await self.update("id", model_id, update_data)
+    return result[0] if result else None
 
   async def delete_model(self, model_id: str):
-    client = await get_async_supabase_client()
-    result = await client.table("ai_models").delete().eq("id", model_id).execute()
-    return result.data
+    return await self.delete("id", model_id)
 
   async def get_decrypted_key(self, provider_id: str):
-    client = await get_async_supabase_client()
+    client = await self._get_client()
     try:
       result = await client.rpc(
         "get_decrypted_provider_key", {"p_provider_id": provider_id}
       ).execute()
       return result.data
     except Exception as e:
-      logger.error(f"Error fetching decrypted key: {e}")
+      self.logger.error(f"Error fetching decrypted key: {e}")
       return None
 
   async def get_provider_by_name(self, provider_name: str):
-    client = await get_async_supabase_client()
+    client = await self._get_client()
     result = (
       await client.table("ai_providers")
       .select("*")
@@ -168,7 +152,6 @@ class AiModelRepository:
     provider_id = provider["id"]
     base_url = provider.get("base_url")
 
-    # Fetch decrypted key
     api_key = await self.get_decrypted_key(provider_id)
 
     return api_key, base_url, model_name

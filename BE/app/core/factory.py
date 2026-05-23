@@ -46,13 +46,13 @@ async def get_embedding_model(provider: str, model: str) -> BaseEmbedding:
     endpoint = None
 
     try:
-      from app.repositories import ai_model_repo_instance
+      from app.repositories import AiModelRepository
 
       (
         resolved_key,
         resolved_url,
         _,
-      ) = await ai_model_repo_instance.resolve_model_config(
+      ) = await AiModelRepository.get_instance().resolve_model_config(
         provider_name=provider, model_name=model
       )
       api_key = resolved_key
@@ -90,13 +90,13 @@ async def get_llm(provider: str = None, model: str = None) -> BaseChatModel:
 
   try:
     if p:
-      from app.repositories import ai_model_repo_instance
+      from app.repositories import AiModelRepository
 
       (
         resolved_key,
         resolved_url,
         _,
-      ) = await ai_model_repo_instance.resolve_model_config(
+      ) = await AiModelRepository.get_instance().resolve_model_config(
         provider_name=p, model_name=m
       )
       api_key = resolved_key
@@ -129,3 +129,21 @@ async def get_llm(provider: str = None, model: str = None) -> BaseChatModel:
     )
   else:
     raise ValueError(f"Unsupported LLM provider: {p}")
+
+
+def get_vector_store():
+  from app.repositories.vector_repository import VectorRepository
+
+  return VectorRepository.get_instance()
+
+
+def get_graph_edge_repository():
+  from app.repositories.graph_edge_repository import GraphEdgeRepository
+
+  return GraphEdgeRepository.get_instance()
+
+
+def get_graph_entity_repository():
+  from app.repositories.graph_entity_repository import GraphEntityRepository
+
+  return GraphEntityRepository.get_instance()

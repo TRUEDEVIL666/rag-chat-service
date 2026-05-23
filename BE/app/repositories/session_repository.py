@@ -1,48 +1,31 @@
-from app.core.supabase_client import get_async_supabase_client
-from app.core.logger import get_logger
-
-logger = get_logger(__name__)
+from app.repositories.base_repository import BaseRepository
 
 
-class SessionRepository:
-  _instance = None
-
-  @classmethod
-  def get_instance(cls) -> "SessionRepository":
-    if cls._instance is None:
-      cls._instance = cls()
-    return cls._instance
-
+class SessionRepository(BaseRepository):
   def __init__(self):
-    self.table_name = "chat_sessions"
+    super().__init__(table_name="chat_sessions")
 
   async def create_session(self, bot_id: str) -> dict | None:
     try:
-      from app.core.context import get_current_user_id, get_current_tenant_id
+      from app.core.context import get_current_tenant_id, get_current_user_id
 
       user_id = get_current_user_id()
       tenant_id = get_current_tenant_id()
       user_id = str(user_id) if user_id and str(user_id) != "None" else None
       tenant_id = str(tenant_id) if tenant_id and str(tenant_id) != "None" else None
-      client = await get_async_supabase_client()
       payload = {"user_id": user_id, "bot_id": bot_id}
       if tenant_id:
         payload["tenant_id"] = tenant_id
 
-      query = client.table(self.table_name).insert(payload)
-
-      result = await query.execute()
-      if result.data:
-        return result.data[0]
-
-      return None
+      result = await self.insert(payload)
+      return result[0] if result else None
     except Exception as e:
-      logger.exception("Failed to create session: " + str(e))
+      self.logger.exception("Failed to create session: " + str(e))
       raise Exception("Failed to create session: " + str(e))
 
   async def get_session(self, session_id: str) -> dict | None:
     try:
-      client = await get_async_supabase_client()
+      client = await self._get_client()
       response = await (
         client.table(self.table_name)
         .select("*, bots:bot_id(name)")
@@ -53,10 +36,10 @@ class SessionRepository:
       if response and response.data:
         return response.data
       if not response:
-        logger.error(f"Supabase execute() returned None for session {session_id}")
+        self.logger.error(f"Supabase execute() returned None for session {session_id}")
       return None
     except Exception as e:
-      logger.exception(f"Failed to get session {session_id}: {e}")
+      self.logger.exception(f"Failed to get session {session_id}: {e}")
       return None
 
   async def list_sessions(
@@ -69,13 +52,13 @@ class SessionRepository:
     end_date=None,
   ) -> list[dict]:
     try:
-      from app.core.context import get_current_user_id, get_current_tenant_id
+      from app.core.context import get_current_tenant_id, get_current_user_id
 
       user_id = get_current_user_id()
       tenant_id = get_current_tenant_id()
       user_id = str(user_id) if user_id and str(user_id) != "None" else None
       tenant_id = str(tenant_id) if tenant_id and str(tenant_id) != "None" else None
-      client = await get_async_supabase_client()
+      client = await self._get_client()
       query = (
         client.table(self.table_name)
         .select("*, bots:bot_id(name)")
@@ -118,20 +101,15 @@ class SessionRepository:
       response = await query.execute()
       return response.data or []
     except Exception as e:
-      logger.exception(f"Failed to list sessions for user {user_id}: {e}")
+      self.logger.exception(f"Failed to list sessions for user {user_id}: {e}")
       return []
 
   async def update_session(self, session_id: str, data: dict) -> dict | None:
     try:
-      client = await get_async_supabase_client()
-      response = (
-        await client.table(self.table_name).update(data).eq("id", session_id).execute()
-      )
-      if response.data:
-        return response.data[0]
-      return None
+      result = await self.update("id", session_id, data)
+      return result[0] if result else None
     except Exception as e:
-      logger.exception(f"Failed to update session {session_id}: {e}")
+      self.logger.exception(f"Failed to update session {session_id}: {e}")
       raise RuntimeError(f"Failed to update session {session_id}: {e}")
 
   async def delete_session(self, session_id: str) -> bool:
@@ -140,7 +118,7 @@ class SessionRepository:
 
       user_id = get_current_user_id()
       user_id = str(user_id) if user_id and str(user_id) != "None" else None
-      client = await get_async_supabase_client()
+      client = await self._get_client()
       response = await (
         client.table(self.table_name)
         .delete()
@@ -149,12 +127,12 @@ class SessionRepository:
         .execute()
       )
       if response.data:
-        logger.info(f"Deleted session {session_id}")
+        self.logger.info(f"Deleted session {session_id}")
         return True
-      logger.warning(f"Session {session_id} not found or permission denied")
+      self.logger.warning(f"Session {session_id} not found or permission denied")
       return False
     except Exception as e:
-      logger.exception(f"Failed to delete session {session_id}: {e}")
+      self.logger.exception(f"Failed to delete session {session_id}: {e}")
       return False
 
   async def get_total_sessions(self) -> int:
@@ -163,19 +141,19 @@ class SessionRepository:
 
       tenant_id = get_current_tenant_id()
       tenant_id = str(tenant_id) if tenant_id and str(tenant_id) != "None" else None
-      client = await get_async_supabase_client()
+      client = await self._get_client()
       q = client.table(self.table_name).select("*", count="exact", head=True)
       if tenant_id:
         q = q.eq("tenant_id", tenant_id)
       res = await q.execute()
       return res.count or 0
     except Exception:
-      logger.exception("Failed to get total sessions count")
+      self.logger.exception("Failed to get total sessions count")
       return 0
 
   async def get_recent_global_sessions(self, limit: int = 10) -> list[dict]:
     try:
-      client = await get_async_supabase_client()
+      client = await self._get_client()
       query = (
         client.table(self.table_name)
         .select("*, bots(name)")
@@ -185,13 +163,12 @@ class SessionRepository:
       response = await query.execute()
       return response.data or []
     except Exception as e:
-      logger.exception(f"Failed to get global sessions: {e}")
+      self.logger.exception(f"Failed to get global sessions: {e}")
       return []
 
   async def get_feedback_stats(self) -> dict:
     try:
-      client = await get_async_supabase_client()
-      # Extract rating from message->additional_kwargs->rating
+      client = await self._get_client()
       response = await (
         client.table("chat_messages")
         .select("message->additional_kwargs->>rating")
@@ -216,13 +193,12 @@ class SessionRepository:
         "total": positive + negative,
       }
     except Exception as e:
-      logger.warning(f"Failed to get feedback stats: {e}")
+      self.logger.warning(f"Failed to get feedback stats: {e}")
       return {"positive": 0, "negative": 0, "total": 0}
 
   async def get_recent_messages_for_topics(self, limit: int = 100) -> list[str]:
     try:
-      client = await get_async_supabase_client()
-      # Extract content from message->content and filter by message->type='human'
+      client = await self._get_client()
       response = await (
         client.table("chat_messages")
         .select("message->>content")
@@ -233,13 +209,12 @@ class SessionRepository:
       )
       return [msg["content"] for msg in response.data] if response.data else []
     except Exception as e:
-      logger.warning(f"Failed to get recent messages for topics: {e}")
+      self.logger.warning(f"Failed to get recent messages for topics: {e}")
       return []
 
   async def get_recent_global_messages(self, limit: int = 10) -> list[dict]:
     try:
-      client = await get_async_supabase_client()
-      # Select all and filter by message->type='human'
+      client = await self._get_client()
       query = (
         client.table("chat_messages")
         .select("*, chat_sessions(bots(name))")
@@ -250,5 +225,5 @@ class SessionRepository:
       response = await query.execute()
       return response.data or []
     except Exception as e:
-      logger.warning(f"Failed to get recent global messages: {e}")
+      self.logger.warning(f"Failed to get recent global messages: {e}")
       return []

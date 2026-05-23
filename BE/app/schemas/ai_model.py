@@ -1,8 +1,9 @@
-from pydantic import BaseModel
-from fastapi import Query, Path
+from datetime import datetime
 from typing import Optional
 from uuid import UUID
-from datetime import datetime
+
+from fastapi import Path, Query
+from pydantic import BaseModel
 
 
 class AiProviderResponse(BaseModel):
